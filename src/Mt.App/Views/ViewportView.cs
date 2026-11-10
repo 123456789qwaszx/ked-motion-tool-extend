@@ -663,9 +663,12 @@ public sealed class ViewportView : Control
         if (_layout is { } layout && pose.Contains(Prefix + layout.Node))
         {
             RectNodeState dragged = pose.GetState(Prefix + layout.Node);
+            // 컷의 맨 위 오브젝트는 깊이의 배율이 곱해져 있다 — 끄는 동안에도 그 비율을 지킨다.
+            float depthX = layout.Start.ScaleX != 0f ? dragged.LocalScale.X / layout.Start.ScaleX : 1f;
+            float depthY = layout.Start.ScaleY != 0f ? dragged.LocalScale.Y / layout.Start.ScaleY : 1f;
             pose.SetState(Prefix + layout.Node, dragged
                 .WithAnchoredPosition(new Vec2(layout.Now.X, layout.Now.Y))
-                .WithLocalScale(new Vec3(layout.Now.ScaleX, layout.Now.ScaleY, dragged.LocalScale.Z))
+                .WithLocalScale(new Vec3(layout.Now.ScaleX * depthX, layout.Now.ScaleY * depthY, dragged.LocalScale.Z))
                 .WithLocalEuler(new Vec3(0f, 0f, layout.Now.Rotation)));
         }
 
@@ -1607,8 +1610,28 @@ public sealed class ViewportView : Control
             return;
         }
 
-        _template = ScenePreview.Build(_rig, scene, AspectOf, null, _depth, _focus, _stage);
+        // 컷 — 맨 위 오브젝트마다 제 깊이의 틀에 선다(카메라와 깊이는 포즈를 잡은 뒤 넣는다 — StageCut).
+        _template = ShownCut is { } cut
+            ? CutStage.Build(_rig, cut, scene.Objects[0].Prefix)
+            : ScenePreview.Build(_rig, scene, AspectOf, null, _depth, _focus, _stage);
     }
+
+    /// <summary>연 것이 컷이면 그 컷 — 세트를 연 것이면 null.</summary>
+    public CutAsset? ShownCut => _editor?.Document.FindCut(_setView);
+
+    /// <summary>컷이면 카메라와 깊이를 넣는다 — 포즈를 잡은 새 트리에 한 번.</summary>
+    private RectNodeTree StageCut(RectNodeTree tree)
+    {
+        if (ShownCut is { } cut && SetScene() is { } scene)
+        {
+            CutStage.Apply(tree, cut, scene.Objects[0].Prefix, cut.Camera, _depth);
+        }
+
+        return tree;
+    }
+
+    /// <summary>자리를 부모 안의 값으로 바꿀 때 쓰는 트리 — 컷이면 카메라와 깊이가 든 것(화면에 보이는 공간)이다.</summary>
+    private RectNodeTree? SpaceTree() => _template is null ? null : ShownCut is null ? _template : StageCut(_template.Clone());
 
     // ── 시계 ──────────────────────────────────────────────────────────
 
@@ -1721,6 +1744,9 @@ public sealed class ViewportView : Control
     }
 
     private RectNodeTree? BasePoseAt(double seconds, IDictionary<string, float>? alphas)
+        => UnstagedPoseAt(seconds, alphas) is { } tree ? StageCut(tree) : null;
+
+    private RectNodeTree? UnstagedPoseAt(double seconds, IDictionary<string, float>? alphas)
     {
         MotionAsset? motion = Motion;
         if (_template is null)
@@ -1969,8 +1995,8 @@ public sealed class ViewportView : Control
         {
             DrawLayout(context, pose);
             DrawLabel(context, EnteredInstance is { } inside
-                ? $"세트 {_setView} › {inside.Replace(".", " › ", StringComparison.Ordinal)} 안쪽을 고치는 중 — 끌기: 자리 · Shift: 배율 · Ctrl: 회전 (품은 세트 {ResolveSetNode(inside)?.Node.Set}가 바뀐다 — 품은 곳 모두에). Esc · 빈 곳 더블클릭: 나간다"
-                : $"세트 {_setView} · 배치 — 끌기: 자리 · Shift+끌기: 배율 · Ctrl+끌기: 회전 · 품은 세트 더블클릭: 안쪽 고치기 (가만히 선 자세다. 애니메이션을 고르면 끌기가 키가 된다)", new Point(stage.X + 8, stage.Y + 6));
+                ? $"{(ShownCut is null ? "세트" : "컷")} {_setView} › {inside.Replace(".", " › ", StringComparison.Ordinal)} 안쪽을 고치는 중 — 끌기: 자리 · Shift: 배율 · Ctrl: 회전 (품은 세트 {ResolveSetNode(inside)?.Node.Set}가 바뀐다 — 품은 곳 모두에). Esc · 빈 곳 더블클릭: 나간다"
+                : $"{(ShownCut is null ? "세트" : "컷")} {_setView} · 배치 — 끌기: 자리 · Shift+끌기: 배율 · Ctrl+끌기: 회전 · 품은 세트 더블클릭: 안쪽 고치기 (가만히 선 자세다. 애니메이션을 고르면 끌기가 키가 된다)", new Point(stage.X + 8, stage.Y + 6));
             return;
         }
 
@@ -2104,7 +2130,8 @@ public sealed class ViewportView : Control
 
         if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
         {
-            foreach (RigSchemaNodeDto rigNode in drawn.nodes)
+            // 컷이면 먼 것부터(깊이 순), 세트면 목록 순.
+            foreach (RigSchemaNodeDto rigNode in ShownCut is { } drawnCut && drawnCut.Name == o.Rig ? CutStage.DrawOrder(drawnCut, drawn.nodes) : drawn.nodes)
             {
                 string node = rigNode.id;
                 string key = o.KeyOf(node);
@@ -2858,7 +2885,7 @@ public sealed class ViewportView : Control
         // 펼친 리그의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
         if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
         {
-            foreach (RigSchemaNodeDto node in Enumerable.Reverse(dto.nodes))
+            foreach (RigSchemaNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut && pickedCut.Name == o.Rig ? CutStage.DrawOrder(pickedCut, dto.nodes) : dto.nodes))
             {
                 string key = o.KeyOf(node.id);
                 string? owner = PickableOf(node.id);
@@ -2924,17 +2951,14 @@ public sealed class ViewportView : Control
             case PlaceMode.Move:
             {
                 // 루트 공간의 이동을 부모의 좌표로 — 자리는 부모 안에서의 값이다(부모가 돌았거나 커졌어도 끈 만큼 간다).
-                // 안쪽의 것이면 부모도 경로 이름이다 — 맨 위의 것의 부모는 그것을 품은 인스턴스.
-                int cut = drag.Node.LastIndexOf(RigAssetCodec.PathSeparator);
-                string within = cut < 0 ? "" : drag.Node[..cut];
-                string parentKey = string.IsNullOrEmpty(drag.Start.Parent)
-                    ? (within.Length == 0 ? ScenePreview.RootKeyOf(o) : o.KeyOf(within))
-                    : o.KeyOf(within.Length == 0 ? drag.Start.Parent : within + RigAssetCodec.PathSeparator + drag.Start.Parent);
+                // 부모의 좌표 — 트리가 아는 부모를 그대로 쓴다(세트의 맨 위는 루트, 컷의 맨 위는 제 깊이의 틀, 안쪽의 것은 경로 이름의 부모).
+                RectNodeTree? space = SpaceTree();
+                string? parentKey = space is not null && space.Contains(o.KeyOf(drag.Node)) ? space.GetParentKey(o.KeyOf(drag.Node)) : null;
 
-                if (_template.Contains(parentKey))
+                if (space is not null && parentKey is not null)
                 {
-                    Vec3 from = _template.InverseTransformPoint(parentKey, new Vec3(drag.StartRoot, 0f));
-                    Vec3 to = _template.InverseTransformPoint(parentKey, new Vec3(now, 0f));
+                    Vec3 from = space.InverseTransformPoint(parentKey, new Vec3(drag.StartRoot, 0f));
+                    Vec3 to = space.InverseTransformPoint(parentKey, new Vec3(now, 0f));
                     next.X = MathF.Round(drag.Start.X + to.X - from.X);
                     next.Y = MathF.Round(drag.Start.Y + to.Y - from.Y);
                 }

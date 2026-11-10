@@ -1818,6 +1818,7 @@ public partial class MainWindow : Window
         });
 
         BuildSetLeft();
+        BuildCutLeft();
     }
 
     /// <summary>
@@ -2371,7 +2372,7 @@ public partial class MainWindow : Window
         // 세트 보기 — 무대의 뼈대(Stage · 층)는 이 세트의 것이 아니다. 세트와 그 오브젝트들만.
         if (_viewport.SetView is not null && scene.Objects.Count == 1)
         {
-            var setRoot = Folder($"세트  {scene.Name}", "set:" + scene.Name);
+            var setRoot = Folder(_session.Editor.Document.FindCut(scene.Name) is null ? $"세트  {scene.Name}" : $"컷  {scene.Name}", "set:" + scene.Name);
             setRoot.Tag = new HierarchyFolder(null, null);
             Attach(setRoot, null);
             BuildObjectItem(scene, scene.Objects[0], setRoot, nodeWasSelected, ref selectedItem);
@@ -3104,7 +3105,7 @@ public partial class MainWindow : Window
             // rigKind로 묶어 보인다(모션의 주인은 rigKind) — 같은 리그끼리 이름순.
             // 세트를 열었으면 그 세트의 애니메이션만 — 다른 리그의 모션은 이 세트가 연기할 수 없다.
             string? openSet = SelectedSet;
-            _motionHeader.Text = openSet is null ? "모션" : $"애니메이션 — 세트 {openSet}";
+            _motionHeader.Text = openSet is null ? "모션" : _session.Editor.Document.FindCut(openSet) is null ? $"애니메이션 — 세트 {openSet}" : $"타임라인 — 컷 {openSet}";
             List<string> names = _session.Editor.Document.Motions
                 .Where(m => openSet is null || m.Rig == openSet)
                 .OrderBy(m => m.Rig, StringComparer.Ordinal).ThenBy(m => m.Name, StringComparer.Ordinal)

@@ -130,10 +130,26 @@ public partial class MainWindow
     private string? _rigNodeSelected;
 
     /// <summary>연 세트(rigKind). 없으면 null — 뷰포트는 문서의 씬을 보인다.</summary>
-    internal string? SelectedSet => _setList.SelectedItem as string;
+    /// <remarks>컷을 열었으면 그 컷의 이름이다 — 컷의 오브젝트 계층도 같은 길로 열린다(하이어아키 · 칸 · 뷰포트가 같다).</remarks>
+    internal string? SelectedSet => _cutList.SelectedItem as string ?? _setList.SelectedItem as string;
 
     /// <summary>테스트 손잡이 — 세트 목록에서 고른 것과 같다.</summary>
-    internal void SelectSet(string? kind) => _setList.SelectedItem = kind;
+    internal void SelectSet(string? kind)
+    {
+        // 컷이면 컷 목록에서, 세트면 세트 목록에서 — null이면 둘 다 푼다.
+        if (kind is not null && _session.Editor.Document.FindCut(kind) is not null)
+        {
+            _cutList.SelectedItem = kind;
+            return;
+        }
+
+        if (kind is null && _cutList.SelectedItem is not null)
+        {
+            _cutList.SelectedItem = null;
+        }
+
+        _setList.SelectedItem = kind;
+    }
 
     /// <summary>테스트 손잡이 — 연 세트, 고른 오브젝트(노드), 목록의 세트들, 오브젝트 칸이 열려 있는가.</summary>
     internal (string? Set, string? Node, IReadOnlyList<string> Sets, bool Editable) SetEditorState
@@ -211,8 +227,8 @@ public partial class MainWindow
     private void BuildSetLeft()
     {
         // 세트가 맨 위다 — 무엇을 열어 작업하는지가 먼저다(그 아래의 하이어아키·모션이 그 세트의 것이 된다).
-        LeftPanel.Children.Insert(0, Header("세트"));
-        _setList.SelectionChanged += (_, _) => OnSetSelected();
+        LeftPanel.Children.Insert(0, Header("세트 — 묶어서 다시 쓰는 것"));
+        _setList.SelectionChanged += (_, _) => OnListPicked(_setList, _cutList);
         ToolTip.SetTip(_setList, "세트 — 오브젝트들의 계층 + 그림 + 애니메이션들의 한 덩어리(화면 이동 하나, 이모지 무리 하나…). 고르면 뷰포트와 하이어아키가 그 세트만 보인다. 다시 눌러 풀면 씬으로 돌아간다");
         LeftPanel.Children.Insert(1, _setList);
 
@@ -295,6 +311,9 @@ public partial class MainWindow
         _setNodePanel.Children.Add(_setNodeTitle);
         _rigNodeFields.Children.Add(Labeled("이름", _rigNodeId));
         _rigNodeFields.Children.Add(Labeled("부모", _rigNodeParent));
+        _rigNodeDepthRow = Labeled("깊이", _rigNodeDepth);
+        _rigNodeDepthRow.IsVisible = false;
+        _rigNodeFields.Children.Add(_rigNodeDepthRow);
         _rigNodeFields.Children.Add(Labeled("X", _rigNodeX));
         _rigNodeFields.Children.Add(Labeled("Y", _rigNodeY));
         _rigNodeFields.Children.Add(Labeled("너비", _rigNodeW));
@@ -444,12 +463,16 @@ public partial class MainWindow
     /// <summary>목록의 선택을 뷰포트에 — 세트 보기를 켜거나 끄고, 하이어아키와 칸을 다시 세운다.</summary>
     private void ApplySetView()
     {
+        // 세트의 이름 칸은 세트를 열었을 때만 — 컷의 이름은 컷의 칸에서 고친다.
+        string? openSet = SelectedCut is null ? SelectedSet : null;
+
         if (!_setName.IsFocused)
         {
-            _setName.Text = SelectedSet ?? "";
+            _setName.Text = openSet ?? "";
         }
 
-        _setName.IsEnabled = SelectedSet is not null;
+        _setName.IsEnabled = openSet is not null;
+        RefreshCutFields();
 
         if (_viewport.SetView == SelectedSet)
         {
@@ -506,7 +529,8 @@ public partial class MainWindow
             string? selected = SelectedSet;
             List<string> kinds = _session.Editor.Document.Rigs.Select(r => r.Kind).OrderBy(k => k, StringComparer.Ordinal).ToList();
             _setList.ItemsSource = kinds;
-            _setList.SelectedIndex = selected is null ? -1 : kinds.IndexOf(selected); // 지워졌으면(되돌리기 등) 풀린다
+            _setList.SelectedIndex = selected is null ? -1 : kinds.IndexOf(selected); // 지워졌으면(되돌리기 등) 풀린다 — 컷을 열었으면 −1
+            RefreshCutList();
         }
         finally
         {
@@ -515,6 +539,7 @@ public partial class MainWindow
 
         ApplySetView();
         RefreshSetNodePanel();
+        RefreshCutFields();
     }
 
     /// <summary>
@@ -740,7 +765,7 @@ public partial class MainWindow
 
     private void RemoveSelectedSet()
     {
-        if (SelectedSet is { } kind)
+        if (SelectedCut is null && SelectedSet is { } kind)
         {
             _session.Editor.RemoveRig(kind);
         }
@@ -1120,10 +1145,10 @@ public partial class MainWindow
             _setNodePanel.IsVisible = rig is not null;
             _rigNodeFields.IsEnabled = node is not null;
             _setNodeTitle.Text = rig is null ? ""
-                : _viewport.EnteredInstance is { } inside ? $"세트 {rig.Kind} › {inside} 안쪽을 고치는 중 — 뷰포트에서 안쪽의 오브젝트를 끌어 자리·배율·회전을 잡는다(품은 세트가 바뀐다 — 품은 곳 모두에 보인다). 숫자로 고치려면 \"안쪽 세트 열기\". Esc로 나간다"
-                : node is null ? $"세트 {rig.Kind} — 오브젝트 {rig.Nodes.Count}개. 하이어아키에서 오브젝트를 고르면 여기서 고친다(우클릭: 더하기 · 지우기 · 순서 · 부모)"
-                : string.IsNullOrEmpty(node.Set) ? $"세트 {rig.Kind} › {node.Id}"
-                : $"세트 {rig.Kind} › {node.Id} → 세트 {node.Set}를 품었다(참조 — 안쪽은 그 세트를 열어 고친다. 이 칸의 자리·배율·회전은 통째로 옮긴다)";
+                : _viewport.EnteredInstance is { } inside ? $"{KindLabel(rig.Kind)} › {inside} 안쪽을 고치는 중 — 뷰포트에서 안쪽의 오브젝트를 끌어 자리·배율·회전을 잡는다(품은 세트가 바뀐다 — 품은 곳 모두에 보인다). 숫자로 고치려면 \"안쪽 세트 열기\". Esc로 나간다"
+                : node is null ? $"{KindLabel(rig.Kind)} — 오브젝트 {rig.Nodes.Count}개. 하이어아키에서 오브젝트를 고르면 여기서 고친다(우클릭: 더하기 · 지우기 · 순서 · 부모)"
+                : string.IsNullOrEmpty(node.Set) ? $"{KindLabel(rig.Kind)} › {node.Id}"
+                : $"{KindLabel(rig.Kind)} › {node.Id} → 세트 {node.Set}를 품었다(참조 — 안쪽은 그 세트를 열어 고친다. 이 칸의 자리·배율·회전은 통째로 옮긴다)";
 
             void Write(TextBox box, string text)
             {
@@ -1177,6 +1202,8 @@ public partial class MainWindow
         {
             _refreshDepth--;
         }
+
+        RefreshCutFields(); // 컷의 맨 위 오브젝트면 깊이 칸이 선다
     }
 
     private async void OnExportRigsClick(object? sender, RoutedEventArgs e)

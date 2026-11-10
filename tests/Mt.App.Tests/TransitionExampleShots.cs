@@ -1,5 +1,7 @@
 using Avalonia.Headless;
 using Mt.App;
+using Mt.Authoring.Editing;
+using Mt.Authoring.Model;
 
 namespace Mt.App.Tests;
 
@@ -43,6 +45,25 @@ public class TransitionExampleShots
                     AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                     using FileStream stream = File.Create(Path.Combine(directory, name + ".png"));
                     window.CaptureRenderedFrame()?.Save(stream, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+                }
+
+                // 컷 — 새 컷에 station의 층 표를 들이고(오브젝트를 바로 놓는다), 층마다 깊이를 주고, 카메라를 민다.
+                {
+                    window.NewCutFromForm();
+                    window.ImportLayerSheetFromForm(Path.Combine(root!.FullName, "examples", "transitions", "station", "art", "layers.tsv"));
+                    MotionEditor cutEditor = window.Session.Editor;
+
+                    foreach ((string id, float depth) in new[] { ("arches", 0f), ("floor", 6f), ("pillars_left", 10f), ("pillars_right", 10f), ("train", 16f), ("microbe_sun", 20f), ("microbe_leaf", 20f), ("microbe_cell", 20f) })
+                    {
+                        cutEditor.SetCutNodeDepth("cut", id, depth);
+                    }
+
+                    window.SelectSetNode("train");
+                    window.InspectorTab = 1;
+                    Shot("cut-rest");
+                    cutEditor.SetCutCamera("cut", new CameraSettings { PanX = -300f, Zoom = 3f });
+                    Shot("cut-camera");
+                    window.Session.Open(Path.Combine(root!.FullName, "examples", "transitions", "station", "station.motion-authoring.json"));
                 }
 
                 // 연출을 본다 — 씬에 세트가 없어도 보기 전용 오브젝트가 대신 선다. 캐릭터(자리표시)는 그 뒤에 있다.
