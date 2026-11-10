@@ -57,7 +57,8 @@ internal static class TransitionExamples
         return keys.ToArray();
     }
 
-    public static MotionEditor BuildStation(string layersPath)
+    /// <param name="assemble">false면 조립으로 옮기기 전의 한 덩어리 — 옮긴 뒤와 재생이 같은지 맞춰 보는 데 쓴다.</param>
+    public static MotionEditor BuildStation(string layersPath, bool assemble = true)
     {
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(new RigAsset { Kind = Station });
@@ -133,6 +134,15 @@ internal static class TransitionExamples
         // ── 연출 — 화면에 선다. 1초 머물고 걷힌다.
         editor.AddEmoji(Station, Station);
         editor.UpdateEmoji(Station, new EmojiAsset { Skin = Station, Enter = In, Hold = Hold, Exit = Out, HoldSeconds = 1f, Screen = true });
+// ── 조립으로 옮긴다 — 한 덩어리로 다 지은 뒤에, 미생물 셋을 화면의 메뉴가 하는 그대로 옮긴다:
+        // "새 세트로 빼기 ▸ 여기서 microbe_cell까지"(이름은 첫 오브젝트에서) → 세트 이름 칸에서 microbes로.
+        // 키가 새 세트의 애니메이션(microbes_in · _hold · _out)으로 가고 station의 애니메이션에는 그것을 트는 재생 블록이 선다 — 재생은 그대로다.
+        if (assemble)
+        {
+            editor.ExtractRigNodes(Station, new[] { "microbe_sun", "microbe_leaf", "microbe_cell" }, "microbe_sun");
+            editor.RenameRig("microbe_sun", "microbes");
+        }
+
         return editor;
     }
 

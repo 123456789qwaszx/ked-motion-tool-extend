@@ -826,11 +826,15 @@ public class RigAssetTests
         Assert.Throws<InvalidOperationException>(() => editor.ExtractRigNodes("star", new[] { "Ray", "Glow" }, "bits"));
         Assert.Equal(revision, editor.Revision);
 
-        // 세트 이름 바꾸기 — 한 칸. 품은 곳 · 애니메이션 · 스킨이 따라온다.
+        // 세트 이름 바꾸기 — 한 칸. 품은 곳 · 애니메이션 · 스킨이 따라오고, 세트의 이름을 딴 이름들(애니메이션 star_x · 스킨 star · 인스턴스 star)도 함께 바뀐다.
         editor.RenameRig("star", "sol");
         Assert.Equal(revision + 1, editor.Revision);
-        Assert.Equal("sol", town.Find("star")!.Set);
-        Assert.Equal(("sol", "sol"), (editor.Document.Find("star_in")!.Rig, editor.Document.FindSkin("star")!.Rig));
+        Assert.Equal("sol", town.Find("sol")!.Set);
+        Assert.Null(town.Find("star"));
+        Assert.Equal(("sol", "sol"), (editor.Document.Find("sol_in")!.Rig, editor.Document.FindSkin("sol")!.Rig));
+        Assert.NotNull(editor.Document.Find("sol_slide"));
+        Assert.Equal(new[] { ("sol", "sol_in", 0f) }, editor.Document.Find("town_in")!.Plays.Select(p => (p.Node, p.Motion, p.At)));
+        Assert.Equal(before[2].Item1.Y, World("town_in", "sol.Sun", 0.7).Y, 1); // 재생은 그대로다
         Assert.Throws<InvalidOperationException>(() => editor.RenameRig("sol", "town"));
 
         // 되돌리면 통째로 돌아간다.

@@ -88,7 +88,37 @@ public class EmojiExampleTests
 
         // 층 표: 바탕색 + 층 열 장이 오브젝트 열하나로 — 뒤에서 앞으로.
         RigAsset set = document.FindRig(TransitionExamples.Station)!;
-        Assert.Equal(new[] { "Backdrop", "arches", "floor", "pillars_left", "pillars_right", "train", "sign", "light", "microbe_sun", "microbe_leaf", "microbe_cell" }, set.Nodes.Select(n => n.Id));
+        // 미생물 셋은 조립으로 옮겨져 품은 세트 microbes 하나로 선다.
+        Assert.Equal(new[] { "Backdrop", "arches", "floor", "pillars_left", "pillars_right", "train", "sign", "light", "microbes" }, set.Nodes.Select(n => n.Id));
+        Assert.Equal(new[] { "microbe_sun", "microbe_leaf", "microbe_cell" }, document.FindRig("microbes")!.Nodes.Select(n => n.Id));
+        Assert.Equal(new[] { "microbes_hold", "microbes_in", "microbes_out" }, document.Motions.Where(m => m.Rig == "microbes").Select(m => m.Name).OrderBy(n => n, StringComparer.Ordinal));
+        Assert.All(new[] { "station_in", "station_hold", "station_out" }, m => Assert.Equal("microbes", Assert.Single(document.Find(m)!.Plays).Node));
+
+        // 옮기기 전의 한 덩어리와 재생이 같다 — 수명 내내 미생물의 자리와 기울기가 그대로다.
+        {
+            MotionDocument whole = TransitionExamples.BuildStation(Path.Combine(directory, "art", "layers.tsv"), assemble: false).Document;
+            RigSchemaFile wholeRig = RigAssets.Compose(Dump, whole);
+            var stage = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "t", Rig = TransitionExamples.Station } } };
+            RectNodeTree wholeTemplate = ScenePreview.Build(wholeRig, stage);
+            RectNodeTree partsTemplate = ScenePreview.Build(rig, stage);
+
+            foreach (double t in new[] { 0.0, 0.5, 0.85, 1.0, 1.2, 1.7, 2.1, 2.5, 3.0 })
+            {
+                RectNodeTree a = EmojiPreview.Pose(wholeTemplate, whole, whole.FindEmoji(TransitionExamples.Station)!, stage.Objects[0], t);
+                RectNodeTree b = EmojiPreview.Pose(partsTemplate, document, document.FindEmoji(TransitionExamples.Station)!, stage.Objects[0], t);
+
+                foreach (string microbe in new[] { "microbe_sun", "microbe_leaf", "microbe_cell" })
+                {
+                    foreach (Vec3 probe in new[] { Vec3.Zero, new Vec3(100f, 0f, 0f) })
+                    {
+                        Vec3 was = a.TransformPoint("t/" + microbe, probe);
+                        Vec3 now = b.TransformPoint("t/microbes." + microbe, probe);
+                        Assert.True(Math.Abs(was.X - now.X) < 1.5f && Math.Abs(was.Y - now.Y) < 1.5f, $"{microbe} @ {t}: {was.X},{was.Y} → {now.X},{now.Y}");
+                    }
+                }
+            }
+        }
+
         Assert.Equal(("#10262B", 1920f, 1080f), (set.Find("Backdrop")!.Color, set.Find("Backdrop")!.Width, set.Find("Backdrop")!.Height));
         RigNodeAsset sign = set.Find("sign")!; // 표: 왼쪽 556 · 위 56 · 889×249 → 가운데 기준 (40.5, 359.5)
         Assert.Equal((40.5f, 359.5f, 889f, 249f), (sign.X, sign.Y, sign.Width, sign.Height));

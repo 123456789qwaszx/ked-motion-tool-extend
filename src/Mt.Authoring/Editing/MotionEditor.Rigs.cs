@@ -215,6 +215,22 @@ public sealed partial class MotionEditor
                 channel.Node = name;
             }
 
+            // 세트를 품은 오브젝트(인스턴스)면 — 그 안쪽을 짚던 경로 채널(이름.안쪽)과 그것을 트는 재생 블록도 따라온다.
+            string prefix = id + RigAssetCodec.PathSeparator;
+
+            foreach (MotionAsset motion in Document.Motions.Where(m => m.Rig == kind))
+            {
+                foreach (ChannelAsset channel in motion.Channels.Where(c => c.Node.StartsWith(prefix, StringComparison.Ordinal)))
+                {
+                    channel.Node = name + channel.Node[id.Length..];
+                }
+
+                foreach (MotionPlayAsset play in motion.Plays.Where(p => p.Node == id))
+                {
+                    play.Node = name;
+                }
+            }
+
             foreach (SkinAsset skin in Document.Skins.Where(s => s.Rig == kind))
             {
                 if (skin.Parts.Remove(id, out string? image))

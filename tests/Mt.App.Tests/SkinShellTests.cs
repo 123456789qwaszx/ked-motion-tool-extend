@@ -1696,7 +1696,7 @@ public class SkinShellTests
                 window.SetNameBox.Focus();
                 window.SetNameBox.Text = "panels";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-                Assert.Equal("panels", editor.Document.FindRig("set")!.Find("color1")!.Set);
+                Assert.Equal("panels", editor.Document.FindRig("set")!.Find("panels")!.Set); // 세트의 이름을 딴 인스턴스도 따라온다
                 Assert.Equal("panels", window.SelectedSet);
 
                 // 있는 이름은 막히고 칸이 돌아온다.
@@ -1896,6 +1896,85 @@ public class SkinShellTests
                 window.SelectSetNode("set");
                 Assert.False(window.EnterInstanceInPlaceFromForm());
                 Assert.Null(view.EnteredInstance);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 실제_연출_station에서_메뉴로_층을_새_세트로_빼고_이름을_바꿔도_연출의_재생이_그대로다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                DirectoryInfo? root = new(AppContext.BaseDirectory);
+
+                while (root is not null && !File.Exists(Path.Combine(root.FullName, "KedMotionTool.sln")))
+                {
+                    root = root.Parent;
+                }
+
+                window.Session.Open(Path.Combine(root!.FullName, "examples", "transitions", "station", "station.motion-authoring.json"));
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                double[] times = { 0.2, 0.7, 1.0, 1.6, 2.0, 2.5, 2.9 };
+
+                // 연출을 틀어 "끝의 빛"(등장·머묾·퇴장에 다 키가 있다)의 자리와 크기를 적어 둔다.
+                List<(Vec2 Origin, Vec2 Edge)> Sample(string node)
+                {
+                    window.InspectorTab = 4;
+                    window.SelectEmoji("station");
+                    var samples = new List<(Vec2, Vec2)>();
+
+                    foreach (double t in times)
+                    {
+                        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                        view.ScrubTo(t);
+                        RectNodeTree pose = view.CurrentPose()!;
+                        string key = pose.Keys.Single(k => k.EndsWith("/" + node, StringComparison.Ordinal));
+                        samples.Add((pose.TransformPoint(key, Vec3.Zero).XY, pose.TransformPoint(key, new Vec3(100f, 0f, 0f)).XY));
+                    }
+
+                    return samples;
+                }
+
+                List<(Vec2 Origin, Vec2 Edge)> before = Sample("light");
+
+                // 세트를 열고 메뉴로 뺀다 → 이름을 lamp로. 두 칸.
+                window.SelectSet("station");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                long revision = editor.Revision;
+                Assert.Equal("light", window.ExtractSetNodesFromMenu("light"));
+                window.SelectSet("light");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.SetNameBox.Focus();
+                window.SetNameBox.Text = "lamp";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal(revision + 2, editor.Revision);
+
+                // 세트·애니메이션·스킨·인스턴스의 이름이 다 따라왔고, station의 세 애니메이션이 그것을 재생 블록으로 튼다.
+                Assert.Equal("lamp", editor.Document.FindRig("station")!.Find("lamp")!.Set);
+                Assert.Equal(new[] { "lamp_hold", "lamp_in", "lamp_out" }, editor.Document.Motions.Where(m => m.Rig == "lamp").Select(m => m.Name).OrderBy(n => n, StringComparer.Ordinal));
+                Assert.NotNull(editor.Document.FindSkin("lamp"));
+                Assert.All(new[] { "station_in", "station_hold", "station_out" }, m => Assert.Contains(editor.Document.Find(m)!.Plays, p => p.Node == "lamp" && p.Motion.StartsWith("lamp_", StringComparison.Ordinal)));
+                Assert.Equal(0, window.ProblemRowsShown);
+
+                // 연출의 재생은 그대로다.
+                window.SelectSet(null);
+                List<(Vec2 Origin, Vec2 Edge)> after = Sample("lamp.light");
+
+                for (int i = 0; i < times.Length; i++)
+                {
+                    Assert.True(Math.Abs(before[i].Origin.X - after[i].Origin.X) < 1.5f && Math.Abs(before[i].Origin.Y - after[i].Origin.Y) < 1.5f, $"자리 @ {times[i]}");
+                    Assert.True(Math.Abs(before[i].Edge.X - after[i].Edge.X) < 1.5f && Math.Abs(before[i].Edge.Y - after[i].Edge.Y) < 1.5f, $"크기 @ {times[i]}");
+                }
             }
             finally
             {

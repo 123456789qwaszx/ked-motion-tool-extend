@@ -180,6 +180,7 @@ public sealed partial class MotionEditor
 
     /// <summary>
     /// 세트의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 그 세트의 애니메이션·스킨·연출, 그것을 품은 인스턴스, 씬의 오브젝트.
+    /// **세트의 이름을 딴 이름들도 따라온다**(빼낼 때 붙은 이름을 한 번에 고치게): 애니메이션 <c>옛이름_x</c> → <c>새이름_x</c>, 스킨 <c>옛이름</c>, 인스턴스 오브젝트 <c>옛이름</c> — 새 이름이 비어 있을 때만.
     /// </summary>
     public void RenameRig(string kind, string newKind)
     {
@@ -192,6 +193,37 @@ public sealed partial class MotionEditor
 
         string name = RequireNewRigKind(newKind);
 
+        Batch(MotionChangeKind.Document, () =>
+        {
+            RenameRigCore(rig, kind, name);
+
+            foreach (MotionAsset motion in Document.Motions.Where(m => m.Rig == name && m.Name.StartsWith(kind + "_", StringComparison.Ordinal)).ToList())
+            {
+                string renamed = name + motion.Name[kind.Length..];
+
+                if (Document.Find(renamed) is null)
+                {
+                    RenameMotion(motion.Name, renamed);
+                }
+            }
+
+            if (Document.FindSkin(kind) is { } skin && skin.Rig == name && Document.FindSkin(name) is null)
+            {
+                RenameSkin(kind, name);
+            }
+
+            foreach (RigAsset holder in Document.Rigs.Where(r => r.Find(kind) is { } instance && instance.Set == name && r.Find(name) is null).ToList())
+            {
+                if (!Document.Motions.Any(m => m.Rig == holder.Kind && m.Channels.Any(c => c.Node == name)))
+                {
+                    RenameRigNode(holder.Kind, kind, name);
+                }
+            }
+        });
+    }
+
+    private void RenameRigCore(RigAsset rig, string kind, string name)
+    {
         Mutate(MotionChangeKind.Document, () =>
         {
             rig.Kind = name;

@@ -590,6 +590,12 @@ public sealed partial class MotionEditor
             motion.Name = newName;
             RetargetClipMotions(name, newName);
             RetargetEmojiMotions(name, newName);
+
+            // 이 애니메이션을 트는 재생 블록도 따라온다.
+            foreach (MotionPlayAsset play in Document.Motions.SelectMany(m => m.Plays).Where(p => p.Motion == name))
+            {
+                play.Motion = newName;
+            }
         });
     }
 
