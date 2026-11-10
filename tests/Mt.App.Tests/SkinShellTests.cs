@@ -1247,10 +1247,31 @@ public class SkinShellTests
                 window.SetSetNodeViewFromMenu("Body", solo: null, hidden: true);
                 Assert.Empty(Drawn());
 
+                // 움직임 밀기 · 차례로(시차) — 고른 애니메이션에서 오브젝트의 키를 통째로. 각각 한 칸.
+                editor.AddChannel("motion", a, MotionChannelKind.Position);
+                editor.SetKeys("motion", a, MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 0f), TestDocuments.Key(0.6f, 50f), TestDocuments.Key(1f, 50f) });
+                editor.AddChannel("motion", b, MotionChannelKind.Position);
+                editor.SetKeys("motion", b, MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 0f), TestDocuments.Key(0.6f, 50f), TestDocuments.Key(1f, 50f) });
+                float SecondKey(string node) => editor.Document.Find("motion")!.FindChannel(node, MotionChannelKind.Position)!.X!.Keys[1].T;
+                long before = editor.Revision;
+                window.ShiftSetNodeKeysFromMenu(a, 0.1f);
+                Assert.Equal(before + 1, editor.Revision);
+                Assert.Equal(0.3f, SecondKey(a), 3);
+                editor.Undo();
+                before = editor.Revision;
+                window.StaggerSetNodesFromMenu(a, 0.1f); // a는 그대로, 그 뒤의 형제 b가 0.1초 늦게
+                Assert.Equal(before + 1, editor.Revision);
+                Assert.Equal((0.2f, 0.3f), (MathF.Round(SecondKey(a), 3), MathF.Round(SecondKey(b), 3)));
+
+                // 무대만 보기 — 보기 상태(문서는 그대로).
+                Assert.False(view.StageOnly);
+                window.StageOnlyChecked = true;
+                Assert.True(view.StageOnly);
+                window.StageOnlyChecked = false;
+
                 // 전부 보이기.
                 window.SetSetNodeViewFromMenu(null, null, null);
                 Assert.Equal(new[] { a, b, c }, Drawn());
-                Assert.Equal(revision, editor.Revision);
 
                 // 세트를 닫으면 따로 보기가 풀리고 목록이 전부로 돌아온다.
                 window.SetSetNodeViewFromMenu(a, solo: null, hidden: true);

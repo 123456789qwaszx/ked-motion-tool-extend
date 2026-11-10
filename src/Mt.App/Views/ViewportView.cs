@@ -50,6 +50,7 @@ public sealed class ViewportView : Control
     private static readonly Pen GizmoRingPen = new(new SolidColorBrush(Color.FromArgb(230, 96, 165, 250)), 2);
     private static readonly Pen PendingPen = new(new SolidColorBrush(Color.FromArgb(220, 251, 146, 60)), 1.5, DashStyle.Dash);
     private static readonly IBrush OutsideBrush = new SolidColorBrush(Color.FromArgb(185, 58, 58, 66));
+    private static readonly IBrush StageOnlyBrush = new SolidColorBrush(Color.FromRgb(24, 24, 28));
 
     private readonly PlaybackClock _clock = new();
     private readonly DispatcherTimer _timer;
@@ -188,6 +189,22 @@ public sealed class ViewportView : Control
         Point moved = ToControl(under);
         _viewPan = new Vector(_viewPan.X + anchor.X - moved.X, _viewPan.Y + anchor.Y - moved.Y);
         InvalidateVisual();
+    }
+
+    private bool _stageOnly;
+
+    /// <summary>
+    /// 무대만 보기 — 무대 밖을 다 가리고 격자를 끈다: 게임에서 보이는 그대로. 화면 밖에서 들어오는 층이 바깥에서 비치지 않는다.
+    /// 꺼져 있으면(기본) 무대 밖의 것이 흐리게 보인다 — 어디서 들어오는지 보며 고친다.
+    /// </summary>
+    public bool StageOnly
+    {
+        get => _stageOnly;
+        set
+        {
+            _stageOnly = value;
+            InvalidateVisual();
+        }
     }
 
     /// <summary>켜져 있으면 매니퓰레이터를 놓는 순간 키가 들어간다. 꺼져 있으면 S를 누를 때까지 "키 없는 포즈"다.</summary>
@@ -2125,7 +2142,7 @@ public sealed class ViewportView : Control
 
         MotionAsset? motion = Motion;
 
-        if (ShowGrid)
+        if (ShowGrid && !StageOnly)
         {
             using (context.PushClip(stage))
             {
@@ -2224,6 +2241,8 @@ public sealed class ViewportView : Control
     /// <summary>무대 프레임 바깥(카메라가 안 잡는 곳)을 회색으로 덮는다 — 네 띠.</summary>
     private void DrawOutside(DrawingContext context, Rect stage)
     {
+        // 무대만 보기 — 바깥을 다 가린다(게임에서 보이는 그대로). 보통은 반투명으로 덮어 무대 밖의 것도 비친다.
+        IBrush OutsideBrush = StageOnly ? StageOnlyBrush : ViewportView.OutsideBrush;
         var bounds = new Rect(Bounds.Size);
         double left = Math.Max(bounds.X, stage.X);
         double right = Math.Min(bounds.Right, stage.Right);

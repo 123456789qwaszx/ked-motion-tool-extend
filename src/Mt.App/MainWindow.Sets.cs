@@ -581,6 +581,30 @@ public partial class MainWindow
         Item(_hierarchyMenu, hidden ? "보이기" : "숨기기", () => SetSetNodeView(nodeId, solo: null, hidden: !hidden));
         Item(_hierarchyMenu, "전부 보이기", () => SetSetNodeView(null, null, null), enabled: _viewport.SoloSetNode is not null || rig.Nodes.Any(n => _viewport.IsSetNodeHidden(n.Id)));
 
+        // 시차 — 고른 애니메이션에서 이 오브젝트의 움직임을 통째로 민다(키를 하나씩 옮기지 않는다).
+        if (_graph.Motion is { } animation && animation.Rig == rig.Kind)
+        {
+            _hierarchyMenu.Items.Add(new Separator());
+            var shift = new MenuItem { Header = $"움직임 밀기 — {animation.Name}", FontSize = 11, IsEnabled = animation.Channels.Any(c => c.Node == nodeId) };
+
+            foreach (float delta in new[] { 0.05f, 0.1f, 0.2f, -0.05f, -0.1f, -0.2f })
+            {
+                float captured = delta;
+                Item(shift, captured > 0 ? $"{captured:0.##}초 늦게" : $"{-captured:0.##}초 일찍", () => ShiftSetNodeKeys(nodeId, captured));
+            }
+
+            _hierarchyMenu.Items.Add(shift);
+            var stagger = new MenuItem { Header = "여기서부터 차례로 (아래 형제들에 시차)", FontSize = 11 };
+
+            foreach (float step in new[] { 0.05f, 0.1f, 0.2f })
+            {
+                float captured = step;
+                Item(stagger, $"{captured:0.##}초씩", () => StaggerSetNodesFrom(nodeId, captured));
+            }
+
+            _hierarchyMenu.Items.Add(stagger);
+        }
+
         _hierarchyMenu.Items.Add(new Separator());
         Item(_hierarchyMenu, "앞으로 (아래에 그려진다)", () => Pick(() => MoveSelectedSetNode(-1)));
         Item(_hierarchyMenu, "뒤로 (위에 그려진다)", () => Pick(() => MoveSelectedSetNode(+1)));
@@ -596,6 +620,31 @@ public partial class MainWindow
         _hierarchyMenu.Items.Add(parents);
         _hierarchyMenu.Items.Add(new Separator());
         Item(_hierarchyMenu, "지우기 (밑의 오브젝트도)", () => Pick(RemoveSelectedSetNode));
+    }
+
+    /// <summary>테스트 손잡이 — 하이어아키 메뉴의 "움직임 밀기" · "여기서부터 차례로".</summary>
+    internal void ShiftSetNodeKeysFromMenu(string node, float delta) => ShiftSetNodeKeys(node, delta);
+
+    internal void StaggerSetNodesFromMenu(string node, float step) => StaggerSetNodesFrom(node, step);
+
+    private void ShiftSetNodeKeys(string node, float delta)
+    {
+        if (_graph.Motion is { } motion && !_session.Editor.ShiftNodeKeys(motion.Name, node, delta))
+        {
+            _session.SetStatus($"{node}: {motion.Name}에 이 오브젝트의 키가 없다(밀 것이 없다).");
+        }
+    }
+
+    /// <summary>그 오브젝트와 그 뒤의 형제들에 차례로 시차를 준다 — 첫째(고른 것)는 그대로, 다음은 step, 그다음은 2·step… 한 칸.</summary>
+    private void StaggerSetNodesFrom(string node, float step)
+    {
+        if (_graph.Motion is not { } motion || EditedRig is not { } rig || rig.Find(node) is not { } first)
+        {
+            return;
+        }
+
+        List<string> siblings = rig.Nodes.Where(n => n.Parent == first.Parent).Select(n => n.Id).SkipWhile(id => id != node).ToList();
+        _session.Editor.StaggerNodes(motion.Name, siblings, step);
     }
 
     /// <summary>테스트 손잡이 — 따로 보기(솔로 · 숨김). 셋 다 null이면 전부 보이기.</summary>

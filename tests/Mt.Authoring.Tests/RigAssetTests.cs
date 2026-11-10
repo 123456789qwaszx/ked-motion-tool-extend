@@ -316,4 +316,58 @@ public class RigAssetTests
         Assert.Null(editor.Document.FindRig("wipe")!.Find("Panel")!.Color);
         Assert.Empty(RigParts.ColorsOf(RigAssets.Compose(Dump, editor.Document), "wipe"));
     }
+
+    // ── 시차 — 오브젝트의 움직임을 통째로 민다 ─────────────────────────
+
+    [Fact]
+    public void 움직임을_밀면_길이는_그대로이고_비는_쪽은_가만히_넘치는_쪽은_잘린다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(RigTemplates.Emoji(parts: 3));
+        editor.AddMotion("in", RigTemplates.EmojiKind, 1f, MotionEnd.Commit);
+        KeyAsset Lin(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
+
+        foreach (string part in new[] { "Emoji_Part1", "Emoji_Part2", "Emoji_Part3" })
+        {
+            editor.AddChannel("in", part, MotionChannelKind.Position);
+            editor.SetKeys("in", part, MotionChannelKind.Position, Axis.X, new[] { Lin(0f, -100f), Lin(0.2f, -100f), Lin(0.6f, 0f), Lin(1f, 0f) }); // 0.2~0.6초에 들어온다
+        }
+
+        (float T, float V)[] Keys(string part) => editor.Document.Find("in")!.FindChannel(part, MotionChannelKind.Position)!.X!.Keys.Select(k => (MathF.Round(k.T, 3), MathF.Round(k.V, 1))).ToArray();
+        long revision = editor.Revision;
+
+        // 0.1초 늦게 — 안쪽 키가 밀리고 처음과 끝은 제 값으로 선다. 한 칸.
+        Assert.True(editor.ShiftNodeKeys("in", "Emoji_Part1", 0.1f));
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Equal(new[] { (0f, -100f), (0.3f, -100f), (0.7f, 0f), (1f, 0f) }, Keys("Emoji_Part1"));
+
+        // 넘치게 늦추면 잘린다 — 끝의 키는 잘린 자리의 값(아직 들어오는 중).
+        editor.ShiftNodeKeys("in", "Emoji_Part2", 0.6f);
+        Assert.Equal(new[] { (0f, -100f), (0.8f, -100f), (1f, -50f) }, Keys("Emoji_Part2"));
+
+        // 일찍 — 처음의 키는 잘린 자리의 값(이미 들어오는 중), 끝은 마지막 값으로 가만히.
+        editor.ShiftNodeKeys("in", "Emoji_Part3", -0.4f);
+        Assert.Equal(new[] { (0f, -50f), (0.2f, 0f), (1f, 0f) }, Keys("Emoji_Part3"));
+
+        // 어느 쪽이든 규칙(처음과 끝에 키)이 그대로 선다.
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+
+        // 채널이 없는 오브젝트·0초는 아무 일도 없다(기록 없음).
+        revision = editor.Revision;
+        Assert.False(editor.ShiftNodeKeys("in", "Emoji_Body", 0.1f));
+        Assert.False(editor.ShiftNodeKeys("in", "Emoji_Part1", 0f));
+        Assert.Equal(revision, editor.Revision);
+
+        // 시차 — 순서대로 0.1초씩 더: 첫째는 그대로. 통째로 한 칸.
+        editor.Undo();
+        editor.Undo();
+        editor.Undo();
+        revision = editor.Revision;
+        Assert.True(editor.StaggerNodes("in", new[] { "Emoji_Part1", "Emoji_Part2", "Emoji_Part3" }, 0.1f));
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Equal(0.2f, Keys("Emoji_Part1")[1].T);
+        Assert.Equal(0.3f, Keys("Emoji_Part2")[1].T);
+        Assert.Equal(0.4f, Keys("Emoji_Part3")[1].T);
+    }
 }

@@ -75,6 +75,14 @@ public partial class MainWindow : Window
     private readonly TimeSliderView _timeSlider = new();
     private readonly RangeSliderView _rangeSlider = new();
     private readonly ToggleButton _autoKeyToggle = new() { Content = "● Auto Key", FontSize = 10, Padding = new Avalonia.Thickness(6, 2) };
+    private readonly ToggleButton _stageOnlyToggle = new() { Content = "무대만", FontSize = 10, Padding = new Avalonia.Thickness(6, 2) };
+
+    /// <summary>테스트 손잡이 — "무대만" 토글.</summary>
+    internal bool StageOnlyChecked
+    {
+        get => _stageOnlyToggle.IsChecked == true;
+        set => _stageOnlyToggle.IsChecked = value;
+    }
     private static readonly IBrush AutoKeyOnBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0x3C, 0x3C));
     private bool _syncingTime;
 
@@ -925,6 +933,7 @@ public partial class MainWindow : Window
                 _playStep,
                 new TextBlock { Text = "24 fps", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 },
                 _autoKeyToggle,
+                _stageOnlyToggle,
             },
         };
         var rangeRow = new DockPanel { Margin = new Avalonia.Thickness(4, 2, 4, 2) };
@@ -1873,6 +1882,8 @@ public partial class MainWindow : Window
                 _settings.AutoKey = _viewport.AutoKey;
             }
         };
+        _stageOnlyToggle.IsCheckedChanged += (_, _) => _viewport.StageOnly = _stageOnlyToggle.IsChecked == true;
+        ToolTip.SetTip(_stageOnlyToggle, "무대만 보기 — 무대 밖을 다 가리고 격자를 끈다: 게임에서 보이는 그대로. 끄면 무대 밖의 것이 흐리게 비친다(어디서 들어오는지 보며 고친다)");
         ToolTip.SetTip(_autoKeyToggle, "Auto Key — 매니퓰레이터를 놓거나 채널 박스에 값을 넣는 순간 키가 들어간다(마야 빨간 키). 꺼져 있으면 키 없는 포즈 → S");
         _viewport.PendingChanged += (_, _) =>
         {
