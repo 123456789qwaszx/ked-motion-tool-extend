@@ -37,6 +37,13 @@ public sealed class RigNodeAsset
 
     public float Height { get; set; }
 
+    /// <summary>가만히 선 자세의 회전(도, 반시계 +)과 배율 — 배치 모드에서 잡는다(<c>PLAN-set.md</c> S2). 애니메이션은 이 위에 얹힌다.</summary>
+    public float Rotation { get; set; }
+
+    public float ScaleX { get; set; } = 1f;
+
+    public float ScaleY { get; set; } = 1f;
+
     /// <summary>그림을 그리는 노드(조각)인가 — 스킨이 여기에 그림을 준다.</summary>
     public bool Image { get; set; }
 
@@ -82,8 +89,8 @@ public static class RigAssetCodec
                 anchorMax = F2(0.5f, 0.5f),
                 pivot = F2(0.5f, 0.5f),
                 sizeDelta = F2(node.Width, node.Height),
-                localScale = F3(1f, 1f, 1f),
-                localEulerAngles = F3(0f, 0f, 0f),
+                localScale = F3(node.ScaleX, node.ScaleY, 1f),
+                localEulerAngles = F3(0f, 0f, node.Rotation),
                 measuredRectSize = F2(node.Width, node.Height),
                 hasCanvasGroup = node.Alpha,
                 canvasGroupAlpha = 1f,

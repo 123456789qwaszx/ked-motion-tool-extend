@@ -126,6 +126,7 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _expandedHierarchy = new();
     private readonly Dictionary<TreeViewItem, TreeViewItem?> _hierarchyParents = new();
     private readonly ContextMenu _hierarchyMenu = new();
+    private StackPanel? _sceneTabPanel;
     private object? _menuTarget;
     private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
     private static readonly IBrush PlacementNodeBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
@@ -1986,6 +1987,7 @@ public partial class MainWindow : Window
         _viewport.ObjectSelected += (_, _) => RefreshObjects();
         panel.Children.Add(BuildSkinPanel());
         panel.Children.Insert(0, BuildSetNodePanel()); // 세트를 열었으면 그 오브젝트의 칸이 맨 위다
+        _sceneTabPanel = panel;
         return panel;
     }
 
@@ -2184,6 +2186,7 @@ public partial class MainWindow : Window
         "  F1  이 창\n\n" +
         "뷰포트\n" +
         "  휠  커서 축으로 확대·축소      MMB 드래그  보기 이동      F  보기 맞춤\n" +
+        "  세트를 열고 모션을 안 골랐을 때(배치) — 오브젝트 드래그  자리      Shift+드래그  배율      Ctrl+드래그  회전   (가만히 선 자세다)\n" +
         "  이모지 정의를 볼 때 — 조각 드래그  놓임(자리)      Shift+드래그  크기      Ctrl+드래그  회전   (스킨의 값이다 — 모션의 키가 아니다)\n" +
         "  LMB  오브젝트 고르기 · 기즈모 끌기(Auto Key면 놓는 순간 키)      Home / End  처음·끝      ← / →  한 프레임\n\n" +
         "그래프 에디터 (마야)\n" +
@@ -2272,8 +2275,16 @@ public partial class MainWindow : Window
             RefreshSkinPanel();
 
             SceneObject? selected = _viewport.SelectedObject;
-            // 세트 보기의 오브젝트는 문서의 씬에 없다 — 씬의 칸(자리·층·오프셋)으로 고칠 것이 아니다.
+            // 세트 보기의 오브젝트는 문서의 씬에 없다 — 씬의 칸(자리·층·오프셋)으로 고칠 것이 아니다. 세트의 칸과 스킨 칸만 남긴다.
             bool has = selected is not null && _viewport.SetView is null;
+
+            foreach (Control child in _sceneTabPanel?.Children ?? Enumerable.Empty<Control>())
+            {
+                if (!ReferenceEquals(child, _setNodePanel) && !ReferenceEquals(child, _skinPanel))
+                {
+                    child.IsVisible = _viewport.SetView is null;
+                }
+            }
 
             foreach (Control c in new Control[] { _objX, _objY, _objRot, _objSx, _objSy, _objVisible, _objId, _objLayer, _objStage, _objPlace })
             {
@@ -2365,6 +2376,25 @@ public partial class MainWindow : Window
         }
 
         TreeViewItem? selectedItem = null;
+
+        // 세트 보기 — 무대의 뼈대(Stage · 층)는 이 세트의 것이 아니다. 세트와 그 오브젝트들만.
+        if (_viewport.SetView is not null && scene.Objects.Count == 1)
+        {
+            var setRoot = Folder($"세트  {scene.Name}", "set:" + scene.Name);
+            setRoot.Tag = new HierarchyFolder(null, null);
+            Attach(setRoot, null);
+            BuildObjectItem(scene, scene.Objects[0], setRoot, nodeWasSelected, ref selectedItem);
+            _hierarchy.Items.Add(setRoot);
+
+            for (TreeViewItem? up = selectedItem is null ? null : _hierarchyParents.GetValueOrDefault(selectedItem); up is not null; up = _hierarchyParents.GetValueOrDefault(up))
+            {
+                up.IsExpanded = true;
+            }
+
+            _hierarchy.SelectedItem = selectedItem;
+            return;
+        }
+
         var root = Folder($"Scene  {scene.Name}  ·  PresentataionUIRoot", "scene");
         root.Tag = new HierarchyFolder(null, null);
         Attach(root, null);

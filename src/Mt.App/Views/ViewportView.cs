@@ -233,7 +233,25 @@ public sealed class ViewportView : Control
     public const string SetObjectId = "set";
 
     private string? _setView;
+    private string? _setSkin;
     private SceneAsset? _setScene;
+
+    /// <summary>세트 보기에서 입혀 볼 스킨 — 그 세트의 것이 아니거나 null이면 첫 스킨.</summary>
+    public string? SetSkin
+    {
+        get => SetScene()?.Objects[0].Skin;
+        set
+        {
+            _setSkin = value;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>
+    /// 배치 모드인가(스파인의 Setup) — 세트를 열었고 고른 애니메이션이 없다. 뷰포트의 끌기가 오브젝트의 **가만히 선 자세**를 바꾼다.
+    /// 그 세트의 모션을 고르면 애니메이션 모드다(끌기 = 키).
+    /// </summary>
+    public bool IsLayoutMode => _setView is not null && Motion is null && ShownClip is null && ShownEmoji is null;
 
     /// <summary>
     /// 연 세트(rigKind) — 뷰포트와 하이어아키가 **그 세트만** 보인다: 문서의 씬 대신 그 세트 하나가 무대 가운데에 선 보기 전용 씬.
@@ -275,7 +293,9 @@ public sealed class ViewportView : Control
             return null;
         }
 
-        string? skin = _editor.Document.Skins.FirstOrDefault(s => s.Rig == kind)?.Name;
+        string? skin = _editor.Document.FindSkin(_setSkin) is { } chosen && chosen.Rig == kind
+            ? chosen.Name
+            : _editor.Document.Skins.FirstOrDefault(s => s.Rig == kind)?.Name;
 
         if (_setScene is null || _setScene.Objects[0].Rig != kind || _setScene.Objects[0].Skin != skin)
         {
@@ -669,6 +689,16 @@ public sealed class ViewportView : Control
             {
                 pose.SetState(node, state);
             }
+        }
+
+        // 배치 모드에서 끄는 중 — 문서는 놓을 때 바뀐다. 그 전에는 그림만 따라온다.
+        if (_layout is { } layout && pose.Contains(Prefix + layout.Node))
+        {
+            RectNodeState dragged = pose.GetState(Prefix + layout.Node);
+            pose.SetState(Prefix + layout.Node, dragged
+                .WithAnchoredPosition(new Vec2(layout.Now.X, layout.Now.Y))
+                .WithLocalScale(new Vec3(layout.Now.ScaleX, layout.Now.ScaleY, dragged.LocalScale.Z))
+                .WithLocalEuler(new Vec3(0f, 0f, layout.Now.Rotation)));
         }
 
         return pose;
@@ -2070,6 +2100,14 @@ public sealed class ViewportView : Control
             return;
         }
 
+        // 배치 모드 — 키를 놓는 손잡이가 아니라 고른 오브젝트의 사각형과 원점.
+        if (IsLayoutMode)
+        {
+            DrawLayout(context, pose);
+            DrawLabel(context, $"세트 {_setView} · 배치 — 끌기: 자리 · Shift+끌기: 배율 · Ctrl+끌기: 회전 (가만히 선 자세다. 애니메이션을 고르면 끌기가 키가 된다)", new Point(stage.X + 8, stage.Y + 6));
+            return;
+        }
+
         DrawAxes(context, pose);
         DrawGizmo(context, pose);
 
@@ -2238,7 +2276,7 @@ public sealed class ViewportView : Control
                 context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(
                     new[] { ToControl(held.TopLeft), ToControl(held.TopRight), ToControl(held.BottomRight), ToControl(held.BottomLeft), ToControl(held.TopLeft) }, true));
             }
-            else if (selected && PartQuadOf(pose, o, parts[0]) is { } outline)
+            else if (selected && _setView is null && PartQuadOf(pose, o, parts[0]) is { } outline) // 세트 보기에서는 고른 오브젝트만 윤곽이 선다(DrawLayout)
             {
                 context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(
                     new[] { ToControl(outline.TopLeft), ToControl(outline.TopRight), ToControl(outline.BottomRight), ToControl(outline.BottomLeft), ToControl(outline.TopLeft) }, true));
@@ -2436,6 +2474,18 @@ public sealed class ViewportView : Control
 
         if (!pressed.IsLeftButtonPressed)
         {
+            return;
+        }
+
+        // 배치 모드 — 오브젝트를 집어 가만히 선 자세를 잡는다(키가 아니다).
+        if (IsLayoutMode)
+        {
+            if (TryStartLayoutDrag(position, e.KeyModifiers))
+            {
+                e.Pointer.Capture(this);
+                e.Handled = true;
+            }
+
             return;
         }
 
@@ -2783,6 +2833,13 @@ public sealed class ViewportView : Control
             return;
         }
 
+        if (_layout is not null)
+        {
+            DragLayout(e.GetPosition(this));
+            e.Handled = true;
+            return;
+        }
+
         if (_place is not null)
         {
             DragPartPlacement(e.GetPosition(this));
@@ -2803,6 +2860,230 @@ public sealed class ViewportView : Control
                 e.Handled = true;
                 break;
         }
+    }
+
+    // ── 배치 모드 (PLAN-set.md S2) — 세트의 오브젝트를 끌어 가만히 선 자세(자리 · 배율 · 회전)를 잡는다 ──
+
+    private sealed record LayoutDrag(string Node, PlaceMode Mode, Vec2 StartRoot, Vec2 CenterRoot, RigNodeAsset Start)
+    {
+        public RigNodeAsset Now { get; set; } = Start;
+    }
+
+    private LayoutDrag? _layout;
+
+    /// <summary>배치 모드에서 오브젝트를 집었다 — 하이어아키·칸이 그것을 따라 고른다.</summary>
+    public event EventHandler<string>? LayoutNodePicked;
+
+    private static RigNodeAsset CopyOf(RigNodeAsset n) => new()
+    {
+        Id = n.Id, Parent = n.Parent, X = n.X, Y = n.Y, Width = n.Width, Height = n.Height, Image = n.Image, Alpha = n.Alpha, Rotation = n.Rotation, ScaleX = n.ScaleX, ScaleY = n.ScaleY,
+    };
+
+    /// <summary>그 자리의 오브젝트(위에 그려진 것 먼저) — 사각형이 있는 것만 집힌다. 없으면, 고른 오브젝트의 원점 가까이를 눌렀을 때 그것(묶기만 하는 오브젝트를 옮기는 길).</summary>
+    private string? LayoutNodeAt(RectNodeTree pose, SceneObject o, RigAsset rig, Point position)
+    {
+        var at = new Pixel(position.X, position.Y);
+
+        foreach (RigNodeAsset node in Enumerable.Reverse(rig.Nodes))
+        {
+            string key = o.KeyOf(node.Id);
+
+            if (!pose.Contains(key) || node.Width <= 0f || node.Height <= 0f)
+            {
+                continue;
+            }
+
+            Quad quad = (node.Image ? PartQuadOf(pose, o, node.Id) : null) ?? PortraitLayout.RectQuad(pose, key);
+            var polygon = new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft }.Select(c => ToControl(c)).Select(p => new Pixel(p.X, p.Y)).ToList();
+
+            if (GraphHitTest.Contains(polygon, at))
+            {
+                return node.Id;
+            }
+        }
+
+        if (SelectedNode is { } selected && rig.Find(selected) is not null && pose.Contains(o.KeyOf(selected))
+            && Distance(position, ToControl(pose.TransformPoint(o.KeyOf(selected), Vec3.Zero).XY)) <= GizmoHit + 6)
+        {
+            return selected;
+        }
+
+        return null;
+    }
+
+    /// <summary>끌기 = 자리, Shift+끌기 = 배율(원점에서의 거리 비), Ctrl+끌기 = 회전(원점 둘레).</summary>
+    private bool TryStartLayoutDrag(Point position, KeyModifiers modifiers)
+    {
+        if (_editor?.Document.FindRig(_setView) is not { } rig || SelectedObject is not { } o || CurrentPose() is not { } pose
+            || LayoutNodeAt(pose, o, rig, position) is not { } id || rig.Find(id) is not { } node)
+        {
+            return false;
+        }
+
+        SelectedNode = id;
+        LayoutNodePicked?.Invoke(this, id);
+        PlaceMode mode = modifiers.HasFlag(KeyModifiers.Shift) ? PlaceMode.Scale : modifiers.HasFlag(KeyModifiers.Control) ? PlaceMode.Rotate : PlaceMode.Move;
+        _layout = new LayoutDrag(id, mode, ToRoot(position), pose.TransformPoint(o.KeyOf(id), Vec3.Zero).XY, CopyOf(node));
+        InvalidateVisual();
+        return true;
+    }
+
+    private void DragLayout(Point position)
+    {
+        if (_layout is not { } drag || _template is null || SelectedObject is not { } o)
+        {
+            return;
+        }
+
+        Vec2 now = ToRoot(position);
+        RigNodeAsset next = CopyOf(drag.Start);
+
+        static float Length(Vec2 v) => MathF.Sqrt(v.X * v.X + v.Y * v.Y);
+
+        switch (drag.Mode)
+        {
+            case PlaceMode.Move:
+            {
+                // 루트 공간의 이동을 부모의 좌표로 — 자리는 부모 안에서의 값이다(부모가 돌았거나 커졌어도 끈 만큼 간다).
+                string parentKey = string.IsNullOrEmpty(drag.Start.Parent) ? ScenePreview.RootKeyOf(o) : o.KeyOf(drag.Start.Parent);
+
+                if (_template.Contains(parentKey))
+                {
+                    Vec3 from = _template.InverseTransformPoint(parentKey, new Vec3(drag.StartRoot, 0f));
+                    Vec3 to = _template.InverseTransformPoint(parentKey, new Vec3(now, 0f));
+                    next.X = MathF.Round(drag.Start.X + to.X - from.X);
+                    next.Y = MathF.Round(drag.Start.Y + to.Y - from.Y);
+                }
+
+                break;
+            }
+
+            case PlaceMode.Scale:
+            {
+                float from = Length(drag.StartRoot - drag.CenterRoot);
+                float to = Length(now - drag.CenterRoot);
+
+                if (from > 1e-3f)
+                {
+                    float factor = MathF.Max(0.02f, to / from);
+                    next.ScaleX = MathF.Round(drag.Start.ScaleX * factor, 2);
+                    next.ScaleY = MathF.Round(drag.Start.ScaleY * factor, 2);
+
+                    if (next.ScaleX == 0f || next.ScaleY == 0f)
+                    {
+                        next.ScaleX = drag.Start.ScaleX;
+                        next.ScaleY = drag.Start.ScaleY;
+                    }
+                }
+
+                break;
+            }
+
+            case PlaceMode.Rotate:
+            {
+                Vec2 a = drag.StartRoot - drag.CenterRoot;
+                Vec2 b = now - drag.CenterRoot;
+
+                if (Length(a) > 1e-3f && Length(b) > 1e-3f)
+                {
+                    float turn = (MathF.Atan2(b.Y, b.X) - MathF.Atan2(a.Y, a.X)) * 180f / MathF.PI;
+                    next.Rotation = MathF.Round(drag.Start.Rotation + turn - 360f * MathF.Round(turn / 360f));
+                }
+
+                break;
+            }
+        }
+
+        drag.Now = next;
+        InvalidateVisual();
+    }
+
+    /// <summary>놓는다 — 끈 하나가 되돌리기 한 칸. 안 움직였으면 기록이 없다(고르기만 한 것).</summary>
+    private void EndLayoutDrag()
+    {
+        if (_layout is not { } drag)
+        {
+            return;
+        }
+
+        _layout = null;
+
+        try
+        {
+            if (_setView is { } kind)
+            {
+                _editor?.UpdateRigNode(kind, drag.Node, drag.Now);
+            }
+        }
+        finally
+        {
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>루트 공간의 점을 세트의 그 오브젝트(없으면 세트의 맨 위) 안의 좌표로 — 그 밑에 새 오브젝트를 놓을 자리.</summary>
+    public Vec2 ToSetLocal(string? parentNode, Vec2 root)
+    {
+        if (_template is null || SelectedObject is not { } o)
+        {
+            return root;
+        }
+
+        string key = string.IsNullOrEmpty(parentNode) ? ScenePreview.RootKeyOf(o) : o.KeyOf(parentNode);
+        return _template.Contains(key) ? _template.InverseTransformPoint(key, new Vec3(root, 0f)).XY : root;
+    }
+
+    /// <summary>배치 모드의 표시 — 고른 오브젝트의 사각형과 원점.</summary>
+    private void DrawLayout(DrawingContext context, RectNodeTree pose)
+    {
+        if (SelectedObject is not { } o || SelectedNode is not { } id || !pose.Contains(o.KeyOf(id)))
+        {
+            return;
+        }
+
+        Quad quad = PartQuadOf(pose, o, id) ?? PortraitLayout.RectQuad(pose, o.KeyOf(id));
+        context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(
+            new[] { ToControl(quad.TopLeft), ToControl(quad.TopRight), ToControl(quad.BottomRight), ToControl(quad.BottomLeft), ToControl(quad.TopLeft) }, true));
+        Point origin = ToControl(pose.TransformPoint(o.KeyOf(id), Vec3.Zero).XY);
+        context.DrawLine(SelectedObjectPen, new Point(origin.X - 7, origin.Y), new Point(origin.X + 7, origin.Y));
+        context.DrawLine(SelectedObjectPen, new Point(origin.X, origin.Y - 7), new Point(origin.X, origin.Y + 7));
+    }
+
+    /// <summary>세트의 오브젝트들이 화면에 차도록 보기를 맞춘다 — 세트를 열었을 때. 사각형이 하나도 없으면 원점 둘레.</summary>
+    public void FitToSet()
+    {
+        ResetView();
+
+        if (_setView is null || SelectedObject is not { } o || _editor?.Document.FindRig(_setView) is not { } rig || CurrentPose() is not { } pose || Bounds.Width < 1)
+        {
+            return;
+        }
+
+        var points = new List<Vec2>();
+
+        foreach (RigNodeAsset node in rig.Nodes.Where(n => pose.Contains(o.KeyOf(n.Id))))
+        {
+            Quad q = PortraitLayout.RectQuad(pose, o.KeyOf(node.Id));
+            points.AddRange(new[] { q.BottomLeft, q.BottomRight, q.TopLeft, q.TopRight });
+        }
+
+        if (points.Count == 0)
+        {
+            return;
+        }
+
+        float minX = points.Min(p => p.X), maxX = points.Max(p => p.X), minY = points.Min(p => p.Y), maxY = points.Max(p => p.Y);
+        float width = Math.Max(maxX - minX, 200f);
+        float height = Math.Max(maxY - minY, 200f);
+        var center = new Vec2((minX + maxX) / 2f, (minY + maxY) / 2f);
+
+        // 세트가 무대의 절반쯤을 차지하게 — 화면 전체짜리 세트는 그대로(배율 1).
+        double factor = Math.Clamp(Math.Min(_stageSize.X / (width * 2.0), _stageSize.Y / (height * 2.0)), 1.0, MaxViewZoom);
+        ZoomViewAt(ToControl(center), factor);
+        Point at = ToControl(center);
+        Rect stage = new(Bounds.Size);
+        _viewPan = new Vector(_viewPan.X + stage.Width / 2 - at.X, _viewPan.Y + stage.Height / 2 - at.Y);
+        InvalidateVisual();
     }
 
     // ── 조각 놓기 (PLAN-parts.md §14) — 이모지 정의를 보며 조각을 끌어 스킨의 놓임을 잡는다 ──
@@ -2954,6 +3235,14 @@ public sealed class ViewportView : Control
         if (_panning)
         {
             _panning = false;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (_layout is not null)
+        {
+            EndLayoutDrag();
             e.Pointer.Capture(null);
             e.Handled = true;
             return;

@@ -1982,6 +1982,9 @@
           "y": 0,
           "width": 0,
           "height": 0,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
           "image": false,
           "alpha": false
         },
@@ -1992,6 +1995,9 @@
           "y": 0,
           "width": 0,
           "height": 0,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
           "image": false,
           "alpha": true
         },
@@ -2002,6 +2008,9 @@
           "y": 0,
           "width": 160,
           "height": 160,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
           "image": true,
           "alpha": true
         },
@@ -2012,6 +2021,9 @@
           "y": 0,
           "width": 160,
           "height": 160,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
           "image": true,
           "alpha": true
         },
@@ -2022,6 +2034,9 @@
           "y": 0,
           "width": 160,
           "height": 160,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
           "image": true,
           "alpha": true
         },
@@ -2032,6 +2047,9 @@
           "y": 0,
           "width": 160,
           "height": 160,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
           "image": true,
           "alpha": true
         }

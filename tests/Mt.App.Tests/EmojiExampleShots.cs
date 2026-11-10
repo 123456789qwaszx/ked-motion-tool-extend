@@ -102,13 +102,29 @@ public class EmojiExampleShots
                 Shot("phase-edit");
                 window.EditEmojiPhase(null);
 
-                // 세트를 연다 — 뷰포트와 하이어아키가 그 세트만 보인다.
+                // 세트를 연다 — 뷰포트와 하이어아키가 그 세트만 보인다(배치 모드).
                 window.SelectSet("emoji");
                 window.InspectorTab = 1;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 window.SelectInHierarchy(Mt.App.Views.ViewportView.SetObjectId, "Emoji_Part1");
                 Shot("set-view");
                 window.SelectSet(null);
+
+                // 새 세트에 그림 셋을 가져와 놓는다(화면에만: 저장하지 않는다).
+                window.NewSetFromForm();
+                string artDirectory = Path.Combine(root!.FullName, "examples", "emoji", "art");
+                window.AddImageObjectFromForm(Path.Combine(artDirectory, "think_cloud.png"), new Ked.Presentation.Core.Vec2(-180f, 60f));
+                window.AddImageObjectFromForm(Path.Combine(artDirectory, "idea_bulb.png"), new Ked.Presentation.Core.Vec2(120f, 100f));
+                window.AddImageObjectFromForm(Path.Combine(artDirectory, "sparkle.png"), new Ked.Presentation.Core.Vec2(40f, -150f));
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.Viewport.FitToSet();
+                Shot("set-layout");
+
+                while (window.Session.Editor.Document.FindRig("set") is not null)
+                {
+                    window.Session.Editor.Undo();
+                }
+
                 window.InspectorTab = 4;
 
                 window.SelectClip("emoji_demo");

@@ -1089,4 +1089,105 @@ public class SkinShellTests
             }
         });
     }
+
+    [Fact]
+    public void 배치_모드에서_그림을_가져와_놓고_끌어서_가만히_선_자세를_잡는다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                DirectoryInfo? root = new(AppContext.BaseDirectory);
+
+                while (root is not null && !File.Exists(Path.Combine(root.FullName, "KedMotionTool.sln")))
+                {
+                    root = root.Parent;
+                }
+
+                string art = Path.Combine(root!.FullName, "examples", "emoji", "art", "alert.png");
+                window.NewSetFromForm();
+                window.InspectorTab = 1;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.True(view.IsLayoutMode);
+                RigAsset Rig() => editor.Document.FindRig("set")!;
+
+                // 그림 가져오기 — 오브젝트(이름은 파일에서, 크기는 그림의 것) + 자리 + 스킨의 그림이 한 칸. 스킨이 없어 세트의 이름으로 만들어 입혀 본다.
+                long revision = editor.Revision;
+                Assert.Equal("alert", window.AddImageObjectFromForm(art, new Vec2(100f, 50f)));
+                Assert.Equal(revision + 1, editor.Revision);
+                RigNodeAsset node = Rig().Find("alert")!;
+                Assert.Equal(("Body", 100f, 50f, 256f, 256f, true), (node.Parent, node.X, node.Y, node.Width, node.Height, node.Image));
+                Assert.Equal("set", view.SetSkin);
+                Assert.EndsWith("alert.png", editor.Document.FindSkin("set")!.Parts["alert"], StringComparison.Ordinal);
+                Assert.Equal("alert", window.SetEditorState.Node);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(new[] { "alert" }, view.DrawnParts(view.SelectedObject!));
+                Assert.Equal("alert_2", window.AddImageObjectFromForm(art, new Vec2(-200f, 0f))); // 같은 이름이면 번호가 붙는다
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                Point At(Vec2 p) => view.TranslatePoint(view.ToScreen(p), window) ?? throw new InvalidOperationException("뷰가 창에 붙어 있지 않다");
+                Vec2 Center(string id) => view.PartQuad(ViewportView.SetObjectId, id)!.Value.Center;
+
+                // 끌기 = 자리. 집은 것이 하이어아키·칸에서도 골라진다. 끈 하나가 한 칸이고 끄는 동안에는 기록이 없다. 모션은 안 생긴다.
+                revision = editor.Revision;
+                Vec2 grab = Center("alert");
+                var drop = new Vec2(grab.X + 60f, grab.Y - 40f);
+                window.MouseDown(At(grab), MouseButton.Left);
+                Assert.Equal("alert", window.SetEditorState.Node);
+                window.MouseMove(At(new Vec2(grab.X + 20f, grab.Y)), RawInputModifiers.LeftMouseButton);
+                Assert.Equal(revision, editor.Revision);
+                Assert.True(Center("alert").X > grab.X + 10f);
+                window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(At(drop), MouseButton.Left);
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal((160f, 10f), (Rig().Find("alert")!.X, Rig().Find("alert")!.Y));
+                Assert.Empty(editor.Document.Motions);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal("160", window.RigNodeBoxes.X.Text);
+
+                // Shift+끌기 = 배율(원점에서의 거리 비), Ctrl+끌기 = 회전.
+                Vec2 c = Center("alert");
+                window.MouseDown(At(new Vec2(c.X + 100f, c.Y)), MouseButton.Left, RawInputModifiers.Shift);
+                window.MouseMove(At(new Vec2(c.X + 50f, c.Y)), RawInputModifiers.LeftMouseButton | RawInputModifiers.Shift);
+                window.MouseUp(At(new Vec2(c.X + 50f, c.Y)), MouseButton.Left, RawInputModifiers.Shift);
+                Assert.Equal((0.5f, 0.5f), (Rig().Find("alert")!.ScaleX, Rig().Find("alert")!.ScaleY));
+                c = Center("alert");
+                window.MouseDown(At(new Vec2(c.X + 40f, c.Y)), MouseButton.Left, RawInputModifiers.Control);
+                window.MouseMove(At(new Vec2(c.X, c.Y + 40f)), RawInputModifiers.LeftMouseButton | RawInputModifiers.Control);
+                window.MouseUp(At(new Vec2(c.X, c.Y + 40f)), MouseButton.Left, RawInputModifiers.Control);
+                Assert.Equal(90f, Rig().Find("alert")!.Rotation, 0);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(("90", "0.5"), (window.RigNodePoseBoxes.Rotation.Text, window.RigNodePoseBoxes.ScaleX.Text));
+
+                // 칸에서도 고친다.
+                window.RigNodePoseBoxes.Rotation.Focus();
+                window.RigNodePoseBoxes.Rotation.Text = "15";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal(15f, Rig().Find("alert")!.Rotation);
+
+                // 제자리에서 눌렀다 떼면 고르기만 한다(기록 없음).
+                revision = editor.Revision;
+                Vec2 other = Center("alert_2");
+                window.MouseDown(At(other), MouseButton.Left);
+                window.MouseUp(At(other), MouseButton.Left);
+                Assert.Equal(revision, editor.Revision);
+                Assert.Equal("alert_2", window.SetEditorState.Node);
+
+                // 그 세트의 애니메이션을 고르면 배치 모드가 아니다 — 끌기는 키가 된다(전부터 있던 길).
+                editor.AddMotion("in", "set", 0.5f);
+                window.SelectMotion("in");
+                Assert.False(view.IsLayoutMode);
+                Assert.Equal("set", window.SelectedSet);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

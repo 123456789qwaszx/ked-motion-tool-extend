@@ -230,6 +230,14 @@ public class RigAssetTests
         Assert.Equal((30f, -12f, 80f, 40f, true, false), (node.anchoredPosition.x, node.anchoredPosition.y, node.sizeDelta.x, node.sizeDelta.y, node.hasImage, node.hasCanvasGroup));
         Assert.Contains("Emoji_Glow", RigParts.Of(composed, RigTemplates.EmojiKind));
 
+        // 가만히 선 자세의 회전·배율(배치 모드) — 세운 나무에 그대로 선다. 배율 0은 막는다.
+        editor.UpdateRigNode(RigTemplates.EmojiKind, "Emoji_Glow", new RigNodeAsset { X = 30f, Y = -12f, Width = 80f, Height = 40f, Image = true, Rotation = 30f, ScaleX = 2f, ScaleY = -1f });
+        Assert.True(RigAssets.Compose(Dump, editor.Document).TryGetRig(RigTemplates.EmojiKind, out RigSchemaRigDto posed));
+        RigSchemaNodeDto turned = posed.nodes.Single(n => n.id == "Emoji_Glow");
+        Assert.Equal((30f, 2f, -1f), (turned.localEulerAngles.z, turned.localScale.x, turned.localScale.y));
+        Assert.Throws<InvalidOperationException>(() => editor.UpdateRigNode(RigTemplates.EmojiKind, "Emoji_Glow", new RigNodeAsset { ScaleX = 0f }));
+        editor.Undo();
+
         // 지우기 — 밑의 노드도 함께. 되돌리면 그 자리에 돌아온다.
         editor.RemoveRigNode(RigTemplates.EmojiKind, "Emoji_Body");
         Assert.Equal(new[] { "Extra", "Emoji_Anchor" }, Ids(editor));

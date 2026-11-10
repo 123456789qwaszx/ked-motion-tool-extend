@@ -1,9 +1,11 @@
 using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using Mt.App.Views;
+using Mt.Authoring.Editing;
 using Mt.Authoring.Model;
 
 namespace Mt.App;
@@ -25,6 +27,9 @@ public partial class MainWindow
     private readonly TextBox _rigNodeY = new() { FontSize = 11 };
     private readonly TextBox _rigNodeW = new() { FontSize = 11 };
     private readonly TextBox _rigNodeH = new() { FontSize = 11 };
+    private readonly TextBox _rigNodeRotation = new() { FontSize = 11 };
+    private readonly TextBox _rigNodeScaleX = new() { FontSize = 11 };
+    private readonly TextBox _rigNodeScaleY = new() { FontSize = 11 };
     private readonly CheckBox _rigNodeImage = new() { Content = "그림을 그린다", FontSize = 11 };
     private readonly CheckBox _rigNodeAlpha = new() { Content = "불투명도를 받는다", FontSize = 11 };
 
@@ -43,6 +48,12 @@ public partial class MainWindow
     /// <summary>테스트 손잡이 — 오브젝트 칸들.</summary>
     internal (TextBox Id, ComboBox Parent, TextBox X, TextBox Y, TextBox W, TextBox H, CheckBox Image, CheckBox Alpha) RigNodeBoxes
         => (_rigNodeId, _rigNodeParent, _rigNodeX, _rigNodeY, _rigNodeW, _rigNodeH, _rigNodeImage, _rigNodeAlpha);
+
+    /// <summary>테스트 손잡이 — 가만히 선 자세의 회전·배율 칸.</summary>
+    internal (TextBox Rotation, TextBox ScaleX, TextBox ScaleY) RigNodePoseBoxes => (_rigNodeRotation, _rigNodeScaleX, _rigNodeScaleY);
+
+    /// <summary>테스트 손잡이 — 그림 파일을 그 자리(루트 공간)에 그림 오브젝트로.</summary>
+    internal string? AddImageObjectFromForm(string path, Ked.Presentation.Core.Vec2 at) => AddImageObject(path, at);
 
     /// <summary>테스트 손잡이 — 하이어아키에서 세트의 오브젝트를 고른 것과 같다.</summary>
     internal void SelectSetNode(string? id)
@@ -81,10 +92,25 @@ public partial class MainWindow
         Button add = SmallButton("새 세트", (_, _) => Guard("새 세트", () => NewSet()));
         Button remove = SmallButton("세트 삭제", (_, _) => Guard("세트 삭제", RemoveSelectedSet));
         Button close = SmallButton("닫기", (_, _) => SelectSet(null));
+        Button import = SmallButton("그림 가져오기…", async (_, _) =>
+        {
+            try
+            {
+                if (SelectedSet is not null && await PickOpenAsync("그림 PNG", new FilePickerFileType("PNG") { Patterns = new[] { "*.png" } }) is { } path)
+                {
+                    Guard("그림 가져오기", () => AddImageObject(path, new Ked.Presentation.Core.Vec2(0f, 0f)));
+                }
+            }
+            catch (Exception exception)
+            {
+                _session.SetStatus($"그림 가져오기 실패: {exception.Message}");
+            }
+        });
+        ToolTip.SetTip(import, "PNG를 연 세트의 그림 오브젝트로 — 이름은 파일 이름에서, 크기는 그림의 크기, 지금 입혀 보는 스킨에 그림이 들어간다(스킨이 없으면 만든다). 되돌리기 한 번. 뷰포트에 파일을 끌어다 놓아도 된다");
         ToolTip.SetTip(add, "빈 세트(오브젝트 Body 하나)를 만들어 연다 — 이름 set, set_2…. 하이어아키에서 우클릭해 오브젝트를 더한다");
         ToolTip.SetTip(remove, "연 세트를 지운다. 그 세트의 애니메이션·스킨·연출은 남고 문제 목록이 알린다(되돌리기 한 번)");
         ToolTip.SetTip(close, "세트를 닫고 씬으로 돌아간다");
-        LeftPanel.Children.Insert(2, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { add, remove, close, SmallButton("rigs.json…", OnExportRigsClick) } });
+        LeftPanel.Children.Insert(2, new WrapPanel { Orientation = Orientation.Horizontal, Children = { add, remove, close, import, SmallButton("rigs.json…", OnExportRigsClick) } });
     }
 
     /// <summary>"씬" 탭에 서는 칸 — 세트를 열고 그 오브젝트(노드)를 골랐을 때의 이름·부모·자리·크기.</summary>
@@ -98,6 +124,9 @@ public partial class MainWindow
         _rigNodeFields.Children.Add(Labeled("Y", _rigNodeY));
         _rigNodeFields.Children.Add(Labeled("너비", _rigNodeW));
         _rigNodeFields.Children.Add(Labeled("높이", _rigNodeH));
+        _rigNodeFields.Children.Add(Labeled("회전", _rigNodeRotation));
+        _rigNodeFields.Children.Add(Labeled("배율 X", _rigNodeScaleX));
+        _rigNodeFields.Children.Add(Labeled("배율 Y", _rigNodeScaleY));
         _rigNodeFields.Children.Add(_rigNodeImage);
         _rigNodeFields.Children.Add(_rigNodeAlpha);
         _setNodePanel.Children.Add(_rigNodeFields);
@@ -127,7 +156,43 @@ public partial class MainWindow
             }
         };
 
-        foreach (TextBox box in new[] { _rigNodeX, _rigNodeY, _rigNodeW, _rigNodeH })
+        ToolTip.SetTip(_rigNodeRotation, "가만히 선 자세의 회전(도, 반시계 +) — 뷰포트에서 Ctrl+끌기");
+        ToolTip.SetTip(_rigNodeScaleX, "가만히 선 자세의 배율 — 뷰포트에서 Shift+끌기(둘 다 같이). 음수면 뒤집힌다");
+
+        // 뷰포트에 PNG를 끌어다 놓으면 그 자리에 그림 오브젝트가 선다(세트를 열었을 때).
+        DragDrop.SetAllowDrop(_viewport, true);
+        _viewport.AddHandler(DragDrop.DropEvent, (_, e) =>
+        {
+            if (SelectedSet is null)
+            {
+                return;
+            }
+
+            Ked.Presentation.Core.Vec2 at = _viewport.ToRoot(e.GetPosition(_viewport));
+
+            foreach (string path in (e.DataTransfer.TryGetFiles() ?? Array.Empty<IStorageItem>())
+                         .Select(f => f.TryGetLocalPath()).OfType<string>().Where(p => p.EndsWith(".png", StringComparison.OrdinalIgnoreCase)))
+            {
+                string captured = path;
+                Guard("그림 놓기", () => AddImageObject(captured, at));
+                at = new Ked.Presentation.Core.Vec2(at.X + 24f, at.Y - 24f); // 여럿이면 조금씩 비켜 놓는다
+            }
+
+            e.Handled = true;
+        });
+
+        // 뷰포트에서 집은 오브젝트가 하이어아키와 칸에서도 골라진다.
+        _viewport.LayoutNodePicked += (_, id) =>
+        {
+            if (_rigNodeSelected != id)
+            {
+                _rigNodeSelected = id;
+                RefreshSetNodePanel();
+                RebuildHierarchy();
+            }
+        };
+
+        foreach (TextBox box in new[] { _rigNodeX, _rigNodeY, _rigNodeW, _rigNodeH, _rigNodeRotation, _rigNodeScaleX, _rigNodeScaleY })
         {
             OnCommit(box, _ => CommitRigNode());
         }
@@ -177,6 +242,11 @@ public partial class MainWindow
         if (SelectedSet is not null)
         {
             ExpandObjectNodes(ViewportView.SetObjectId, true); // 세트를 열면 그 오브젝트들이 바로 보인다
+            _viewport.FitToSet();                              // 작은 세트가 무대 한가운데의 점으로 서지 않게
+        }
+        else
+        {
+            _viewport.ResetView();
         }
     }
 
@@ -238,6 +308,97 @@ public partial class MainWindow
         return kind;
     }
 
+    /// <summary>
+    /// 그림 파일을 연 세트의 그림 오브젝트로 — 오브젝트를 만들고(이름은 파일 이름에서, 크기는 그림의 픽셀 크기), 그 자리에 놓고, 입혀 보는 스킨에 그림을 준다.
+    /// 스킨이 없으면 세트의 이름으로 만든다. 통째로 되돌리기 한 칸. 고른 오브젝트가 묶는 것이면 그 밑에, 아니면 맨 위에 선다.
+    /// </summary>
+    private string? AddImageObject(string path, Ked.Presentation.Core.Vec2 at)
+    {
+        if (SelectedSet is not { } kind || EditedRig is not { } rig)
+        {
+            return null;
+        }
+
+        // 이름: 파일 이름의 영문·숫자만(첫 글자는 영문) — 한글 이름의 파일이면 Part1….
+        string stem = new string(Path.GetFileNameWithoutExtension(path).Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_').ToArray()).Trim('_');
+
+        if (stem.Length == 0 || !char.IsAsciiLetter(stem[0]))
+        {
+            stem = "Part";
+        }
+
+        string id = stem;
+
+        for (int i = 2; rig.Find(id) is not null; i++)
+        {
+            id = $"{stem}_{i.ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        float width = RigTemplates.DefaultPartSize;
+        float height = RigTemplates.DefaultPartSize;
+
+        if (PngSizeOf(path) is { } size)
+        {
+            width = size.Width;
+            height = size.Height;
+        }
+
+        string under = EditedRigNode is { Image: false } group ? group.Id : "";
+        at = _viewport.ToSetLocal(under, at); // 놓은 자리(루트 공간)를 그 부모 안의 좌표로
+        MotionEditor editor = _session.Editor;
+        string? skin = _viewport.SetSkin;
+
+        editor.Batch(MotionChangeKind.Document, () =>
+        {
+            if (skin is null)
+            {
+                skin = kind;
+
+                for (int i = 2; editor.Document.FindSkin(skin) is not null; i++)
+                {
+                    skin = $"{kind}_{i.ToString(CultureInfo.InvariantCulture)}";
+                }
+
+                editor.AddSkin(skin, kind);
+            }
+
+            editor.AddRigNode(kind, id, under, image: true);
+            editor.UpdateRigNode(kind, id, new RigNodeAsset { X = MathF.Round(at.X), Y = MathF.Round(at.Y), Width = width, Height = height, Image = true, Alpha = true });
+            _session.SetSkinPart(skin, id, path);
+        });
+
+        _viewport.SetSkin = skin;
+        SelectSetNode(id);
+        return id;
+    }
+
+    /// <summary>PNG의 픽셀 크기 — 머리(IHDR)만 읽는다(그림을 풀지 않는다). PNG가 아니거나 못 읽으면 null(본의 크기로 선다).</summary>
+    private static (int Width, int Height)? PngSizeOf(string path)
+    {
+        try
+        {
+            using FileStream stream = File.OpenRead(path);
+            Span<byte> head = stackalloc byte[24];
+
+            if (stream.Read(head) < 24 || head[0] != 0x89 || head[1] != (byte)'P' || head[2] != (byte)'N' || head[3] != (byte)'G')
+            {
+                return null;
+            }
+
+            int width = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(head[16..20]);
+            int height = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(head[20..24]);
+            return width > 0 && height > 0 ? (width, height) : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     private void RemoveSelectedSet()
     {
         if (SelectedSet is { } kind)
@@ -259,6 +420,9 @@ public partial class MainWindow
             Y = TryFloat(_rigNodeY.Text ?? "", out float y) ? y : node.Y,
             Width = TryFloat(_rigNodeW.Text ?? "", out float w) ? w : node.Width,
             Height = TryFloat(_rigNodeH.Text ?? "", out float h) ? h : node.Height,
+            Rotation = TryFloat(_rigNodeRotation.Text ?? "", out float rotation) ? rotation : node.Rotation,
+            ScaleX = TryFloat(_rigNodeScaleX.Text ?? "", out float sx) ? sx : node.ScaleX,
+            ScaleY = TryFloat(_rigNodeScaleY.Text ?? "", out float sy) ? sy : node.ScaleY,
             Image = _rigNodeImage.IsChecked == true,
             Alpha = _rigNodeAlpha.IsChecked == true,
         };
@@ -404,6 +568,9 @@ public partial class MainWindow
             Write(_rigNodeY, node is null ? "" : F(node.Y));
             Write(_rigNodeW, node is null ? "" : F(node.Width));
             Write(_rigNodeH, node is null ? "" : F(node.Height));
+            Write(_rigNodeRotation, node is null ? "" : F(node.Rotation));
+            Write(_rigNodeScaleX, node is null ? "" : F(node.ScaleX));
+            Write(_rigNodeScaleY, node is null ? "" : F(node.ScaleY));
             _rigNodeImage.IsChecked = node?.Image == true;
             _rigNodeAlpha.IsChecked = node?.Alpha == true;
 

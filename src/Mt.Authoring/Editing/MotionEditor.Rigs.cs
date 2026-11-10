@@ -187,7 +187,13 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException("노드의 위치는 수, 크기는 0 이상의 수다.");
         }
 
-        if (node.X == value.X && node.Y == value.Y && node.Width == value.Width && node.Height == value.Height && node.Image == value.Image && node.Alpha == value.Alpha)
+        if (!float.IsFinite(value.Rotation) || !float.IsFinite(value.ScaleX) || !float.IsFinite(value.ScaleY) || value.ScaleX == 0f || value.ScaleY == 0f)
+        {
+            throw new InvalidOperationException("노드의 회전은 수, 배율은 0이 아닌 수다.");
+        }
+
+        if (node.X == value.X && node.Y == value.Y && node.Width == value.Width && node.Height == value.Height && node.Image == value.Image && node.Alpha == value.Alpha
+            && node.Rotation == value.Rotation && node.ScaleX == value.ScaleX && node.ScaleY == value.ScaleY)
         {
             return;
         }
@@ -200,6 +206,9 @@ public sealed partial class MotionEditor
             node.Height = value.Height;
             node.Image = value.Image;
             node.Alpha = value.Alpha;
+            node.Rotation = value.Rotation;
+            node.ScaleX = value.ScaleX;
+            node.ScaleY = value.ScaleY;
         });
     }
 
@@ -332,7 +341,7 @@ public sealed partial class MotionEditor
     private static RigAsset CloneRig(RigAsset rig) => new()
     {
         Kind = rig.Kind,
-        Nodes = rig.Nodes.Select(n => new RigNodeAsset { Id = n.Id, Parent = n.Parent ?? "", X = n.X, Y = n.Y, Width = n.Width, Height = n.Height, Image = n.Image, Alpha = n.Alpha }).ToList(),
+        Nodes = rig.Nodes.Select(n => new RigNodeAsset { Id = n.Id, Parent = n.Parent ?? "", X = n.X, Y = n.Y, Width = n.Width, Height = n.Height, Image = n.Image, Alpha = n.Alpha, Rotation = n.Rotation, ScaleX = n.ScaleX, ScaleY = n.ScaleY }).ToList(),
     };
 
     private RigAsset RequireRig(string kind)

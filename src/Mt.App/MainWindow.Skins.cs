@@ -53,6 +53,14 @@ public partial class MainWindow
                 return;
             }
 
+            // 세트 보기의 오브젝트는 문서에 없다 — 입혀 보는 스킨은 보기 상태다(문서를 안 바꾼다).
+            if (_viewport.SetView is not null)
+            {
+                _viewport.SetSkin = choice == NoSkin ? null : choice;
+                RefreshSkinPanel();
+                return;
+            }
+
             Guard("스킨 입히기", () => _session.Editor.SetObjectSkin(null, o.Id, choice == NoSkin ? null : choice));
         };
         OnCommit(_skinName, text =>
@@ -249,6 +257,15 @@ public partial class MainWindow
 
         string id = o.Id;
         string rig = o.Rig;
+
+        if (_viewport.SetView is not null)
+        {
+            editor.AddSkin(name, rig);
+            _viewport.SetSkin = name;
+            RefreshSkinPanel();
+            return name;
+        }
+
         editor.Batch(MotionChangeKind.Scene, () =>
         {
             editor.AddSkin(name, rig);
