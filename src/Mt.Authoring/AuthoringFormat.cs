@@ -4,7 +4,7 @@ namespace Mt.Authoring;
 /// 저작 원본(<c>*.motion-authoring.json</c>)과 산출물(<c>motions.json</c>)의 스키마 이름.
 ///
 /// 산출물 스키마는 무대 런타임의 <c>docs/motion-contract.md</c>가 정본이고 이 툴은 그것을
-/// 따를 뿐이다. 저작 원본 스키마는 이 툴의 것이다 — 탄젠트 모드·미리보기 씬 등
+/// 따를 뿐이다. 저작 원본 스키마는 이 툴의 것이다 — 탄젠트 모드·세트와 컷 등
 /// 산출물에 들어가지 않는 정보를 담는다 (PLAN §3).
 /// </summary>
 public static class AuthoringFormat

@@ -12,16 +12,12 @@ public class MotionDocumentJsonTests
     public void 저작_원본은_쓰고_읽으면_같은_문서다()
     {
         MotionDocument document = Fixtures.NodBowDocument();
-        var editor = new MotionEditor(document);
-        editor.SetRigSchemas("../ExportedTuning/rig-schemas.json", "abc123");
-
-        string first = MotionDocumentJson.Write(editor.Document);
+        string first = MotionDocumentJson.Write(document);
         MotionDocument read = MotionDocumentJson.Read(first);
         string second = MotionDocumentJson.Write(read);
 
         Assert.Equal(first, second);
         Assert.Equal(AuthoringFormat.AuthoringSchema, read.Schema);
-        Assert.Equal("abc123", read.RigSchemas!.Sha256);
         Assert.DoesNotContain("\"notes\"", first, StringComparison.Ordinal); // 메모는 없다(소유자, 2026-10-28)
     }
 
@@ -124,11 +120,14 @@ public class MotionDocumentJsonTests
     [Fact]
     public void 옛_문서의_걷어_낸_속성은_읽을_때_무시된다()
     {
-        // 초상 · 자리(place)와 focus · 배역 · 붙이기는 걷어 냈다 — 그 속성이 든 옛 문서도 열리고, 다시 쓰면 그 속성이 없다.
+        // 씬 · 리그 덤프 참조 · 기준 해상도 참조 · 초상 · 자리(place)와 focus · 배역 · 붙이기는 걷어 냈다 — 그 속성이 든 옛 문서도 열리고, 다시 쓰면 그 속성이 없다.
         string json = """
             { "schema": "motion-authoring/2",
+              "rigSchemas": { "path": "../ExportedTuning/rig-schemas.json", "sha256": "abc123" },
+              "baseResolution": { "path": "../ExportedTuning/base-resolution.json" },
               "preview": { "portrait": "art/old.png" },
-              "motions": [],
+              "motions": [ { "name": "nod", "rig": "character", "duration": 0.6, "end": "restore", "channels": [] } ],
+              "activeScene": "scene",
               "scenes": [ { "name": "scene", "objects": [
                   { "id": "s1", "rig": "character", "layer": "front", "character": "bandi", "place": "left", "placeFocus": "face", "portrait": "art/harin.png" },
                   { "id": "e1", "rig": "badge", "attachTo": "s1", "attachNode": "CharSlot_Scale", "positionX": 40 } ] } ] }
@@ -136,13 +135,13 @@ public class MotionDocumentJsonTests
 
         MotionDocument read = MotionDocumentJson.Read(json);
 
-        Assert.Equal(new[] { "s1", "e1" }, read.ActiveSceneAsset!.Objects.Select(o => o.Id));
-        Assert.Equal("front", read.ActiveSceneAsset.Objects[0].Layer);
-        Assert.Equal(40f, read.ActiveSceneAsset.Objects[1].PositionX);
+        Assert.Equal("nod", Assert.Single(read.Motions).Name); // 남은 것은 그대로 읽힌다
+        Assert.Empty(read.Cuts);
+        Assert.Empty(read.Rigs);
 
         string written = MotionDocumentJson.Write(read);
 
-        foreach (string gone in new[] { "\"preview\"", "\"portrait\"", "\"character\":", "\"place\"", "\"placeFocus\"", "\"attachTo\"", "\"attachNode\"" })
+        foreach (string gone in new[] { "\"scenes\"", "\"activeScene\"", "\"rigSchemas\"", "\"baseResolution\"", "\"objects\"", "\"preview\"", "\"portrait\"", "\"character\":", "\"place\"", "\"placeFocus\"", "\"attachTo\"", "\"attachNode\"" })
         {
             Assert.DoesNotContain(gone, written, StringComparison.Ordinal);
         }

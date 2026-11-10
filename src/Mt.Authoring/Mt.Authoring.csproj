@@ -9,7 +9,7 @@
     <InternalsVisibleTo Include="Mt.Authoring.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 내장 기본값: 런타임 ExportedTuning의 사본(덤프 없이도 캐릭터 리그가 선다)과 프리팹에서 뽑은 무대 뼈대.
+    <!-- 내장 기본값: 런타임 ExportedTuning에서 가져온 깊이 커브(presets/depth.json).
          손으로 고치지 않는다 — 원본 커밋은 BuiltinTuning.Source에 적는다. -->
     <EmbeddedResource Include="Defaults\**\*.json" LogicalName="Defaults/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>

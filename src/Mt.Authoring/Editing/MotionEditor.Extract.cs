@@ -170,7 +170,7 @@ public sealed partial class MotionEditor
     }
 
     /// <summary>
-    /// 세트의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 그 세트의 애니메이션·스킨, 그것을 품은 인스턴스, 씬의 오브젝트.
+    /// 세트의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 그 세트의 애니메이션·스킨, 그것을 품은 인스턴스.
     /// **세트의 이름을 딴 이름들도 따라온다**(빼낼 때 붙은 이름을 한 번에 고치게): 애니메이션 <c>옛이름_x</c> → <c>새이름_x</c>, 스킨 <c>옛이름</c>, 인스턴스 오브젝트 <c>옛이름</c> — 새 이름이 비어 있을 때만.
     /// </summary>
     public void RenameRig(string kind, string newKind)
@@ -233,11 +233,6 @@ public sealed partial class MotionEditor
             {
                 node.Set = name;
             }
-
-            foreach (SceneObject o in Document.Scenes.SelectMany(s => s.Objects).Where(o => o.Rig == kind))
-            {
-                o.Rig = name;
-            }
         });
     }
 
@@ -280,7 +275,7 @@ public sealed partial class MotionEditor
         List<MotionAsset> motions = source.Motions.Where(m => wanted.Contains(m.Rig)).ToList();
         List<SkinAsset> skins = source.Skins.Where(k => wanted.Contains(k.Rig)).ToList();
 
-        List<string> clashes = rigs.Where(r => Document.FindRig(r.Kind) is not null || ReservedRigKinds.Contains(r.Kind)).Select(r => $"세트 {r.Kind}")
+        List<string> clashes = rigs.Where(r => Document.FindRig(r.Kind) is not null).Select(r => $"세트 {r.Kind}")
             .Concat(motions.Where(m => Document.Find(m.Name) is not null).Select(m => $"애니메이션 {m.Name}"))
             .Concat(skins.Where(k => Document.FindSkin(k.Name) is not null).Select(k => $"스킨 {k.Name}"))
             .ToList();
@@ -320,11 +315,6 @@ public sealed partial class MotionEditor
         if (!RigKindRule.IsMatch(name))
         {
             throw new InvalidOperationException($"세트 이름은 영문자로 시작하는 영문·숫자·_ 다 ('{kind}')");
-        }
-
-        if (ReservedRigKinds.Contains(name))
-        {
-            throw new InvalidOperationException($"'{name}'는 툴에서 정의하지 않는 리그다.");
         }
 
         if (Document.FindRig(name) is not null)

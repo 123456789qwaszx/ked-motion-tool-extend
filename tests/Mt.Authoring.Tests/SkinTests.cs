@@ -12,12 +12,7 @@ public class SkinTests
 {
     private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(PartsRigFixture.WriteDump(Fixtures.PathOf("rig-schemas.json")));
 
-    private static MotionEditor NewEditor()
-    {
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddSceneObject(null, "e1", PartsRigFixture.RigKind);
-        return editor;
-    }
+    private static MotionEditor NewEditor() => new(new MotionDocument());
 
     [Fact]
     public void 조각은_이름_규칙으로_가리고_캐릭터에는_없다()
@@ -30,8 +25,8 @@ public class SkinTests
         Assert.False(RigParts.IsPartNode("Badge_Body"));
         Assert.False(RigParts.IsPartNode("Part1_Root"));
 
-        // 조각 노드는 리그의 보통 노드다 — 씬에 서고, 모션의 채널이 된다.
-        RectNodeTree tree = ScenePreview.Build(RigFile, NewEditor().Document.ActiveSceneAsset!);
+        // 조각 노드는 리그의 보통 노드다 — 트리에 서고, 모션의 채널이 된다.
+        RectNodeTree tree = RigFile.BuildTree(PartsRigFixture.RigKind, "e1/");
         Assert.True(tree.Contains("e1/Badge_Part3"));
         Assert.Equal(PartsRigFixture.PartSize, tree.GetRectSize("e1/Badge_Part1").X, 3);
         Assert.Contains("Badge_Part1", RigFile.NodeIds[PartsRigFixture.RigKind]);
@@ -46,7 +41,6 @@ public class SkinTests
         editor.AddSkin("꽃", PartsRigFixture.RigKind);
         editor.SetSkinPart("꽃", "Badge_Part2", "art/꽃-작은.png");
         editor.SetSkinPart("꽃", "Badge_Part1", "art/꽃-큰.png");
-        editor.SetObjectSkin(null, "e1", "꽃");
 
         string json = MotionDocumentJson.Write(editor.Document);
         MotionDocument read = MotionDocumentJson.Read(json);
@@ -54,26 +48,25 @@ public class SkinTests
         SkinAsset skin = Assert.Single(read.Skins);
         Assert.Equal(("꽃", PartsRigFixture.RigKind), (skin.Name, skin.Rig));
         Assert.Equal(new[] { ("Badge_Part1", "art/꽃-큰.png"), ("Badge_Part2", "art/꽃-작은.png") }, skin.Parts.Select(p => (p.Key, p.Value))); // 노드 이름순
-        Assert.Equal("꽃", read.ActiveSceneAsset!.Find("e1")!.Skin);
-        Assert.Null(read.ActiveSceneAsset.Find("s1")!.Skin);
     }
 
     [Fact]
-    public void 명령은_한_칸이고_이름을_바꾸거나_지우면_입은_오브젝트가_따라온다()
+    public void 명령은_한_칸이고_이름을_바꾸면_그_스킨을_입힌_인스턴스가_따라온다()
     {
         MotionEditor editor = NewEditor();
-        editor.AddSceneObject(null, "e2", PartsRigFixture.RigKind);
+        editor.AddRig(PartsRigFixture.Rig());
+        editor.AddRig(new RigAsset { Kind = "shelf", Nodes = { new RigNodeAsset { Id = "left", Set = PartsRigFixture.RigKind }, new RigNodeAsset { Id = "right", Set = PartsRigFixture.RigKind } } });
         editor.AddSkin("  sweat ", PartsRigFixture.RigKind); // 앞뒤 빈칸은 버린다
-        editor.SetObjectSkin(null, "e1", "sweat");
-        editor.SetObjectSkin(null, "e2", "sweat");
-        SceneAsset Scene() => editor.Document.ActiveSceneAsset!;
+        editor.SetRigInstanceSkin("shelf", "left", "sweat");
+        editor.SetRigInstanceSkin("shelf", "right", "sweat");
+        string?[] Worn() => editor.Document.FindRig("shelf")!.Nodes.Select(n => n.SetSkin).ToArray();
 
         long revision = editor.Revision;
         editor.RenameSkin("sweat", "땀");
         Assert.Equal(revision + 1, editor.Revision);
-        Assert.Equal(new[] { "땀", "땀" }, new[] { Scene().Find("e1")!.Skin, Scene().Find("e2")!.Skin });
+        Assert.Equal(new[] { "땀", "땀" }, Worn());
         editor.Undo();
-        Assert.Equal("sweat", Scene().Find("e1")!.Skin);
+        Assert.Equal(new[] { "sweat", "sweat" }, Worn());
         Assert.NotNull(editor.Document.FindSkin("sweat"));
         editor.Redo();
 
@@ -86,14 +79,13 @@ public class SkinTests
         editor.SetSkinPart("땀", "Badge_Part1", null);
         Assert.Empty(editor.Document.FindSkin("땀")!.Parts);
 
-        // 복제하면 스킨도 같이 입는다.
-        Assert.Equal("땀", editor.DuplicateSceneObject(null, "e1").Skin);
-
-        // 지우면 입은 오브젝트가 같은 칸에서 벗는다 — 되돌리면 다시 입는다.
+        // 지우기도 한 칸 — 되돌리면 돌아온다.
+        revision = editor.Revision;
         editor.RemoveSkin("땀");
-        Assert.All(Scene().Objects, o => Assert.Null(o.Skin));
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Null(editor.Document.FindSkin("땀"));
         editor.Undo();
-        Assert.Equal("땀", Scene().Find("e2")!.Skin);
+        Assert.NotNull(editor.Document.FindSkin("땀"));
     }
 
     [Fact]
@@ -106,8 +98,6 @@ public class SkinTests
         Assert.Throws<InvalidOperationException>(() => editor.AddSkin("a", PartsRigFixture.RigKind));
         Assert.Throws<InvalidOperationException>(() => editor.AddSkin("  ", PartsRigFixture.RigKind));
         Assert.Throws<InvalidOperationException>(() => editor.AddSkin("b", ""));
-        Assert.Throws<KeyNotFoundException>(() => editor.SetObjectSkin(null, "e1", "nope"));
-        Assert.Throws<InvalidOperationException>(() => editor.SetObjectSkin(null, "s1", "a")); // 캐릭터에 조각 리그의 스킨
         Assert.Throws<KeyNotFoundException>(() => editor.SetSkinPart("nope", "Badge_Part1", "x.png"));
         Assert.Throws<InvalidOperationException>(() => editor.SetSkinPart("a", "", "x.png"));
         Assert.Throws<KeyNotFoundException>(() => editor.RemoveSkin("nope"));

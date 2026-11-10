@@ -16,11 +16,10 @@ using Mt.Authoring.Rig;
 namespace Mt.App.Views;
 
 /// <summary>
-/// 뷰포트 — 리그로 세운 트리 위에 오브젝트를 그리고 모션을 재생한다.
+/// 뷰포트 — **연 컷이나 세트 하나**를 무대에 세워 그리고 그 타임라인(애니메이션)을 재생한다. 아무것도 안 열었으면 빈 무대다.
 ///
-/// 포즈는 <see cref="MotionPreview"/>(코어 수학), 자리는 <see cref="StageQuads"/>다 —
+/// 포즈는 <see cref="MotionPreview"/>(코어 수학), 컷의 카메라와 깊이는 <see cref="CutStage"/>, 자리는 <see cref="StageQuads"/>다 —
 /// 여기에는 그리기·시계·입력만 있다. 무대는 기준 해상도 크기이고 컨트롤 안에 레터박스로 맞춘다.
-/// 깊이는 mid(DepthScale 1) 고정이고 카메라는 없다 — v1 범위.
 ///
 /// 타임 슬라이더는 따로(<see cref="TimeSliderView"/>)다. 재생 토글은 전역 Alt+`(셸), Home/End 처음/끝.
 /// <b>포즈 들고 스크럽</b>(마야 MMB 드래그): <see cref="HoldScrubTo"/>로 시각을 옮겨도 보이는 포즈는 그대로라 S로 그 포즈를 다른 프레임에 키한다.
@@ -41,7 +40,6 @@ public sealed class ViewportView : Control
     private static readonly Pen GridMajorPen = new(new SolidColorBrush(Color.FromArgb(80, 255, 255, 255)), 1);
     private static readonly Pen WorldXPen = new(new SolidColorBrush(Color.FromArgb(200, 0xE2, 0x4C, 0x3F)), 1.5);
     private static readonly Pen WorldYPen = new(new SolidColorBrush(Color.FromArgb(200, 0x5E, 0xC6, 0x5A)), 1.5);
-    private static readonly Pen ObjectOutlinePen = new(new SolidColorBrush(Color.FromArgb(180, 0x9E, 0xB4, 0xFF)), 1, DashStyle.Dash);
     private static readonly Pen SelectedObjectPen = new(new SolidColorBrush(Color.FromArgb(230, 0xF9, 0xD7, 0x1C)), 1.5);
     private static readonly IBrush LabelBrush = new SolidColorBrush(Color.FromArgb(200, 203, 213, 225));
     private static readonly IBrush GizmoCenterBrush = new SolidColorBrush(Color.FromArgb(230, 250, 204, 21));
@@ -60,15 +58,11 @@ public sealed class ViewportView : Control
     private string? _motionName;
     private RigSchemaFile? _rig;
     private DepthTuningFile? _depth;
-    // 무대 뼈대(PresentataionUIRoot). 리그가 있으면 내장 뼈대를 쓴다 — 카메라·패럴랙스가 이 트리에 들어간다.
-    private RigSchemaRigDto? _stage;
-    // 씬 전체의 시작 상태(오브젝트마다 슬롯 접두사). 모션은 선택 오브젝트에만 얹는다.
+    // 연 컷/세트의 시작 상태(노드 키는 set/ 접두사) — 포즈는 이것의 사본에 타임라인을 얹는다. 아무것도 안 열었으면 null.
     private RectNodeTree? _template;
 
-    /// <summary>조각 그림 — (오브젝트 id, 조각 노드 id) → 비트맵. 스킨이 그림을 준 조각만 든다(파일을 못 읽었으면 null — 자리표시).</summary>
     // 스킨의 그림 — 문서 기준 경로 → 비트맵. 어느 스킨의 어느 장을 그릴지는 그릴 때 고른다(입은 스킨 · 그림 넘기기).
     private readonly Dictionary<string, Bitmap?> _images = new(StringComparer.Ordinal);
-    private string? _selectedObjectId;
     public bool ShowGrid { get; set; } = true;
     private Vec2 _stageSize = BaseResolutionFile.Default;
     private KeySelection _selection = new();
@@ -145,7 +139,7 @@ public sealed class ViewportView : Control
 
     public ManipulatorMode Manipulator { get; set; } = ManipulatorMode.Move;
 
-    // 보기 변환(네비게이션): 무대를 컨트롤에 맞춘 배율 × ViewZoom, 가운데에서 ViewPan만큼. 씬 데이터가 아니라 화면뿐이다.
+    // 보기 변환(네비게이션): 무대를 컨트롤에 맞춘 배율 × ViewZoom, 가운데에서 ViewPan만큼. 문서가 아니라 화면뿐이다.
     private double _viewZoom = 1;
     private Vector _viewPan;
     private bool _panning;
@@ -217,12 +211,12 @@ public sealed class ViewportView : Control
     /// <summary>포즈를 들고 있는가(MMB 스크럽 뒤). S가 모든 채널에 그 포즈를 키한다.</summary>
     public bool IsHoldingPose => _held is not null;
 
-    /// <summary>매니퓰레이터를 둘 수 있는 노드들 — 덤프의 노드 중 __root·키잉 금지 노드를 뺀 것.</summary>
+    /// <summary>매니퓰레이터를 둘 수 있는 노드들 — 연 컷/세트의 노드 중 __root·키잉 금지 노드를 뺀 것.</summary>
     public IReadOnlyList<string> NodeChoices
     {
         get
         {
-            if (_rig is null || SelectedObject is not { } o || !_rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
+            if (_rig is null || _setView is not { } kind || !_rig.TryGetRig(kind, out RigSchemaRigDto dto))
             {
                 return Array.Empty<string>();
             }
@@ -231,27 +225,27 @@ public sealed class ViewportView : Control
         }
     }
 
-    // ── 씬·오브젝트 ───────────────────────────────────────────────────
+    // ── 연 컷 · 세트 (PLAN-set.md S1 · PLAN-standalone.md §6) ───────────
 
-    /// <summary>뷰포트가 보여 주는 씬 — 문서의 활성 씬(세트 보기에서는 그 보기 전용 씬).</summary>
-    public SceneAsset? Scene => _editor is null
-        ? null
-        : SetScene() is { } set ? set
-        : _editor.Document.ActiveSceneAsset;
-
-    // ── 세트 보기 (PLAN-set.md S1) ────────────────────────────────────
-
-    /// <summary>세트를 열었을 때 그 세트가 서는 오브젝트의 id — 문서의 씬에는 없다(보기 전용).</summary>
+    /// <summary>연 컷/세트가 무대에 서는 이름 — 노드 키의 접두사가 된다(<c>set/오브젝트</c>). 문서에는 없다(보기 전용).</summary>
     public const string SetObjectId = "set";
+
+    /// <summary>노드 키의 접두사 — 코어 <c>StageState.NodeKeyOf</c>와 같은 꼴.</summary>
+    private const string Prefix = SetObjectId + "/";
+
+    private static string KeyOf(string node) => Prefix + node;
 
     private string? _setView;
     private string? _setSkin;
-    private SceneAsset? _setScene;
 
-    /// <summary>세트 보기에서 입혀 볼 스킨 — 그 세트의 것이 아니거나 null이면 첫 스킨.</summary>
+    /// <summary>
+    /// 연 컷/세트에 입혀 보는 스킨 — 보기 상태다(문서를 안 바꾼다). 고른 것이 그 컷/세트의 스킨이 아니거나 없으면 그 첫 스킨(그림이 바로 보이게).
+    /// </summary>
     public string? SetSkin
     {
-        get => SetScene()?.Objects[0].Skin;
+        get => _setView is not { } kind || _editor is null ? null
+            : _editor.Document.FindSkin(_setSkin) is { } chosen && chosen.Rig == kind ? chosen.Name
+            : _editor.Document.Skins.FirstOrDefault(s => s.Rig == kind)?.Name;
         set
         {
             _setSkin = value;
@@ -266,8 +260,8 @@ public sealed class ViewportView : Control
     public bool IsLayoutMode => _setView is not null && Motion is null;
 
     /// <summary>
-    /// 연 세트(rigKind) — 뷰포트와 하이어아키가 **그 세트만** 보인다: 문서의 씬 대신 그 세트 하나가 무대 가운데에 선 보기 전용 씬.
-    /// 그 리그의 모션을 고르면 이 오브젝트가 연기한다. null이면 문서의 씬.
+    /// 연 컷이나 세트(rigKind) — 뷰포트와 하이어아키가 **그것만** 보인다. 그 타임라인(애니메이션)을 묶으면 그것이 연기한다.
+    /// null이면 아무것도 안 열었다(빈 무대).
     /// </summary>
     public string? SetView
     {
@@ -282,20 +276,9 @@ public sealed class ViewportView : Control
             DiscardPending();
             _setView = value;
             _entered = null;
-            _setScene = null;
             _hiddenSetNodes.Clear();
             _soloSetNode = null;
             RebuildTemplate();
-
-            if (value is not null)
-            {
-                SelectedObjectId = SetObjectId;
-            }
-            else if (Scene is { } scene && scene.Find(SelectedObjectId ?? "") is null)
-            {
-                SelectedObjectId = scene.Objects.FirstOrDefault()?.Id;
-            }
-
             InvalidateVisual();
         }
     }
@@ -358,95 +341,36 @@ public sealed class ViewportView : Control
         return underSolo;
     }
 
-    /// <summary>세트 보기의 씬 — 그 세트 하나. 그 리그의 첫 스킨을 입는다(그림이 보이게 — 스킨을 고르는 것은 배치 모드에서).</summary>
-    private SceneAsset? SetScene()
-    {
-        if (_setView is not { } kind || _editor is null)
-        {
-            return null;
-        }
-
-        string? skin = _editor.Document.FindSkin(_setSkin) is { } chosen && chosen.Rig == kind
-            ? chosen.Name
-            : _editor.Document.Skins.FirstOrDefault(s => s.Rig == kind)?.Name;
-
-        if (_setScene is null || _setScene.Objects[0].Rig != kind || _setScene.Objects[0].Skin != skin)
-        {
-            _setScene = new SceneAsset { Name = kind, Objects = { new SceneObject { Id = SetObjectId, Rig = kind, Skin = skin } } };
-        }
-
-        return _setScene;
-    }
-
-    public IReadOnlyList<SceneObject> SceneObjects => Scene?.Objects ?? (IReadOnlyList<SceneObject>)Array.Empty<SceneObject>();
-
-    /// <summary>선택 오브젝트 — 매니퓰레이터·모션 미리보기의 대상.</summary>
-    public string? SelectedObjectId
-    {
-        get => _selectedObjectId;
-        set
-        {
-            if (_selectedObjectId == value)
-            {
-                return;
-            }
-
-            _selectedObjectId = value;
-            DiscardPending();
-            ObjectSelected?.Invoke(this, EventArgs.Empty);
-            InvalidateVisual();
-        }
-    }
-
-    public SceneObject? SelectedObject => _selectedObjectId is null ? null : Scene?.Find(_selectedObjectId);
-
-    /// <summary>포즈를 잡는 오브젝트(선택 오브젝트)의 노드 키 접두사("c1/"). 오브젝트가 없으면 빈 문자열.</summary>
-    private string Prefix => SelectedObject?.Prefix ?? "";
-
     /// <summary>선택 노드의 트리 키(접두사 포함).</summary>
-    private string? SelectedKey => SelectedNode is null ? null : Prefix + SelectedNode;
+    private string? SelectedKey => SelectedNode is null ? null : KeyOf(SelectedNode);
 
-    /// <summary>오브젝트를 골랐다.</summary>
-    public event EventHandler? ObjectSelected;
+    /// <summary>연 것의 대표 사각형(루트 공간, 지금 시각) — 손잡이가 서는 자리의 기준(<see cref="QuadOf"/>). 아무것도 안 열었으면 null.</summary>
+    public Quad? ShownQuad() => PoseAt(_clock.Time) is { } pose ? QuadOf(pose) : null;
 
-    /// <summary>이 오브젝트에 지금 모션을 입혀 볼 수 있나(rigKind가 같거나 채널 노드가 전부 있으면).</summary>
-    public bool CanWear(SceneObject o) => _rig is not null && Motion is { } motion && ScenePreview.CanWear(_rig, o, motion);
-
-    /// <summary>오브젝트의 사각형 — 루트 공간(<see cref="QuadOf"/>). 트리가 없으면 null.</summary>
-    public Quad? ObjectQuad(string objectId)
+    /// <summary>포즈 위의 대표 사각형(루트 공간) — 첫 조각, 첫 색 사각형, 그것도 없으면 무대 전체(루트).</summary>
+    private Quad? QuadOf(RectNodeTree pose)
     {
-        RectNodeTree? pose = PoseAt(_clock.Time);
-        SceneObject? o = Scene?.Find(objectId);
-
-        if (pose is null || o is null)
+        if (_setView is not { } kind)
         {
             return null;
         }
 
-        return QuadOf(pose, o);
-    }
-
-    /// <summary>포즈 위의 오브젝트 사각형(루트 공간) — 첫 조각, 첫 색 사각형, 그것도 없으면 윤곽(<see cref="OutlineKeyOf"/>).</summary>
-    private Quad? QuadOf(RectNodeTree pose, SceneObject o)
-    {
-        // 조각으로 그려지는 오브젝트는 첫 조각의 사각형이 고르는 자리다.
-        if (DrawnParts(o) is { Count: > 0 } parts && PartQuadOf(pose, o, parts[0]) is { } first)
+        // 조각으로 그려지면 첫 조각의 사각형.
+        if (DrawnParts() is { Count: > 0 } parts && PartQuadOf(pose, parts[0]) is { } first)
         {
             return first;
         }
 
-        // 색 오브젝트뿐인 세트 — 첫 색 사각형.
-        if (RigParts.ColorsOf(_rig, o.Rig).Keys.FirstOrDefault(n => pose.Contains(o.KeyOf(n))) is { } colored)
+        // 색 오브젝트뿐이면 첫 색 사각형.
+        if (RigParts.ColorsOf(_rig, kind).Keys.FirstOrDefault(n => pose.Contains(KeyOf(n))) is { } colored)
         {
-            return StageQuads.RectQuad(pose, o.KeyOf(colored));
+            return StageQuads.RectQuad(pose, KeyOf(colored));
         }
 
-        return OutlineKeyOf(pose, o) is { } outline ? StageQuads.RectQuad(pose, outline) : null;
+        return pose.Contains(RootKey) ? StageQuads.RectQuad(pose, RootKey) : null;
     }
 
-    /// <summary>그림도 색도 없는 오브젝트의 윤곽 노드 — 덤프 리그의 그림 자리, 없으면 루트. 그 리그가 안 섰으면 null.</summary>
-    private static string? OutlineKeyOf(RectNodeTree pose, SceneObject o)
-        => ScenePreview.OutlineKeyOf(pose, o) ?? (pose.Contains(ScenePreview.RootKeyOf(o)) ? ScenePreview.RootKeyOf(o) : null);
+    private const string RootKey = Prefix + RigSchemaLoader.RootKey;
 
     private double SnapTime(double seconds) => SnapEnabled ? TimeSnap.Snap(seconds, SnapStep) : seconds;
 
@@ -506,14 +430,14 @@ public sealed class ViewportView : Control
     }
 
     /// <summary>
-    /// 매니퓰레이터가 서는 점(루트 공간) — 노드의 원점. 원점이 오브젝트 그림 밖이면(화면 크기 스트레치 노드의 pivot —
-    /// 발 기준 회전의 SwayPivot은 rect 아래 끝이라 무대 밖으로 나간다) 그림 가운데에 둔다. 손잡이는 늘 보이는 곳에 있어야 한다.
+    /// 매니퓰레이터가 서는 점(루트 공간) — 노드의 원점. 원점이 그림 밖이면(발 기준으로 도는 묶음처럼 그림에서 떨어진 자리)
+    /// 그림 가운데에 둔다. 손잡이는 늘 보이는 곳에 있어야 한다.
     /// </summary>
     private Vec2 GizmoAnchor(RectNodeTree pose, string key)
     {
         Vec2 origin = pose.TransformPoint(key, Vec3.Zero).XY;
 
-        if (SelectedObject is not { } o || QuadOf(pose, o) is not { } quad)
+        if (QuadOf(pose) is not { } quad)
         {
             return origin;
         }
@@ -784,7 +708,7 @@ public sealed class ViewportView : Control
 
     public void EndHoldScrub() => _holdScrub = false;
 
-    /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 덤프(템플릿), 키 값은 모션의 재생 기준(relative/absolute)를 따른다.</summary>
+    /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 가만히 선 자세(템플릿), 키 값은 모션의 재생 기준(relative/absolute)를 따른다.</summary>
     private void KeyNow(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
     {
         MotionAsset? motion = Motion;
@@ -997,7 +921,6 @@ public sealed class ViewportView : Control
         _clock.Stop();
         _timer.Stop();
         SyncDuration();
-        PickSelectedObject();
         RebuildTemplate();
         PlayStateChanged?.Invoke(this, EventArgs.Empty);
         TimeChanged?.Invoke(this, EventArgs.Empty);
@@ -1008,16 +931,11 @@ public sealed class ViewportView : Control
     public void SetRig(RigSchemaFile? rig)
     {
         _rig = rig;
-        _stage = rig is null ? null : BuiltinTuning.StageRig;
-        PickSelectedObject();
         RebuildTemplate();
         InvalidateVisual();
     }
 
-    /// <summary>카메라가 트리(뼈대의 Zoom/Pan 노드)에 들어가 있나. 뼈대가 없으면 보기 변환으로 입힌다(같은 식).</summary>
-    public bool CameraInTree => _stage is not null;
-
-    /// <summary>presets/depth.json — 레이어를 깊이(DepthScale)로. null이면 레이어는 그리는 순서만.</summary>
+    /// <summary>깊이 커브(presets/depth.json) — 컷의 맨 위 오브젝트가 제 깊이만큼 작아진다. null이면 깊이는 그리는 순서와 카메라에 따르는 정도만.</summary>
     public void SetDepth(DepthTuningFile? depth)
     {
         _depth = depth;
@@ -1025,12 +943,7 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    /// <summary>씬 카메라(보기 전용) 배율 — 코어 규약 zoom 1당 +0.05.</summary>
-    public float CameraScale => ShotIntentMath.EvaluateCameraScale(Scene?.Camera.Zoom ?? 0f);
-
-    private Vec2 CameraPan => Scene is { } scene ? new Vec2(scene.Camera.PanX, scene.Camera.PanY) : Vec2.Zero;
-
-    /// <summary>루트 공간 → 컨트롤 좌표(카메라 적용). 테스트가 쓴다.</summary>
+    /// <summary>루트 공간 → 컨트롤 좌표. 테스트가 쓴다.</summary>
     public Point ToScreen(Vec2 root) => ToControl(root);
 
     /// <summary>스킨의 그림 비트맵 — 문서 기준 경로로. 못 읽었으면 null을 넣는다(자리표시로 그려진다).</summary>
@@ -1041,8 +954,8 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    /// <summary>그 오브젝트가 지금 입은 스킨(품은 세트들의 스킨까지 합친 것). 없으면 null.</summary>
-    private SkinAsset? WornBy(SceneObject o) => EffectiveSkinOf(o.Rig, o.Skin);
+    /// <summary>연 컷/세트가 지금 입은 스킨(품은 세트들의 스킨까지 합친 것). 없으면 null.</summary>
+    private SkinAsset? Worn => _setView is { } kind ? EffectiveSkinOf(kind, SetSkin) : null;
 
     // 실제로 입는 스킨(제 스킨 + 품은 세트들의 스킨) — 그릴 때마다 여러 번 찾으니 문서가 바뀔 때까지 들고 있는다.
     private readonly Dictionary<(string Rig, string? Skin), SkinAsset?> _effectiveSkins = new();
@@ -1079,25 +992,20 @@ public sealed class ViewportView : Control
            ?? worn.ImageAt(node, _clock.Time);
 
     /// <summary>테스트 손잡이 — 그 조각에 지금 그려지는 그림(문서 기준 경로). 안 그려지면 null.</summary>
-    public string? PartImage(string objectId, string node)
-        => Scene?.Find(objectId) is { } o && WornBy(o) is { } worn ? ImagePathOf(worn, node) : null;
+    public string? PartImage(string node) => Worn is { } worn ? ImagePathOf(worn, node) : null;
 
     /// <summary>
-    /// 그 오브젝트에서 그려지는 조각 노드들(그리는 순서) — 리그의 조각 가운데 입은 스킨이 그림을 준 것. 조각이 없는 리그나 스킨을 안 입었으면 빈 목록.
+    /// 연 컷/세트에서 그려지는 조각 노드들(그리는 순서) — 그림 오브젝트 가운데 입은 스킨이 그림을 준 것. 스킨을 안 입었으면 빈 목록.
     /// </summary>
-    public IReadOnlyList<string> DrawnParts(SceneObject o)
-    {
-        ArgumentNullException.ThrowIfNull(o);
-        return WornBy(o) is { } worn ? RigParts.Of(_rig, o.Rig).Where(worn.Parts.ContainsKey).Where(IsSetNodeShown).ToList() : Array.Empty<string>();
-    }
+    public IReadOnlyList<string> DrawnParts()
+        => _setView is { } kind && Worn is { } worn ? RigParts.Of(_rig, kind).Where(worn.Parts.ContainsKey).Where(IsSetNodeShown).ToList() : Array.Empty<string>();
 
     /// <summary>조각이 지금 그려지는 사각형(루트 공간) — 노드의 rect 안에 그림의 종횡비로 맞추고 스킨의 놓임(자리·크기·회전)을 입힌 것. 없으면 null.</summary>
-    public Quad? PartQuad(string objectId, string node)
-        => CurrentPose() is { } pose && Scene?.Find(objectId) is { } o ? PartQuadOf(pose, o, node) : null;
+    public Quad? PartQuad(string node) => CurrentPose() is { } pose ? PartQuadOf(pose, node) : null;
 
-    private Quad? PartQuadOf(RectNodeTree pose, SceneObject o, string node)
+    private Quad? PartQuadOf(RectNodeTree pose, string node)
     {
-        string key = o.KeyOf(node);
+        string key = KeyOf(node);
 
         if (!pose.Contains(key))
         {
@@ -1105,7 +1013,7 @@ public sealed class ViewportView : Control
         }
 
         Quad rect = StageQuads.RectQuad(pose, key);
-        SkinAsset? worn = WornBy(o);
+        SkinAsset? worn = Worn;
         Bitmap? image = worn is not null ? ImageOf(worn, node) : null;
 
         float w = Norm(rect.BottomRight - rect.BottomLeft);
@@ -1172,31 +1080,10 @@ public sealed class ViewportView : Control
 
         if (e.Kind != MotionChangeKind.Keys)
         {
-            PickSelectedObject();
             RebuildTemplate();
         }
 
         InvalidateVisual();
-    }
-
-    /// <summary>선택 오브젝트가 없거나 씬에서 사라졌으면 — 모션을 입을 수 있는 첫 오브젝트, 없으면 첫 오브젝트.</summary>
-    private void PickSelectedObject()
-    {
-        SceneAsset? scene = Scene;
-
-        if (scene is null || scene.Objects.Count == 0)
-        {
-            SelectedObjectId = null;
-            return;
-        }
-
-        if (_selectedObjectId is not null && scene.Find(_selectedObjectId) is not null)
-        {
-            return;
-        }
-
-        SceneObject pick = scene.Objects.FirstOrDefault(CanWear) ?? scene.Objects[0];
-        SelectedObjectId = pick.Id;
     }
 
     private void SyncDuration()
@@ -1211,17 +1098,14 @@ public sealed class ViewportView : Control
     private void RebuildTemplate()
     {
         _template = null;
-        SceneAsset? scene = Scene;
 
-        if (_rig is null || scene is null)
+        if (_rig is null || _setView is not { } kind || !_rig.TryGetRig(kind, out _))
         {
             return;
         }
 
-        // 컷 — 맨 위 오브젝트마다 제 깊이의 틀에 선다(카메라와 깊이는 포즈를 잡은 뒤 넣는다 — StageCut).
-        _template = ShownCut is { } cut
-            ? CutStage.Build(_rig, cut, scene.Objects[0].Prefix)
-            : ScenePreview.Build(_rig, scene, null, _depth, _stage);
+        // 컷 — 맨 위 오브젝트마다 제 깊이의 틀에 선다(카메라와 깊이는 포즈를 잡은 뒤 넣는다 — StageCut). 세트 — 무대 가운데에 그대로 선다.
+        _template = ShownCut is { } cut ? CutStage.Build(_rig, cut, Prefix) : _rig.BuildTree(kind, Prefix);
     }
 
     /// <summary>
@@ -1231,8 +1115,7 @@ public sealed class ViewportView : Control
 
     private bool TryStartCutDrag(Point position, KeyModifiers modifiers)
     {
-        if (ShownCut is not { } cut || Motion is not { } timeline || SelectedObject is not { } o || CurrentPose() is not { } pose
-            || LayoutNodeAt(pose, o, cut.Rig, position) is not { } id)
+        if (ShownCut is null || Motion is not { } timeline || CurrentPose() is not { } pose || LayoutNodeAt(pose, position) is not { } id)
         {
             return false;
         }
@@ -1246,11 +1129,11 @@ public sealed class ViewportView : Control
 
     /// <summary>그 시각(지금)의 컷의 카메라 — 타임라인의 키가 움직였으면 그 값. 컷을 안 열었으면 null.</summary>
     public CameraSettings? CutCameraNow()
-        => ShownCut is { } cut && SetScene() is { } scene && CurrentPose() is { } pose ? CutStage.CameraOf(pose, cut, scene.Objects[0].Prefix) : null;
+        => ShownCut is { } cut && CurrentPose() is { } pose ? CutStage.CameraOf(pose, cut, Prefix) : null;
 
     /// <summary>그 시각(지금)의 그 맨 위 오브젝트의 깊이 — 타임라인의 키가 움직였으면 그 값. 컷이 아니거나 맨 위 오브젝트가 아니면 null.</summary>
     public float? CutDepthNow(string id)
-        => ShownCut is { } cut && SetScene() is { } scene && cut.Rig.Find(id) is { Parent.Length: 0 } node ? CutStage.DepthOf(CurrentPose(), node, scene.Objects[0].Prefix) : null;
+        => ShownCut is { } cut && cut.Rig.Find(id) is { Parent.Length: 0 } node ? CutStage.DepthOf(CurrentPose(), node, Prefix) : null;
 
     /// <summary>연 것이 컷이면 그 컷 — 세트를 연 것이면 null.</summary>
     public CutAsset? ShownCut => _editor?.Document.FindCut(_setView);
@@ -1258,9 +1141,9 @@ public sealed class ViewportView : Control
     /// <summary>컷이면 카메라와 깊이를 넣는다 — 포즈를 잡은 새 트리에 한 번.</summary>
     private RectNodeTree StageCut(RectNodeTree tree)
     {
-        if (ShownCut is { } cut && SetScene() is { } scene)
+        if (ShownCut is { } cut)
         {
-            CutStage.Apply(tree, cut, scene.Objects[0].Prefix, _depth);
+            CutStage.Apply(tree, cut, Prefix, _depth);
         }
 
         return tree;
@@ -1381,8 +1264,9 @@ public sealed class ViewportView : Control
             return null;
         }
 
-        return motion is not null && SelectedObject is { } o && CanWear(o)
-            ? ScenePreview.Pose(_template, o, motion, seconds, _flags.IsMuted, alphas)
+        // 연 컷/세트의 것이 아닌 모션은 얹지 않는다(가만히 선 자세로 선다).
+        return motion is not null && motion.Rig == _setView
+            ? MotionPreview.Pose(_template, motion, seconds, motion.PreviewMode, _flags.IsMuted, Prefix, alphas)
             : _template.Clone();
     }
 
@@ -1419,12 +1303,12 @@ public sealed class ViewportView : Control
     /// <summary>그리는 중인 프레임의 불투명도 표 — Render가 포즈와 함께 채운다.</summary>
     private readonly Dictionary<string, float> _drawAlphas = new(StringComparer.Ordinal);
 
-    /// <summary>노드에서 그 오브젝트의 루트까지 불투명도를 곱한 값 — CanvasGroup이 겹치는 방식 그대로.</summary>
-    private static float EffectiveAlpha(RectNodeTree pose, string key, string prefix, IDictionary<string, float> alphas)
+    /// <summary>노드에서 루트까지 불투명도를 곱한 값 — CanvasGroup이 겹치는 방식 그대로.</summary>
+    private static float EffectiveAlpha(RectNodeTree pose, string key, IDictionary<string, float> alphas)
     {
         float alpha = 1f;
 
-        for (string? at = key; at is not null && at.StartsWith(prefix, StringComparison.Ordinal) && pose.Contains(at); at = pose.GetParentKey(at))
+        for (string? at = key; at is not null && at.StartsWith(Prefix, StringComparison.Ordinal) && pose.Contains(at); at = pose.GetParentKey(at))
         {
             if (alphas.TryGetValue(at, out float own))
             {
@@ -1435,23 +1319,23 @@ public sealed class ViewportView : Control
         return Math.Clamp(alpha, 0f, 1f);
     }
 
-    /// <summary>지금 시각에 그 노드가 그려지는 불투명도(부모들의 것까지 곱한 값). 오브젝트·노드가 없으면 null.</summary>
-    public float? NodeOpacity(string objectId, string node)
+    /// <summary>지금 시각에 그 노드가 그려지는 불투명도(부모들의 것까지 곱한 값). 노드가 없으면 null.</summary>
+    public float? NodeOpacity(string node)
     {
         var alphas = new Dictionary<string, float>(StringComparer.Ordinal);
 
-        if (CurrentPose(alphas) is not { } pose || Scene?.Find(objectId) is not { } o || !pose.Contains(o.KeyOf(node)))
+        if (CurrentPose(alphas) is not { } pose || !pose.Contains(KeyOf(node)))
         {
             return null;
         }
 
-        return EffectiveAlpha(pose, o.KeyOf(node), o.Prefix, alphas);
+        return EffectiveAlpha(pose, KeyOf(node), alphas);
     }
 
-    /// <summary>그 노드가 불투명도를 받을 수 있나 — 덤프에 CanvasGroup이 있는 노드만.</summary>
+    /// <summary>그 노드가 불투명도를 받을 수 있나 — "불투명도를 받는다"를 켠 오브젝트만.</summary>
     public bool CanTakeAlpha(string? node)
-        => node is not null && _rig is not null && SelectedObject is { } o
-           && _rig.AlphaNodeIds.TryGetValue(o.Rig, out ICollection<string>? nodes) && nodes.Contains(node);
+        => node is not null && _rig is not null && _setView is { } kind
+           && _rig.AlphaNodeIds.TryGetValue(kind, out ICollection<string>? nodes) && nodes.Contains(node);
 
     /// <summary>
     /// 고른 노드의 **제** 불투명도(부모 것은 안 곱한다) — 지금 시각. 불투명도를 받을 수 없는 노드거나 키를 놓을 모션이 없으면 null.
@@ -1481,12 +1365,6 @@ public sealed class ViewportView : Control
         _editor.KeyComponents(motion.Name, node, MotionChannelKind.Alpha, (float)Math.Max(0, SnapTime(_clock.Time)), new[] { (Axis.X, Math.Clamp(key, 0f, 1f)) }, DefaultTangent);
     }
 
-    /// <summary>지금 시각의 선택 오브젝트 사각형(루트 공간). 리그가 없으면 null.</summary>
-    public Quad? CurrentObjectQuad()
-    {
-        return SelectedObject is { } o ? ObjectQuad(o.Id) : null;
-    }
-
     // ── 좌표 ──────────────────────────────────────────────────────────
 
     /// <summary>무대가 놓이는 컨트롤 영역(레터박스).</summary>
@@ -1505,25 +1383,23 @@ public sealed class ViewportView : Control
         }
     }
 
-    // 카메라(샷): 보이는 좌표 = 루트 × 배율 + pan (코어 ShotIntentMath와 같은 규약). 보기만 바뀐다.
+    // 컷의 카메라는 트리에 들어 있다(CutStage) — 여기는 보기 변환뿐이다.
     private Point ToControl(Vec2 root)
     {
         Rect stage = StageRect;
-        Vec2 shot = CameraInTree ? root : root * CameraScale + CameraPan;
-        Vec2 canvas = StageQuads.ToCanvas(shot, _stageSize);
+        Vec2 canvas = StageQuads.ToCanvas(root, _stageSize);
         double scale = stage.Width / _stageSize.X;
         return new Point(stage.X + canvas.X * scale, stage.Y + canvas.Y * scale);
     }
 
-    /// <summary>컨트롤 좌표 → 루트 공간(가운데 원점·y 위). 카메라를 벗긴다.</summary>
+    /// <summary>컨트롤 좌표 → 루트 공간(가운데 원점·y 위).</summary>
     public Vec2 ToRoot(Point control)
     {
         Rect stage = StageRect;
         double scale = stage.Width / _stageSize.X;
         double canvasX = (control.X - stage.X) / scale;
         double canvasY = (control.Y - stage.Y) / scale;
-        var shot = new Vec2((float)(canvasX - _stageSize.X / 2), (float)(_stageSize.Y / 2 - canvasY));
-        return CameraInTree ? shot : (shot - CameraPan) * (1f / CameraScale);
+        return new Vec2((float)(canvasX - _stageSize.X / 2), (float)(_stageSize.Y / 2 - canvasY));
     }
 
     // ── 그리기 ────────────────────────────────────────────────────────
@@ -1547,14 +1423,14 @@ public sealed class ViewportView : Control
 
         if (_template is null)
         {
-            DrawLabel(context, _rig is null ? "리그 덤프(rig-schemas.json)를 실으면 오브젝트가 선다." : "씬에 오브젝트가 없다 — 왼쪽 '씬'에서 추가한다.", new Point(stage.X + 10, stage.Y + 10));
+            DrawLabel(context, "컷을 열거나 새로 만든다 — 왼쪽 '컷'의 \"새 컷\".", new Point(stage.X + 10, stage.Y + 10));
             return;
         }
 
         // 오브젝트는 무대 밖도 그대로 그리고, 카메라에 안 잡히는 바깥을 회색으로 덮어 가른다. 축·손잡이는 그 위에.
         _drawAlphas.Clear();
         RectNodeTree pose = CurrentPose(_drawAlphas) ?? _template;
-        DrawObjects(context, pose);
+        DrawShown(context, pose);
         DrawOutside(context, stage);
         context.DrawRectangle(StagePen, stage);
         DrawRecentEvents(context, stage);
@@ -1572,12 +1448,14 @@ public sealed class ViewportView : Control
         DrawAxes(context, pose);
         DrawGizmo(context, pose);
 
-        string objectLabel = SelectedObject is { } so ? $"{so.Id} ({so.Rig} · {so.Layer})" : "오브젝트 없음";
-        string motionLabel = motion is null
-            ? "모션 없음"
-            : $"{motion.Name} · {(motion.End == MotionEnd.Restore ? "restore — 끝에서 시작 상태로" : "commit — 마지막 키가 남는다")}"
-              + (SelectedObject is { } wearer && !CanWear(wearer) ? " · 이 오브젝트의 리그에는 안 맞는다" : "");
-        DrawLabel(context, $"{objectLabel} · {motionLabel}", new Point(stage.X + 8, stage.Y + 6));
+        string openLabel = $"{(ShownCut is null ? "세트" : "컷")} {_setView}";
+        // 컷은 타임라인이 하나라 이름도 종료 처리도 말할 것이 없다 — 끌기의 뜻만 적는다. 세트의 애니메이션은 이름과 종료 처리.
+        string motionLabel = ShownCut is not null && motion?.Name == _setView
+            ? "끌기: 키 없는 값은 가만히 선 값, 키 있는 값은 지금 프레임의 키 (Shift 배율 · Ctrl 회전)"
+            : motion is null
+                ? "모션 없음"
+                : $"{motion.Name} · {(motion.End == MotionEnd.Restore ? "restore — 끝에서 시작 상태로" : "commit — 마지막 키가 남는다")}";
+        DrawLabel(context, $"{openLabel} · {motionLabel}", new Point(stage.X + 8, stage.Y + 6));
     }
 
     /// <summary>무대 프레임 바깥(카메라가 안 잡는 곳)을 회색으로 덮는다 — 네 띠.</summary>
@@ -1637,26 +1515,6 @@ public sealed class ViewportView : Control
         context.DrawRectangle(StagePen, stage);
     }
 
-    private void DrawObjects(DrawingContext context, RectNodeTree pose)
-    {
-        SceneAsset? scene = Scene;
-
-        if (scene is null)
-        {
-            return;
-        }
-
-        foreach (SceneObject o in scene.DrawOrder())
-        {
-            if (!o.Visible)
-            {
-                continue;
-            }
-
-            DrawObject(context, pose, o, selected: o.Id == _selectedObjectId);
-        }
-    }
-
     /// <summary>사각형 하나에 그림을 그린다 — 비트맵이 없으면 자리표시(X 표 사각형).</summary>
     private void DrawImageQuad(DrawingContext context, Quad quad, Bitmap? image)
     {
@@ -1686,28 +1544,33 @@ public sealed class ViewportView : Control
         }
     }
 
-    private void DrawObject(DrawingContext context, RectNodeTree pose, SceneObject o, bool selected)
+    /// <summary>연 컷/세트를 그린다 — 색 오브젝트는 사각형을 채우고, 그림 오브젝트는 스킨이 준 그림을 그린다.</summary>
+    private void DrawShown(DrawingContext context, RectNodeTree pose)
     {
-        // 조각·색이 있는 리그(세트) — 리그의 노드 순서로(뒤의 것이 위): 색 오브젝트는 사각형을 채우고, 조각은 스킨이 준 그림을 그린다.
-        // 그릴 것이 하나도 없으면(스킨을 안 입었고 색도 없다) 아래의 윤곽으로 떨어진다.
-        IReadOnlyDictionary<string, string> colors = RigParts.ColorsOf(_rig, o.Rig);
-        IReadOnlyList<string> parts = DrawnParts(o);
-        SkinAsset? wornNow = WornBy(o);
+        if (_setView is not { } kind)
+        {
+            return;
+        }
 
-        if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
+        // 노드 순서로(뒤의 것이 위). 그릴 것이 하나도 없으면(스킨을 안 입었고 색도 없다) 아래의 윤곽으로 떨어진다.
+        IReadOnlyDictionary<string, string> colors = RigParts.ColorsOf(_rig, kind);
+        IReadOnlyList<string> parts = DrawnParts();
+        SkinAsset? wornNow = Worn;
+
+        if (_rig is not null && _rig.TryGetRig(kind, out RigSchemaRigDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
         {
             // 컷이면 먼 것부터(깊이 순), 세트면 목록 순.
-            foreach (RigSchemaNodeDto rigNode in ShownCut is { } drawnCut && drawnCut.Name == o.Rig ? CutStage.DrawOrder(drawnCut, drawn.nodes, pose, o.Prefix) : drawn.nodes)
+            foreach (RigSchemaNodeDto rigNode in ShownCut is { } drawnCut ? CutStage.DrawOrder(drawnCut, drawn.nodes, pose, Prefix) : drawn.nodes)
             {
                 string node = rigNode.id;
-                string key = o.KeyOf(node);
+                string key = KeyOf(node);
 
                 if (!pose.Contains(key))
                 {
                     continue;
                 }
 
-                float alpha = EffectiveAlpha(pose, key, o.Prefix, _drawAlphas);
+                float alpha = EffectiveAlpha(pose, key, _drawAlphas);
 
                 if (alpha <= 0.001f)
                 {
@@ -1725,7 +1588,7 @@ public sealed class ViewportView : Control
                     }
                 }
 
-                if (wornNow is { } wearing && parts.Contains(node) && PartQuadOf(pose, o, node) is { } part)
+                if (wornNow is { } wearing && parts.Contains(node) && PartQuadOf(pose, node) is { } part)
                 {
                     using (context.PushOpacity(alpha))
                     {
@@ -1734,33 +1597,22 @@ public sealed class ViewportView : Control
                 }
             }
 
-            if (wornNow is null || parts.Count == 0)
-            {
-                return;
-            }
-
-            if (selected && _setView is null && PartQuadOf(pose, o, parts[0]) is { } outline) // 세트 보기에서는 고른 오브젝트만 윤곽이 선다(DrawLayout)
-            {
-                context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(
-                    new[] { ToControl(outline.TopLeft), ToControl(outline.TopRight), ToControl(outline.BottomRight), ToControl(outline.BottomLeft), ToControl(outline.TopLeft) }, true));
-            }
-
-            return;
+            return; // 고른 오브젝트의 윤곽은 DrawLayout이 그린다
         }
 
-        // 그림도 색도 없는 오브젝트 — 윤곽과 이름.
-        if (OutlineKeyOf(pose, o) is not { } outlineKey)
+        // 그림도 색도 없다(빈 컷 · 묶기만 하는 오브젝트뿐) — 무대의 윤곽과 이름.
+        if (!pose.Contains(RootKey))
         {
             return;
         }
 
-        Quad root = StageQuads.RectQuad(pose, outlineKey);
+        Quad root = StageQuads.RectQuad(pose, RootKey);
         Point a = ToControl(root.BottomLeft);
         Point b = ToControl(root.BottomRight);
         Point c = ToControl(root.TopRight);
         Point d = ToControl(root.TopLeft);
-        context.DrawGeometry(null, selected ? SelectedObjectPen : ObjectOutlinePen, new PolylineGeometry(new[] { a, b, c, d, a }, true));
-        DrawLabel(context, $"{o.Id} ({o.Rig})", new Point(Math.Min(a.X, d.X) + 4, Math.Min(c.Y, d.Y) + 4));
+        context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(new[] { a, b, c, d, a }, true));
+        DrawLabel(context, kind, new Point(Math.Min(a.X, d.X) + 4, Math.Min(c.Y, d.Y) + 4));
     }
 
     private void DrawAxes(DrawingContext context, RectNodeTree pose)
@@ -1876,7 +1728,7 @@ public sealed class ViewportView : Control
         Focus();
         Point position = e.GetPosition(this);
 
-        // MMB·RMB 드래그 = 보기 이동(팬). 씬·키는 안 건드린다. (소유자: 그래프와 같이 둘 다)
+        // MMB·RMB 드래그 = 보기 이동(팬). 문서는 안 건드린다. (소유자: 그래프와 같이 둘 다)
         PointerPointProperties pressed = e.GetCurrentPoint(this).Properties;
 
         if (pressed.IsMiddleButtonPressed || pressed.IsRightButtonPressed)
@@ -1898,9 +1750,9 @@ public sealed class ViewportView : Control
         if (CanLayout)
         {
             // 더블클릭 — 품은 세트면 그 안쪽으로 들어가고, 빈 곳이면 한 단 나온다.
-            if (e.ClickCount == 2 && _editor?.Document.FindRig(_setView) is { } openRig && SelectedObject is { } setObject && CurrentPose() is { } layoutPose)
+            if (e.ClickCount == 2 && _editor?.Document.FindRig(_setView) is not null && CurrentPose() is { } layoutPose)
             {
-                string? hit = LayoutNodeAt(layoutPose, setObject, openRig, position);
+                string? hit = LayoutNodeAt(layoutPose, position);
 
                 if (hit is not null && EnterInstance(hit))
                 {
@@ -1942,58 +1794,7 @@ public sealed class ViewportView : Control
             Pause();
             e.Pointer.Capture(this);
             e.Handled = true;
-            return;
         }
-
-        if (TryPickObject(position, out string picked))
-        {
-            SelectedObjectId = picked;
-            e.Handled = true;
-        }
-    }
-
-    /// <summary>클릭 자리의 오브젝트(앞 레이어 우선). 오브젝트의 사각형 안이면 맞은 것.</summary>
-    private bool TryPickObject(Point position, out string objectId)
-    {
-        objectId = "";
-        RectNodeTree? pose = CurrentPose();
-        SceneAsset? scene = Scene;
-
-        if (pose is null || scene is null)
-        {
-            return false;
-        }
-
-        var at = new Pixel(position.X, position.Y);
-
-        foreach (SceneObject o in scene.DrawOrder().Reverse())
-        {
-            if (!o.Visible)
-            {
-                continue;
-            }
-
-            if (ObjectQuad(o.Id) is not { } quad)
-            {
-                continue;
-            }
-
-            var polygon = new List<Pixel>();
-
-            foreach (Vec2 corner in new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft })
-            {
-                Point p = ToControl(corner);
-                polygon.Add(new Pixel(p.X, p.Y));
-            }
-
-            if (GraphHitTest.Contains(polygon, at))
-            {
-                objectId = o.Id;
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private bool TryStartManipulation(Point position)
@@ -2147,7 +1948,7 @@ public sealed class ViewportView : Control
 
     // ── 채널 박스(마야) ───────────────────────────────────────────────
 
-    /// <summary>선택 오브젝트의 노드 성분의 지금 포즈 값(키 없는 포즈 포함). 노드·리그가 없으면 null.</summary>
+    /// <summary>노드 성분의 지금 포즈 값(키 없는 포즈 포함). 노드가 없으면 null.</summary>
     public float? ComponentValue(string node, MotionChannelKind kind, Axis axis)
     {
         RectNodeTree? pose = CurrentPose();
@@ -2387,16 +2188,16 @@ public sealed class ViewportView : Control
     private static RigNodeAsset CopyOf(RigNodeAsset n) => n.Clone();
 
     /// <summary>그 자리의 오브젝트(위에 그려진 것 먼저) — 사각형이 있는 것만 집힌다. 없으면, 고른 오브젝트의 원점 가까이를 눌렀을 때 그것(묶기만 하는 오브젝트를 옮기는 길).</summary>
-    private string? LayoutNodeAt(RectNodeTree pose, SceneObject o, RigAsset rig, Point position)
+    private string? LayoutNodeAt(RectNodeTree pose, Point position)
     {
         var at = new Pixel(position.X, position.Y);
 
         // 펼친 리그의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
-        if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
+        if (_rig is not null && _setView is { } kind && _rig.TryGetRig(kind, out RigSchemaRigDto dto))
         {
-            foreach (RigSchemaNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut && pickedCut.Name == o.Rig ? CutStage.DrawOrder(pickedCut, dto.nodes, pose, o.Prefix) : dto.nodes))
+            foreach (RigSchemaNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut ? CutStage.DrawOrder(pickedCut, dto.nodes, pose, Prefix) : dto.nodes))
             {
-                string key = o.KeyOf(node.id);
+                string key = KeyOf(node.id);
                 string? owner = PickableOf(node.id);
 
                 if (node.id == RigSchemaLoader.RootKey || !pose.Contains(key) || node.sizeDelta is null || node.sizeDelta.x <= 0f || node.sizeDelta.y <= 0f
@@ -2405,7 +2206,7 @@ public sealed class ViewportView : Control
                     continue;
                 }
 
-                Quad quad = (node.hasImage ? PartQuadOf(pose, o, node.id) : null) ?? StageQuads.RectQuad(pose, key);
+                Quad quad = (node.hasImage ? PartQuadOf(pose, node.id) : null) ?? StageQuads.RectQuad(pose, key);
                 var polygon = new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft }.Select(c => ToControl(c)).Select(p => new Pixel(p.X, p.Y)).ToList();
 
                 if (GraphHitTest.Contains(polygon, at))
@@ -2415,8 +2216,8 @@ public sealed class ViewportView : Control
             }
         }
 
-        if (SelectedNode is { } selected && selected != _entered && ResolveSetNode(selected) is not null && PickableOf(selected) == selected && pose.Contains(o.KeyOf(selected))
-            && Distance(position, ToControl(pose.TransformPoint(o.KeyOf(selected), Vec3.Zero).XY)) <= GizmoHit + 6)
+        if (SelectedNode is { } selected && selected != _entered && ResolveSetNode(selected) is not null && PickableOf(selected) == selected && pose.Contains(KeyOf(selected))
+            && Distance(position, ToControl(pose.TransformPoint(KeyOf(selected), Vec3.Zero).XY)) <= GizmoHit + 6)
         {
             return selected;
         }
@@ -2428,8 +2229,8 @@ public sealed class ViewportView : Control
     /// <param name="keys">컷에서 키가 있는 값을 끈다 — 지금 프레임의 모습에서 시작해, 놓으면 그 프레임의 키가 된다.</param>
     private bool TryStartLayoutDrag(Point position, KeyModifiers modifiers, bool keys = false)
     {
-        if (_editor?.Document.FindRig(_setView) is not { } rig || SelectedObject is not { } o || CurrentPose() is not { } pose
-            || LayoutNodeAt(pose, o, rig, position) is not { } id || ResolveSetNode(id) is not { } found)
+        if (_editor?.Document.FindRig(_setView) is null || CurrentPose() is not { } pose
+            || LayoutNodeAt(pose, position) is not { } id || ResolveSetNode(id) is not { } found)
         {
             return false;
         }
@@ -2442,9 +2243,9 @@ public sealed class ViewportView : Control
         RigNodeAsset start = CopyOf(node);
 
         // 키가 있는 값이면 가만히 선 자세가 아니라 지금 프레임의 모습(카메라·깊이를 넣기 전의 값)에서 끈다.
-        if (keys && UnstagedPoseAt(_clock.Time, null) is { } unstaged && unstaged.Contains(o.KeyOf(id)))
+        if (keys && UnstagedPoseAt(_clock.Time, null) is { } unstaged && unstaged.Contains(KeyOf(id)))
         {
-            RectNodeState now = unstaged.GetState(o.KeyOf(id));
+            RectNodeState now = unstaged.GetState(KeyOf(id));
             start.X = now.AnchoredPosition.X;
             start.Y = now.AnchoredPosition.Y;
             start.ScaleX = now.LocalScale.X;
@@ -2452,14 +2253,14 @@ public sealed class ViewportView : Control
             start.Rotation = now.LocalEulerAngles.Z;
         }
 
-        _layout = new LayoutDrag(id, found.Rig.Kind, node.Id, mode, ToRoot(position), pose.TransformPoint(o.KeyOf(id), Vec3.Zero).XY, start) { Keys = keys };
+        _layout = new LayoutDrag(id, found.Rig.Kind, node.Id, mode, ToRoot(position), pose.TransformPoint(KeyOf(id), Vec3.Zero).XY, start) { Keys = keys };
         InvalidateVisual();
         return true;
     }
 
     private void DragLayout(Point position)
     {
-        if (_layout is not { } drag || _template is null || SelectedObject is not { } o)
+        if (_layout is not { } drag || _template is null)
         {
             return;
         }
@@ -2476,7 +2277,7 @@ public sealed class ViewportView : Control
                 // 루트 공간의 이동을 부모의 좌표로 — 자리는 부모 안에서의 값이다(부모가 돌았거나 커졌어도 끈 만큼 간다).
                 // 부모의 좌표 — 트리가 아는 부모를 그대로 쓴다(세트의 맨 위는 루트, 컷의 맨 위는 제 깊이의 틀, 안쪽의 것은 경로 이름의 부모).
                 RectNodeTree? space = SpaceTree();
-                string? parentKey = space is not null && space.Contains(o.KeyOf(drag.Node)) ? space.GetParentKey(o.KeyOf(drag.Node)) : null;
+                string? parentKey = space is not null && space.Contains(KeyOf(drag.Node)) ? space.GetParentKey(KeyOf(drag.Node)) : null;
 
                 if (space is not null && parentKey is not null)
                 {
@@ -2596,27 +2397,27 @@ public sealed class ViewportView : Control
     /// <summary>루트 공간의 점을 세트의 그 오브젝트(없으면 세트의 맨 위) 안의 좌표로 — 그 밑에 새 오브젝트를 놓을 자리.</summary>
     public Vec2 ToSetLocal(string? parentNode, Vec2 root)
     {
-        if (_template is null || SelectedObject is not { } o)
+        if (_template is null)
         {
             return root;
         }
 
-        string key = string.IsNullOrEmpty(parentNode) ? ScenePreview.RootKeyOf(o) : o.KeyOf(parentNode);
+        string key = string.IsNullOrEmpty(parentNode) ? RootKey : KeyOf(parentNode);
         return _template.Contains(key) ? _template.InverseTransformPoint(key, new Vec3(root, 0f)).XY : root;
     }
 
     /// <summary>배치 모드의 표시 — 고른 오브젝트의 사각형과 원점.</summary>
     private void DrawLayout(DrawingContext context, RectNodeTree pose)
     {
-        if (SelectedObject is not { } o || SelectedNode is not { } id || !pose.Contains(o.KeyOf(id)))
+        if (SelectedNode is not { } id || !pose.Contains(KeyOf(id)))
         {
             return;
         }
 
-        Quad quad = PartQuadOf(pose, o, id) ?? StageQuads.RectQuad(pose, o.KeyOf(id));
+        Quad quad = PartQuadOf(pose, id) ?? StageQuads.RectQuad(pose, KeyOf(id));
         context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(
             new[] { ToControl(quad.TopLeft), ToControl(quad.TopRight), ToControl(quad.BottomRight), ToControl(quad.BottomLeft), ToControl(quad.TopLeft) }, true));
-        Point origin = ToControl(pose.TransformPoint(o.KeyOf(id), Vec3.Zero).XY);
+        Point origin = ToControl(pose.TransformPoint(KeyOf(id), Vec3.Zero).XY);
         context.DrawLine(SelectedObjectPen, new Point(origin.X - 7, origin.Y), new Point(origin.X + 7, origin.Y));
         context.DrawLine(SelectedObjectPen, new Point(origin.X, origin.Y - 7), new Point(origin.X, origin.Y + 7));
     }
@@ -2626,16 +2427,16 @@ public sealed class ViewportView : Control
     {
         ResetView();
 
-        if (_setView is null || SelectedObject is not { } o || _editor?.Document.FindRig(_setView) is not { } rig || CurrentPose() is not { } pose || Bounds.Width < 1)
+        if (_setView is null || _editor?.Document.FindRig(_setView) is not { } rig || CurrentPose() is not { } pose || Bounds.Width < 1)
         {
             return;
         }
 
         var points = new List<Vec2>();
 
-        foreach (RigNodeAsset node in rig.Nodes.Where(n => pose.Contains(o.KeyOf(n.Id))))
+        foreach (RigNodeAsset node in rig.Nodes.Where(n => pose.Contains(KeyOf(n.Id))))
         {
-            Quad q = StageQuads.RectQuad(pose, o.KeyOf(node.Id));
+            Quad q = StageQuads.RectQuad(pose, KeyOf(node.Id));
             points.AddRange(new[] { q.BottomLeft, q.BottomRight, q.TopLeft, q.TopRight });
         }
 

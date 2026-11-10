@@ -6,9 +6,6 @@ namespace Mt.Authoring.Editing;
 // 툴에서 정의하는 리그의 명령(PLAN-parts.md §9) — 각각 되돌리기 한 칸.
 public sealed partial class MotionEditor
 {
-    /// <summary>캐릭터 리그·무대 뼈대는 툴에서 정의하지 않는다.</summary>
-    private static readonly string[] ReservedRigKinds = { SceneObject.DefaultRig, "stage" };
-
     private static readonly Regex RigKindRule = new("^[a-zA-Z][a-zA-Z0-9_]*$", RegexOptions.Compiled);
 
     /// <summary>리그를 문서에 더한다. 노드는 사본으로 들어간다. id가 겹치거나 부모가 앞에 없으면 막는다(세울 수 없는 리그다).</summary>
@@ -19,11 +16,6 @@ public sealed partial class MotionEditor
         if (!RigKindRule.IsMatch(rig.Kind ?? ""))
         {
             throw new InvalidOperationException($"리그 이름은 영문자로 시작하는 영문·숫자·_ 다 ('{rig.Kind}')");
-        }
-
-        if (ReservedRigKinds.Contains(rig.Kind))
-        {
-            throw new InvalidOperationException($"'{rig.Kind}'는 툴에서 정의하지 않는 리그다.");
         }
 
         if (Document.FindRig(rig.Kind) is not null)
@@ -37,7 +29,7 @@ public sealed partial class MotionEditor
         return copy;
     }
 
-    /// <summary>리그를 지운다. 그 리그의 오브젝트·모션·스킨은 남는다 — 검증이 "덤프에 없는 리그"로 알린다.</summary>
+    /// <summary>리그를 지운다. 그 리그의 모션·스킨은 남는다 — 검증이 "없는 리그"로 알린다.</summary>
     public void RemoveRig(string kind)
     {
         RigAsset rig = RequireSet(kind);
@@ -445,6 +437,6 @@ public sealed partial class MotionEditor
     private RigAsset RequireRig(string kind)
     {
         ArgumentNullException.ThrowIfNull(kind);
-        return Document.FindRig(kind) ?? throw new KeyNotFoundException($"리그 '{kind}'가 문서에 없다(덤프의 리그는 툴에서 고치지 않는다).");
+        return Document.FindRig(kind) ?? throw new KeyNotFoundException($"리그 '{kind}'가 문서에 없다.");
     }
 }

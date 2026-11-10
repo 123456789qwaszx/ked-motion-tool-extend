@@ -4,7 +4,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Platform.Storage;
-using Mt.App.Views;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Model;
 
@@ -12,7 +11,6 @@ namespace Mt.App;
 
 // 세트(PLAN-set.md S1) — 오브젝트들의 계층 + 그림 + 애니메이션들의 한 덩어리. 데이터는 툴이 정의한 리그(RigAsset)다.
 // 왼쪽 목록에서 세트를 열면 뷰포트·하이어아키가 그 세트만 보이고, 하이어아키에서 오브젝트를 더하고 지우고 옮긴다.
-// 캐릭터 리그(덤프가 원본)는 세트 목록에 없다 — 구조를 여기서 못 고친다.
 public partial class MainWindow
 {
     private const string RootParentChoice = "(맨 위)";
@@ -129,7 +127,7 @@ public partial class MainWindow
 
     private string? _rigNodeSelected;
 
-    /// <summary>연 세트(rigKind). 없으면 null — 뷰포트는 문서의 씬을 보인다.</summary>
+    /// <summary>연 세트(rigKind). 없으면 null — 뷰포트는 빈 무대다.</summary>
     /// <remarks>컷을 열었으면 그 컷의 이름이다 — 컷의 오브젝트 계층도 같은 길로 열린다(하이어아키 · 칸 · 뷰포트가 같다).</remarks>
     internal string? SelectedSet => _cutList.SelectedItem as string ?? _setList.SelectedItem as string;
 
@@ -180,7 +178,7 @@ public partial class MainWindow
         }
         else
         {
-            SelectInHierarchy(ViewportView.SetObjectId, id);
+            SelectNodeInHierarchy(id);
         }
     }
 
@@ -229,7 +227,7 @@ public partial class MainWindow
         // 세트가 맨 위다 — 무엇을 열어 작업하는지가 먼저다(그 아래의 하이어아키·모션이 그 세트의 것이 된다).
         LeftPanel.Children.Insert(0, Header("세트 — 묶어서 다시 쓰는 것"));
         _setList.SelectionChanged += (_, _) => OnListPicked(_setList, _cutList);
-        ToolTip.SetTip(_setList, "세트 — 오브젝트들의 계층 + 그림 + 애니메이션들의 한 덩어리(화면 이동 하나, 소품 무리 하나…). 고르면 뷰포트와 하이어아키가 그 세트만 보인다. 다시 눌러 풀면 씬으로 돌아간다");
+        ToolTip.SetTip(_setList, "세트 — 오브젝트들의 계층 + 그림 + 애니메이션들의 한 덩어리(화면 이동 하나, 소품 무리 하나…). 고르면 뷰포트와 하이어아키가 그 세트만 보인다");
         LeftPanel.Children.Insert(1, _setList);
 
         Button add = SmallButton("새 세트", (_, _) => Guard("새 세트", () => NewSet()));
@@ -282,13 +280,13 @@ public partial class MainWindow
         ToolTip.SetTip(import, "PNG를 연 세트의 그림 오브젝트로 — 이름은 파일 이름에서, 크기는 그림의 크기, 지금 입혀 보는 스킨에 그림이 들어간다(스킨이 없으면 만든다). 되돌리기 한 번. 뷰포트에 파일을 끌어다 놓아도 된다");
         ToolTip.SetTip(add, "빈 세트(오브젝트 Body 하나)를 만들어 연다 — 이름 set, set_2…. 하이어아키에서 우클릭해 오브젝트를 더한다");
         ToolTip.SetTip(remove, "연 세트를 지운다. 그 세트의 애니메이션·스킨은 남고 문제 목록이 알린다(되돌리기 한 번)");
-        ToolTip.SetTip(close, "세트를 닫고 씬으로 돌아간다");
+        ToolTip.SetTip(close, "세트를 닫는다");
         LeftPanel.Children.Insert(2, new WrapPanel { Orientation = Orientation.Horizontal, Children = { add, remove, close, import, importLayers, importSets, SmallButton("rigs.json…", OnExportRigsClick) } });
         LeftPanel.Children.Insert(3, Labeled("세트 이름", _setName));
         LeftPanel.Children.Insert(4, _setBack);
         _setBack.Click += (_, _) => Guard("돌아가기", BackToOuterSet);
         ToolTip.SetTip(_setBack, "안쪽 세트를 닫고, 그것을 품은 세트로 돌아간다");
-        ToolTip.SetTip(_setName, "연 세트의 이름 — 고치고 Enter. 그 세트의 애니메이션·스킨, 그것을 품은 세트, 씬의 오브젝트가 따라온다(되돌리기 한 번). 영문자로 시작하는 영문·숫자·_");
+        ToolTip.SetTip(_setName, "연 세트의 이름 — 고치고 Enter. 그 세트의 애니메이션·스킨, 그것을 품은 세트·컷이 따라온다(되돌리기 한 번). 영문자로 시작하는 영문·숫자·_");
         OnCommit(_setName, text =>
         {
             if (!_refreshing && SelectedSet is { } kind && text.Trim() != kind)
@@ -304,10 +302,10 @@ public partial class MainWindow
         });
     }
 
-    /// <summary>"씬" 탭에 서는 칸 — 세트를 열고 그 오브젝트(노드)를 골랐을 때의 이름·부모·자리·크기.</summary>
+    /// <summary>"오브젝트" 탭에 서는 칸 — 컷이나 세트를 열고 그 오브젝트를 골랐을 때의 이름·부모·깊이·자리·크기.</summary>
     private Control BuildSetNodePanel()
     {
-        _setNodePanel.Children.Add(Header("세트의 오브젝트"));
+        _setNodePanel.Children.Add(Header("오브젝트"));
         _setNodePanel.Children.Add(_setNodeTitle);
         _rigNodeFields.Children.Add(Labeled("이름", _rigNodeId));
         _rigNodeFields.Children.Add(Labeled("부모", _rigNodeParent));
@@ -483,7 +481,7 @@ public partial class MainWindow
 
         _rigNodeSelected = null;
         _viewport.SetView = SelectedSet;
-        BindMotion(SelectedMotion); // 뷰포트의 씬이 바뀌었다 — 묶인 것을 그 씬에서 다시 본다
+        BindMotion(SelectedMotion); // 뷰포트가 세운 것이 바뀌었다 — 묶인 것을 거기서 다시 본다
         RefreshAssets();
         RefreshObjects();
         RefreshSetNodePanel();
@@ -491,8 +489,7 @@ public partial class MainWindow
 
         if (SelectedSet is not null)
         {
-            ExpandObjectNodes(ViewportView.SetObjectId, true); // 세트를 열면 그 오브젝트들이 바로 보인다
-            _viewport.FitToSet();                              // 작은 세트가 무대 한가운데의 점으로 서지 않게
+            _viewport.FitToSet(); // 작은 세트가 무대 한가운데의 점으로 서지 않게
         }
         else
         {
@@ -559,7 +556,7 @@ public partial class MainWindow
         string stem = first.ToLowerInvariant();
         string kind = stem;
 
-        for (int i = 2; _session.Rig?.RigKinds.Contains(kind) == true || _session.Editor.Document.FindRig(kind) is not null; i++)
+        for (int i = 2; _session.Editor.Document.FindRig(kind) is not null; i++)
         {
             kind = $"{stem}_{i.ToString(CultureInfo.InvariantCulture)}";
         }
@@ -637,7 +634,7 @@ public partial class MainWindow
     {
         string kind = "set";
 
-        for (int i = 2; _session.Rig?.RigKinds.Contains(kind) == true || _session.Editor.Document.FindRig(kind) is not null; i++)
+        for (int i = 2; _session.Editor.Document.FindRig(kind) is not null; i++)
         {
             kind = $"set_{i.ToString(CultureInfo.InvariantCulture)}";
         }
@@ -886,10 +883,10 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>세트 보기의 하이어아키 우클릭 — 오브젝트 더하기(여기 밑에) · 지우기 · 순서 · 부모.</summary>
+    /// <summary>하이어아키 우클릭 — 오브젝트 더하기(여기 밑에) · 지우기 · 순서 · 부모.</summary>
     private void AddSetMenu(object? target)
     {
-        string? nodeId = target is HierarchyNode { NodeId: { } id } ? id : null;
+        string? nodeId = (target as HierarchyNode)?.NodeId;
         RigAsset? rig = EditedRig;
 
         MenuItem Item(ItemsControl into, string header, Action action, bool enabled = true)

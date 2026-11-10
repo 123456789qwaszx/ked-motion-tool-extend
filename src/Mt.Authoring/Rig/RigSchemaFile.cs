@@ -109,6 +109,10 @@ public sealed class RigSchemaFile
         return new RigSchemaFile(dto, Sha256);
     }
 
+    /// <summary>리그가 하나도 없는 빈 바탕 — 문서가 정의한 세트·컷만으로 한 벌을 세울 때(<see cref="RigAssets.Compose(Model.MotionDocument, Vec2)"/>).</summary>
+    public static RigSchemaFile Empty(Vec2 stageSize)
+        => new(new RigSchemasFileDto { capturedUnderParentSize = new Float2Dto { x = stageSize.X, y = stageSize.Y }, rigs = new List<RigSchemaRigDto>() }, "");
+
     public static RigSchemaFile Load(string path)
     {
         ArgumentNullException.ThrowIfNull(path);

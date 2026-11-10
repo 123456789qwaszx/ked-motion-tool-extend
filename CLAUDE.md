@@ -23,6 +23,12 @@ dotnet build KedMotionTool.sln -c Release
 dotnet test KedMotionTool.sln -c Release --no-build
 ```
 
+화면을 그림으로 뽑는다(헤드리스가 Skia로 실제 렌더 — 고친 화면은 눈으로 확인한다):
+
+```bash
+MT_RENDER_DIR=<폴더> dotnet test tests/Mt.App.Tests -c Release --filter CutShots
+```
+
 ## 관습
 
 - 코드 주석 · 문서 · 커밋 메시지는 **한국어**, 대화는 존댓말. 커밋은 "무엇을 왜" 한 줄 + 본문.

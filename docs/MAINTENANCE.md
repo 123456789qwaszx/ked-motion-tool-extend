@@ -22,13 +22,13 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 
 | 하고 싶은 것 | 자리 |
 |---|---|
-| 모션·채널·키 모델, 씬 모델 | `Mt.Authoring/Model/MotionDocument.cs` · `SceneAsset.cs` · `StageNodes.cs`(무대 뼈대 이름 규약·패럴랙스 상수) |
+| 모션·채널·키 모델, 컷·세트·스킨 모델 | `Mt.Authoring/Model/MotionDocument.cs` · `CutAsset.cs` · `RigAsset.cs` · `SkinAsset.cs` |
 | 편집 명령 전부(undo 포함) | `Mt.Authoring/Editing/MotionEditor.cs` — `Mutate`·`Batch`·`RecordExternal`·`Undo/Redo`·`Replay` |
 | 저작 원본 읽고 쓰기 | `Serialization/MotionDocumentJson.cs` (`motion-authoring/2`, 옛 `/1` 읽기) |
 | `motions.json` 읽고 쓰기 | `Serialization/MotionsJson.cs` (`motions/2` 정규 직렬화·관용 읽기, 옛 `/1`) |
 | 규칙·경고·돕는 손 | `Validation/MotionValidator.cs`(코어 `MotionRules`) · `MotionFixes.cs` · `MotionExport.cs` |
-| 리그 덤프·내장본·깊이·기준 해상도 | `Rig/RigSchemaFile.cs` · `BuiltinTuning.cs` · `DepthTuningFile.cs` · `BaseResolutionFile.cs` |
-| 씬 조립(무대 뼈대 → 오브젝트 → 깊이 → 오프셋 → 샷) | `Preview/ScenePreview.cs` · `StageShotResponse.cs` |
+| 세운 리그(문서의 세트·컷)·내장 깊이 커브·기준 해상도 | `Rig/RigAssets.cs` · `RigSchemaFile.cs` · `BuiltinTuning.cs` · `DepthTuningFile.cs` · `BaseResolutionFile.cs` |
+| 컷을 무대에 세우기(오브젝트 → 포즈 → 카메라와 깊이) | `Preview/CutStage.cs`(계산은 코어 `Cut/CutMath`) · 컷 파일은 `Serialization/CutFileJson.cs` |
 | 시각의 포즈, 포즈 → 키 값 | `Preview/MotionPreview.cs` · `PoseEdit.cs`(`RootDeltaToLocal`·`AngleDelta`·`ScaleAlong`·`KeyValueFor`) |
 | 노드의 사각형·축·캔버스 좌표 | `Preview/StageQuads.cs` |
 | 재생 시계 | `Preview/PlaybackClock.cs` |
@@ -39,8 +39,7 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 | 그래프 에디터 | `Mt.App/Views/GraphEditorView.cs` |
 | 도프 시트 · 타임 슬라이더 · 레인지 | `Views/DopeSheetView.cs` · `TimeSliderView.cs` · `RangeSliderView.cs` |
 | 문서 경로·자산 동기화·저장·내보내기·자동 저장 | `Mt.App/Services/DocumentSession.cs` |
-| 내장 데이터 | `Mt.Authoring/Defaults/` — `ExportedTuning/`(덤프 사본, 원본 커밋은 `BuiltinTuning.Source`) · `stage-skeleton.json` |
-| 유니티 프리팹에서 뼈대 다시 뽑기 | `tools/prefab-to-stage-rig.py` · `prefab-tree.py` |
+| 내장 데이터 | `Mt.Authoring/Defaults/ExportedTuning/presets/depth.json`(깊이 커브의 사본, 원본 커밋은 `BuiltinTuning.Source`) |
 
 ## 3. 깨면 안 되는 불변식
 
@@ -50,7 +49,7 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 4. **산출물 등가.** `MotionsJson` 쓰기는 정규 직렬화(§7)이고 유니티 `MotionClipExporter`와 바이트까지 같아야 한다. `MotionsJsonTests.nod_bow를_편집기로_지어_내보내면_Unity_산출물과_바이트까지_같다`가 심판이다.
 5. **보이는 것 = 재생하는 것.** 뷰포트 포즈는 코어 `MotionMath.Compose`·`StageState` 폴드 함수로만 만든다. 화면용 근사 수식을 두지 않는다.
 6. **툴은 Yarn·커맨드를 모른다.** `Mt.Authoring`에 그 타입을 들이지 않는다.
-7. **순서 규약.** 씬 조립은 런타임 대본과 같이 slot → size(깊이) → 오프셋 → **샷(카메라)**. 샷은 오브젝트가 다 선 뒤에 넣는다.
+7. **순서 규약.** 컷은 오브젝트를 세우고 → 타임라인의 포즈를 잡은 뒤 → **카메라와 깊이**를 넣는다(`CutStage.Apply`는 한 번만).
 
 ## 4. 자주 하는 작업
 
@@ -93,11 +92,11 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 
 | 함정 | 메모 |
 |---|---|
-| `ScenePreview.Build` 순서 | 깊이 → 오프셋 → 샷. 샷(카메라)은 오브젝트가 다 선 뒤에 넣는다 |
-| SwayPivot 같은 스트레치 노드 | 원점이 화면 크기 rect의 아래 끝이라 그림 밖이다. 뷰포트 `GizmoAnchor`가 그림 가운데로 옮긴다 |
+| `CutStage` 순서 | `Build` → 포즈 → `Apply`(카메라·깊이). `Apply`를 두 번 넣으면 깊이의 배율이 두 번 곱해진다 |
+| 원점이 그림 밖인 오브젝트 | 발 기준으로 도는 묶음처럼 원점이 그림에서 떨어져 있으면 뷰포트 `GizmoAnchor`가 손잡이를 그림 가운데로 옮긴다 |
 | 그래프 팬은 RMB만 | MMB 드래그는 선택 키 이동(마야). 뷰포트는 MMB·RMB 둘 다 팬 |
 | 시간 스냅 기본 1/24 | 테스트는 기대값을 1/60으로 쓰는 곳이 있어 `Show()`에서 `SnapStep = 1.0 / 60`을 둔다 |
-| 자산 동기화 | `DocumentSession`은 편집기 Changed에서 자산 지문(리그 덤프·기준 해상도 경로, 오브젝트의 스킨, 문서의 리그·스킨 그림)이 바뀐 때만 다시 읽는다. 키 편집은 다시 읽지 않는다 |
+| 자산 동기화 | `DocumentSession`은 편집기 Changed에서 자산 지문(문서의 세트·컷의 구조, 스킨의 그림)이 바뀐 때만 다시 읽는다. 키 편집은 다시 읽지 않는다 |
 | 글 칸 확정 | `OnCommit`: Enter는 확정 + 포커스를 뷰포트로, LostFocus는 글이 바뀐 때만 확정. 같은 값 재확정은 기록이 아니다 |
 | 옛 파일 | `motion-authoring/1`·`motions/1`은 읽힌다(채널 `mode` 무시). 쓰기는 언제나 `/2` |
 | 커밋 메시지 | 모델 식별자를 저장소 산출물에 넣지 않는다. 한국어, "무엇을 왜" |

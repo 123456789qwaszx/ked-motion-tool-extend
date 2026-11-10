@@ -19,7 +19,6 @@ public class RigAssetTests
     {
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(PartsRigFixture.Rig());
-        editor.AddSceneObject(null, "e1", PartsRigFixture.RigKind);
         return editor;
     }
 
@@ -38,8 +37,8 @@ public class RigAssetTests
         Assert.Equal(new[] { "Badge_Body", "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, rig.AlphaNodeIds[PartsRigFixture.RigKind].OrderBy(n => n, StringComparer.Ordinal));
         Assert.Contains("Badge_Anchor", rig.NodeIds[PartsRigFixture.RigKind]);
 
-        // 씬에 서고, 조각은 정의한 크기다.
-        RectNodeTree tree = ScenePreview.Build(rig, editor.Document.ActiveSceneAsset!);
+        // 트리에 서고, 조각은 정의한 크기다.
+        RectNodeTree tree = rig.BuildTree(PartsRigFixture.RigKind, "e1/");
         Assert.Equal("e1/Badge_Body", tree.GetParentKey("e1/Badge_Part2"));
         Assert.Equal(PartsRigFixture.PartSize, tree.GetRectSize("e1/Badge_Part1").X, 3);
 
@@ -76,7 +75,6 @@ public class RigAssetTests
         long revision = editor.Revision;
 
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(PartsRigFixture.Rig()));                       // 이미 있다
-        Assert.Throws<InvalidOperationException>(() => editor.AddRig(PartsRigFixture.Rig("character")));            // 덤프가 원본인 리그
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(PartsRigFixture.Rig("1bad")));
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(new RigAsset { Kind = "x", Nodes = { new RigNodeAsset { Id = "A", Parent = "B" }, new RigNodeAsset { Id = "B" } } })); // 부모가 뒤에
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(new RigAsset { Kind = "x", Nodes = { new RigNodeAsset { Id = "A" }, new RigNodeAsset { Id = "A" } } }));
@@ -94,11 +92,15 @@ public class RigAssetTests
         Assert.Equal(json, MotionDocumentJson.Write(MotionDocumentJson.Read(json)));
         Assert.DoesNotContain("\"rigs\"", MotionDocumentJson.Write(new MotionDocument()), StringComparison.Ordinal);
 
-        // 지우면 그 리그의 오브젝트는 남고(검증이 알린다) 씬은 던지지 않고 선다.
+        // 지우면 한 벌에서 빠진다.
         editor.RemoveRig(PartsRigFixture.RigKind);
-        var missing = new List<SceneObject>();
-        ScenePreview.Build(RigAssets.Compose(Dump, editor.Document), editor.Document.ActiveSceneAsset!, missing);
-        Assert.Equal("e1", Assert.Single(missing).Id);
+        Assert.DoesNotContain(PartsRigFixture.RigKind, RigAssets.Compose(Dump, editor.Document).RigKinds);
+
+        // 덤프 없이도 선다 — 문서가 정의한 것만의 한 벌(앱이 쓰는 길).
+        RigSchemaFile alone = RigAssets.Compose(editor.Document, new Vec2(1920f, 1080f));
+        Assert.Equal(new[] { "prop" }, alone.RigKinds);
+        Assert.Equal(1920f, alone.BuildTree("prop").GetRectSize(RigSchemaLoader.RootKey).X, 3);
+        Assert.Empty(RigAssets.Compose(new MotionDocument(), new Vec2(1920f, 1080f)).RigKinds);
     }
 
     [Fact]
@@ -236,7 +238,6 @@ public class RigAssetTests
     {
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(PartsRigFixture.Rig(parts: 2));
-        editor.AddSceneObject(null, "e1", PartsRigFixture.RigKind);
         editor.AddSkin("땀", PartsRigFixture.RigKind);
         editor.SetSkinPart("땀", "Badge_Part1", "art/sweat.png");
         editor.AddMotion("pop", PartsRigFixture.RigKind, 0.2f);
@@ -443,8 +444,7 @@ public class RigAssetTests
         Assert.Equal("car", RigAssetCodec.OwnerOf("car.Wheel"));
 
         // 선 자리: 인스턴스의 자리·배율이 안쪽에 곱해진다 — 바퀴는 (300 + 30×2, 50 − 40×2).
-        var scene = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "c", Rig = "city" } } };
-        RectNodeTree tree = ScenePreview.Build(composed, scene);
+        RectNodeTree tree = composed.BuildTree("city", "c/");
         Vec2 root = tree.TransformPoint("c/__root", Vec3.Zero).XY;
         Vec2 wheel = tree.TransformPoint("c/car.Wheel", Vec3.Zero).XY;
         Assert.Equal((360f, -30f), (MathF.Round(wheel.X - root.X, 1), MathF.Round(wheel.Y - root.Y, 1)));
@@ -552,8 +552,7 @@ public class RigAssetTests
     private static Vec2 PosedAt(MotionEditor editor, string node, double t)
     {
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        var scene = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "c", Rig = "city" } } };
-        RectNodeTree template = ScenePreview.Build(rig, scene);
+        RectNodeTree template = rig.BuildTree("city", "c/");
         RectNodeTree posed = MotionPreview.Pose(template, editor.Document.Find("city_in")!, t, MotionChannelMode.Relative, null, "c/");
         return posed.GetState("c/" + node).AnchoredPosition - template.GetState("c/" + node).AnchoredPosition;
     }
@@ -757,9 +756,8 @@ public class RigAssetTests
         Vec2 World(string motion, string node, double t)
         {
             RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-            var scene = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "c", Rig = "town" } } };
             MotionAsset asset = editor.Document.Find(motion)!;
-            return MotionPreview.Pose(ScenePreview.Build(rig, scene), asset, t, asset.PreviewMode, null, "c/").TransformPoint("c/" + node, Vec3.Zero).XY;
+            return MotionPreview.Pose(rig.BuildTree("town", "c/"), asset, t, asset.PreviewMode, null, "c/").TransformPoint("c/" + node, Vec3.Zero).XY;
         }
 
         double[] times = { 0, 0.3, 0.7, 1 };

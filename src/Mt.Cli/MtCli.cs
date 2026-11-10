@@ -24,15 +24,15 @@ public static class MtCli
     public const string Usage = """
         mt — ked-motion-tool 명령줄 (결과는 stdout의 JSON, 종료 코드 0 됨 · 1 막는 문제 · 2 쓰는 법)
 
-          mt info     <문서>                                   모션·스킨·씬의 목록
+          mt info     <문서>                                   모션·스킨·컷·세트의 목록
           mt validate <문서> [--rig <덤프>]                    문제 목록. 막는 문제가 있으면 종료 코드 1
           mt export   <문서> <motions.json> [--rig <덤프>]     motions.json 내보내기(검증을 지나야 나간다)
-          mt pose     <문서> --motion <이름> --time <초> [--object <id>] [--mode relative|absolute] [--rig <덤프>]
-                                                               그 시각의 포즈 — 모션이 건드리는 노드의 값, 불투명도, 방금 울린 이벤트
+          mt pose     <문서> --motion <이름> --time <초> [--mode relative|absolute] [--rig <덤프>]
+                                                               그 시각의 포즈 — 모션이 얹히는 세트·컷에서 그 모션이 건드리는 노드의 값, 불투명도, 방금 울린 이벤트
 
           mt rigs     <문서> <rigs.json>                       문서가 정의한 리그 내보내기(rig-schemas.json과 같은 모양)
 
-          <문서>  *.motion-authoring.json        <덤프>  rig-schemas.json (없으면 문서가 적어 둔 것, 그것도 없으면 내장본)
+          <문서>  *.motion-authoring.json        <덤프>  rig-schemas.json (없으면 문서가 정의한 세트·컷만 안다)
         """;
 
     private static readonly JsonSerializerOptions Output = new()
@@ -108,11 +108,8 @@ public static class MtCli
             ["schema"] = document.Schema,
             ["motions"] = motions,
             ["skins"] = new JsonArray(document.Skins.Select(s => (JsonNode)new JsonObject { ["name"] = s.Name, ["rig"] = s.Rig, ["parts"] = s.Parts.Count }).ToArray()),
-            ["scenes"] = new JsonArray(document.Scenes.Select(s => (JsonNode)new JsonObject
-            {
-                ["name"] = s.Name,
-                ["objects"] = new JsonArray(s.Objects.Select(o => (JsonNode)new JsonObject { ["id"] = o.Id, ["rig"] = o.Rig }).ToArray()),
-            }).ToArray()),
+            ["cuts"] = new JsonArray(document.Cuts.Select(c => (JsonNode)new JsonObject { ["name"] = c.Name, ["frames"] = c.Frames, ["objects"] = c.Nodes.Count }).ToArray()),
+            ["sets"] = new JsonArray(document.Rigs.Select(r => (JsonNode)new JsonObject { ["name"] = r.Kind, ["objects"] = r.Nodes.Count }).ToArray()),
         });
         return 0;
     }
@@ -185,7 +182,6 @@ public static class MtCli
 
         string motionName = options.Value("motion") ?? throw new UsageException("pose에는 --motion이 있어야 한다");
         MotionAsset motion = document.Find(motionName) ?? throw new KeyNotFoundException($"모션 '{motionName}'이 없다.");
-        SceneAsset scene = document.ActiveSceneAsset ?? throw new InvalidOperationException("씬이 없다.");
         MotionChannelMode mode = options.Value("mode") is { } token
             ? MotionModeToken.TryParse(token, out MotionChannelMode parsed) ? parsed : throw new UsageException($"--mode는 relative|absolute ('{token}')")
             : motion.PreviewMode;
@@ -193,18 +189,20 @@ public static class MtCli
         result["duration"] = motion.Duration;
         result["mode"] = MotionModeToken.Of(mode);
 
-        SceneObject actor = options.Value("object") is { } id
-            ? scene.Find(id) ?? throw new KeyNotFoundException($"오브젝트 '{id}'가 없다.")
-            : scene.Objects.FirstOrDefault(o => o.Rig == motion.Rig) ?? throw new InvalidOperationException($"씬에 리그 '{motion.Rig}'의 오브젝트가 없다 — --object로 고른다.");
-        RectNodeTree pose = MotionPreview.Pose(BuildTree(rig, scene), motion, time, mode, null, actor.Prefix, alphas);
+        if (!rig.TryGetRig(motion.Rig, out _))
+        {
+            throw new InvalidOperationException($"모션 '{motion.Name}'이 얹히는 세트나 컷 '{motion.Rig}'가 없다.");
+        }
+
+        RectNodeTree pose = PoseOf(document, rig, motion, time, mode, alphas);
         var nodes = new JsonObject();
 
         foreach (ChannelAsset channel in motion.Channels)
         {
-            AddNodeValue(nodes, pose, alphas, actor, channel);
+            AddNodeValue(nodes, pose, alphas, channel);
         }
 
-        result["object"] = actor.Id;
+        result["rig"] = motion.Rig;
         result["nodes"] = nodes;
 
         result["events"] = new JsonArray(MotionEvents.Between(motion, time - EventWindow, time)
@@ -233,13 +231,22 @@ public static class MtCli
         return (problems, blocking);
     }
 
-    /// <summary>앱의 뷰포트와 같은 조립 — 깊이·무대 뼈대(내장본).</summary>
-    private static RectNodeTree BuildTree(RigSchemaFile rig, SceneAsset scene)
-        => ScenePreview.Build(rig, scene, null, BuiltinTuning.Depth, BuiltinTuning.StageRig);
-
-    private static void AddNodeValue(JsonObject nodes, RectNodeTree pose, Dictionary<string, float> alphas, SceneObject actor, ChannelAsset channel)
+    /// <summary>앱의 뷰포트와 같은 조립 — 세트는 무대 가운데에 그대로 서고, 컷은 포즈를 잡은 뒤 카메라와 깊이(내장 깊이 커브)를 넣는다.</summary>
+    private static RectNodeTree PoseOf(MotionDocument document, RigSchemaFile rig, MotionAsset motion, double time, MotionChannelMode mode, Dictionary<string, float> alphas)
     {
-        string key = actor.KeyOf(channel.Node);
+        if (document.FindCut(motion.Rig) is { } cut && CutStage.Build(rig, cut, "") is { } staged)
+        {
+            RectNodeTree posed = MotionPreview.Pose(staged, motion, time, mode, null, "", alphas);
+            CutStage.Apply(posed, cut, "", BuiltinTuning.Depth);
+            return posed;
+        }
+
+        return MotionPreview.Pose(rig.BuildTree(motion.Rig), motion, time, mode, null, "", alphas);
+    }
+
+    private static void AddNodeValue(JsonObject nodes, RectNodeTree pose, Dictionary<string, float> alphas, ChannelAsset channel)
+    {
+        string key = channel.Node;
 
         if (!pose.Contains(key))
         {
@@ -275,17 +282,10 @@ public static class MtCli
         string path = options.Positional(0, "문서 경로");
         MotionDocument document = MotionDocumentJson.Read(File.ReadAllText(path));
 
-        // 덤프: --rig, 없으면 문서가 적어 둔 것(문서 기준 상대 경로, 내장본 표시는 빼고), 그것도 없으면 내장본.
-        string? dump = options.Value("rig");
-
-        if (dump is null && document.RigSchemas?.Path is { Length: > 0 } recorded && !recorded.StartsWith("builtin:", StringComparison.Ordinal))
-        {
-            string resolved = Path.IsPathRooted(recorded) ? recorded : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)) ?? "", recorded);
-            dump = File.Exists(resolved) ? resolved : null;
-        }
-
-        rig = dump is null ? BuiltinTuning.RigSchemas : RigSchemaFile.Load(dump);
-        rig = RigAssets.Compose(rig, document); // 문서가 정의한 리그(세트)도 한 벌로
+        // 문서가 정의한 세트·컷으로 한 벌을 세운다. --rig를 주면 그 덤프의 리그 위에 얹는다.
+        rig = options.Value("rig") is { } dump
+            ? RigAssets.Compose(RigSchemaFile.Load(dump), document)
+            : RigAssets.Compose(document, BaseResolutionFile.Default);
 
         // 손으로(또는 AI가) 쓴 문서는 탄젠트 값을 모른다 — 키의 탄젠트 종류(auto·flat·linear…)대로 값을 세운다. 앱이 편집할 때마다 하는 그 계산이고,
         // 앱이 저장한 문서에는 아무것도 안 바꾼다(이미 그 값이다). free는 적힌 값 그대로 둔다.

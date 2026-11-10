@@ -28,6 +28,79 @@ public class CutShellTests
     }
 
     [Fact]
+    public void 새_창은_비어_있고_새_컷에서_오브젝트와_키를_놓아_컷_파일로_낸다()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"start-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(folder);
+        // 옛 설정 파일 — 걷어 낸 설정(무대 뼈대 보기)이 들어 있어도 읽힌다.
+        string settings = Path.Combine(folder, "settings.json");
+        File.WriteAllText(settings, "{ \"showStageSkeleton\": true, \"inspectorTab\": 1 }");
+
+        HeadlessUi.Run(() =>
+        {
+            var window = new MainWindow(settings);
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // 새 문서는 비어 있다 — 컷도 세트도 모션도 없고, 연 것이 없고, 뷰포트는 빈 무대다(포즈를 물어도 던지지 않는다).
+                Assert.Null(window.Settings.LoadProblem);
+                Assert.Equal(1, window.InspectorTab); // 옛 설정의 탭(1 = 지금의 "오브젝트")
+                Assert.Empty(editor.Document.Cuts);
+                Assert.Empty(editor.Document.Rigs);
+                Assert.Empty(editor.Document.Motions);
+                Assert.Empty(window.Session.Rig.RigKinds);
+                Assert.Equal((null, null), (window.SelectedCut, window.SelectedSet));
+                Assert.Null(view.SetView);
+                Assert.Null(view.CurrentPose());
+                Assert.False(view.HasRig);
+                Assert.Empty(window.MotionListState.Names);
+                Assert.Equal(0, window.ProblemRowsShown);
+                Assert.Throws<InvalidOperationException>(() => window.AddMotionFromButton()); // 애니메이션은 연 세트(컷)의 것이다
+                Assert.DoesNotContain("\"scenes\"", Mt.Authoring.Serialization.MotionDocumentJson.Write(editor.Document), StringComparison.Ordinal);
+
+                // 새 컷 — 들어가는 문. 열리고 타임라인이 붙는다.
+                Assert.Equal("cut", window.NewCutFromForm());
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal("cut", view.SetView);
+                Assert.NotNull(view.CurrentPose());
+
+                // 오브젝트 하나, 그리고 그 자리의 키 둘(0프레임 · 24프레임).
+                window.SelectSetNode(null);
+                Assert.Equal("Color1", window.AddColorNodeFromForm());
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                view.SetComponent("Color1", MotionChannelKind.Position, Axis.X, -200f);
+                view.SetKey();
+                view.ScrubTo(1.0);
+                view.SetComponent("Color1", MotionChannelKind.Position, Axis.X, 300f);
+                view.SetKey();
+                Assert.Equal(new[] { (0f, -200f), (1f, 300f) }, editor.Document.Find("cut")!.FindChannel("Color1", MotionChannelKind.Position)!.X!.Keys.Select(k => (k.T, k.V)));
+                view.ScrubTo(0.5);
+                Assert.InRange(view.CurrentPose()!.GetState("set/Color1").AnchoredPosition.X, -200f, 300f);
+
+                // 컷 내보내기 — 컷 파일(cut/1)이 서고 코어가 읽는다.
+                string exported = Path.Combine(folder, "cut.cut.json");
+                Assert.True(window.ExportCutToFile(exported), window.Session.Status);
+                Ked.Presentation.Core.CutFileDto file = Mt.Authoring.Serialization.CutFileJson.Read(File.ReadAllText(exported));
+                Assert.Equal(("cut/1", "cut", 240), (file.format, file.name, file.frames));
+                Assert.Equal("Color1", Assert.Single(file.objects).id);
+                Ked.Presentation.Core.CutTrackDto track = file.tracks.Single(t => t.target == "Color1" && t.what == "x");
+                Assert.Equal(new[] { (0f, -200f), (24f, 300f) }, track.keys.Select(k => (k.f, k.v)));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Directory.Delete(folder, recursive: true);
+    }
+
+    [Fact]
     public void 새_컷을_만들면_열리고_오브젝트를_바로_놓으며_이름과_길이를_칸에서_고친다()
     {
         HeadlessUi.Run(() =>
@@ -271,7 +344,7 @@ public class CutShellTests
                 window.InspectorTab = 2; // 모션 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.True(window.SwapPanelShown);
-                string original = view.PartImage(ViewportView.SetObjectId, "sign")!;
+                string original = view.PartImage("sign")!;
                 Assert.EndsWith("06_sign.png", original, StringComparison.Ordinal);
 
                 // 오브젝트를 안 골랐으면 놓이지 않는다.
@@ -296,7 +369,7 @@ public class CutShellTests
                 {
                     window.Graph.CurrentTime = t;
                     Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                    return view.PartImage(ViewportView.SetObjectId, "sign")!;
+                    return view.PartImage("sign")!;
                 }
 
                 Assert.Equal(original, At(1.9));

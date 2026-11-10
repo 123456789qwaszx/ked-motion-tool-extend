@@ -15,7 +15,7 @@ namespace Mt.Authoring.Preview;
 public static class MotionPreview
 {
     /// <param name="isMuted">뮤트된 성분(재생에서 뺀다 — 시작값 그대로). null이면 없음.</param>
-    /// <param name="keyPrefix">슬롯 접두사(예: "c1/") — 씬에서 오브젝트 하나에 얹을 때. 비면 접두사 없는 트리.</param>
+    /// <param name="keyPrefix">노드 키의 접두사(예: "set/") — 접두사를 붙여 세운 트리에 얹을 때. 비면 접두사 없는 트리.</param>
     public static RectNodeTree Pose(RectNodeTree template, MotionAsset motion, double seconds, Func<Graph.CurveRef, bool>? isMuted = null, string keyPrefix = "")
     {
         ArgumentNullException.ThrowIfNull(motion);

@@ -19,12 +19,10 @@ public class AlphaChannelTests
 
     private static KeyAsset Linear(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
 
-    /// <summary>e1(조각 리그). fade(1초 commit): Part1 알파 1 → 0. dim(1초 commit): Body 알파 1 → 0.5.</summary>
+    /// <summary>조각 리그의 모션 둘. fade(1초 commit): Part1 알파 1 → 0. dim(1초 commit): Body 알파 1 → 0.5.</summary>
     private static MotionEditor NewEditor()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddSceneObject(null, "e1", PartsRigFixture.RigKind);
-
         editor.AddMotion("fade", PartsRigFixture.RigKind, 1f, MotionEnd.Commit);
         editor.AddChannel("fade", Part, MotionChannelKind.Alpha);
         editor.SetKeys("fade", Part, MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0f) });
@@ -35,7 +33,8 @@ public class AlphaChannelTests
         return editor;
     }
 
-    private static RectNodeTree Template(MotionEditor editor) => ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!);
+    /// <summary>조각 리그를 <c>e1/</c> 접두사로 세운 트리.</summary>
+    private static RectNodeTree Template() => RigFile.BuildTree(PartsRigFixture.RigKind, "e1/");
 
     private static void Near(float expected, float actual) => Assert.InRange(actual, expected - 1e-3f, expected + 1e-3f);
 
@@ -43,7 +42,7 @@ public class AlphaChannelTests
     public void 알파_채널은_트리가_아니라_불투명도_표에_얹힌다()
     {
         MotionEditor editor = NewEditor();
-        RectNodeTree template = Template(editor);
+        RectNodeTree template = Template();
         MotionAsset fade = editor.Document.Find("fade")!;
         var alphas = new Dictionary<string, float>();
 
@@ -153,7 +152,7 @@ public class AlphaChannelTests
         Near(0.25f, state.GetAlpha("s1/" + SpriteRoot));
 
         // 툴의 미리보기도 같은 값(같은 함수) — 두 번 얹은 표.
-        RectNodeTree template = ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!);
+        RectNodeTree template = RigFile.BuildTree("character", "s1/");
         var alphas = new Dictionary<string, float>();
         MotionPreview.Pose(template, editor.Document.Find("half")!, 9.0, MotionChannelMode.Relative, null, "s1/", alphas);
         MotionPreview.Pose(template, editor.Document.Find("half")!, 9.0, MotionChannelMode.Relative, null, "s1/", alphas);

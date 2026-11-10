@@ -144,7 +144,7 @@ public partial class MainWindow
         });
         ToolTip.SetTip(_rigNodeDepthKey, "깊이의 키 — 지금 프레임에 이 오브젝트의 깊이로 키를 놓는다(오브젝트가 멀어지고 가까워진다). 깊이는 타임라인의 트랙이다(그래프에 이름__depth로 보인다). 키가 한 번 놓이면 그 뒤로 칸을 고치는 것이 그 프레임의 키가 된다");
 
-        // 오브젝트의 깊이 — 컷의 맨 위 오브젝트에서만 선다("세트의 오브젝트" 칸 안, 부모 칸 아래 — 줄은 그 칸을 지을 때 선다).
+        // 오브젝트의 깊이 — 컷의 맨 위 오브젝트에서만 선다("오브젝트" 탭의 칸 안, 부모 칸 아래 — 줄은 그 칸을 지을 때 선다).
         ToolTip.SetTip(_rigNodeDepth, $"깊이(depthLevel) — far 0 · back 10 · mid 14 · front 16 · close 20, {MotionEditor.MinDepth:0}~{MotionEditor.MaxDepth:0}. 멀수록 작게 보이고 카메라에 덜 따라 움직이며 뒤에 그려진다. 비우면 mid. 맨 위 오브젝트만 가진다(밑의 것은 부모를 따른다)");
         OnCommit(_rigNodeDepth, text => WithOpenCut(cut =>
         {
@@ -229,7 +229,7 @@ public partial class MainWindow
     {
         string name = "cut";
 
-        for (int i = 2; _session.Rig?.RigKinds.Contains(name) == true || _session.Editor.Document.FindRig(name) is not null || _session.Editor.Document.Find(name) is not null; i++)
+        for (int i = 2; _session.Editor.Document.FindRig(name) is not null || _session.Editor.Document.Find(name) is not null; i++)
         {
             name = $"cut_{i.ToString(CultureInfo.InvariantCulture)}";
         }

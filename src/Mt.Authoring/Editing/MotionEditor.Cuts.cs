@@ -249,7 +249,7 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException($"컷 이름은 영문 소문자로 시작하는 영문 소문자·숫자·_ 다 ('{name}')");
         }
 
-        if (ReservedRigKinds.Contains(trimmed) || Document.FindRig(trimmed) is not null)
+        if (Document.FindRig(trimmed) is not null)
         {
             throw new InvalidOperationException($"'{trimmed}'라는 세트나 컷이 이미 있다.");
         }

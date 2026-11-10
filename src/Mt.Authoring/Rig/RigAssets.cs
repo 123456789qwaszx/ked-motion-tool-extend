@@ -24,6 +24,10 @@ public static class RigAssets
             .Concat(document.Cuts.Select(c => RigAssetCodec.WithPoints(RigAssetCodec.ToDto(c.Rig, stage, document.FindRig), Preview.CutStage.PointsOf(c)))));
     }
 
+    /// <summary>문서가 정의한 리그(세트 · 컷)만으로 세운 한 벌 — 덤프 없이. 무대 크기는 <paramref name="stageSize"/>.</summary>
+    public static RigSchemaFile Compose(MotionDocument document, Vec2 stageSize)
+        => Compose(RigSchemaFile.Empty(stageSize), document);
+
     /// <summary>
     /// 그 세트가 실제로 입는 스킨 — 제 스킨(<paramref name="skinName"/>)의 그림에, 품은 세트들의 스킨을 경로 이름(<c>인스턴스.조각</c>)으로 더한 것.
     /// 품은 세트의 스킨은 인스턴스가 고른 것(없으면 그 세트의 첫 스킨)이다. 그릴 것이 하나도 없으면 null.

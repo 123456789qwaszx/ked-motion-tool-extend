@@ -7,7 +7,6 @@ using Mt.App.Views;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
-using Mt.Authoring.Rig;
 
 namespace Mt.App.Tests;
 
@@ -19,7 +18,7 @@ public class ViewportViewTests
         var view = new ViewportView { SnapStep = 1.0 / 60 }; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var window = new Window { Width = 900, Height = 600, Content = view };
         window.Show();
-        view.SetRig(RigSchemaFile.Load(TestDocuments.FixturePath("rig-schemas.json")));
+        TestDocuments.Open(view, editor);
         view.Bind(editor, "nod");
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         return (window, view, editor);
@@ -45,7 +44,7 @@ public class ViewportViewTests
             Assert.Equal(anchor.X, after.X, 1);
             Assert.Equal(anchor.Y, after.Y, 1);
 
-            // MMB 드래그 = 보기 이동(씬·키는 그대로).
+            // MMB 드래그 = 보기 이동(문서는 그대로).
             Vector panBefore = view.ViewPan;
             window.MouseDown(inWindow, MouseButton.Middle);
             window.MouseMove(new Point(inWindow.X + 30, inWindow.Y - 10), RawInputModifiers.MiddleMouseButton);
@@ -83,23 +82,24 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 리그를_실으면_오브젝트가_서고_포즈가_시각을_따른다() => HeadlessUi.Run(() =>
+    public void 세트를_열면_무대에_서고_포즈가_시각을_따른다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, _) = Show();
 
         try
         {
             Assert.True(view.HasRig);
-            Quad rest = view.CurrentObjectQuad() ?? throw new InvalidOperationException("오브젝트가 없다");
+            Assert.True(view.CurrentPose()!.Contains("set/CharacterPortrait_Track_Move_Y")); // 노드 키는 set/ 접두사
+            Quad rest = view.ShownQuad() ?? throw new InvalidOperationException("세트가 안 섰다");
             Assert.Equal(0f, rest.Center.Y, 2);
 
             view.ScrubTo(0.3);
-            Quad dipped = view.CurrentObjectQuad()!.Value;
+            Quad dipped = view.ShownQuad()!.Value;
             Assert.Equal(-18f, dipped.Center.Y, 2);
 
             // 길이에서는 restore라 시작 상태.
             view.ScrubTo(0.6);
-            Assert.Equal(0f, view.CurrentObjectQuad()!.Value.Center.Y, 2);
+            Assert.Equal(0f, view.ShownQuad()!.Value.Center.Y, 2);
         }
         finally
         {
@@ -318,16 +318,17 @@ public class ViewportViewTests
                 view.SelectedNode = node;
                 view.Manipulator = ManipulatorMode.Rotate;
                 Point center = view.GizmoCenter() ?? throw new InvalidOperationException($"{node} 손잡이가 없다");
-                Quad quad = view.ObjectQuad("s1")!.Value;
+                Quad quad = view.ShownQuad()!.Value;
                 Point topLeft = view.ToScreen(quad.TopLeft);
                 Point bottomRight = view.ToScreen(quad.BottomRight);
                 Assert.InRange(center.X, topLeft.X - 0.5, bottomRight.X + 0.5);
                 Assert.InRange(center.Y, topLeft.Y - 0.5, bottomRight.Y + 0.5);
             }
 
-            // 무대 밖으로 보낸 오브젝트도 잘리지 않는다 — 사각형이 있고 클릭으로 고른다.
-            editor.SetObjectPlacement(null, "s1", 1500f, 0f, 0f, 1f, 1f);
-            Quad outside = view.ObjectQuad("s1")!.Value;
+            // 무대 밖으로 보낸 오브젝트도 잘리지 않는다 — 사각형이 있다.
+            editor.UpdateRigNode(TestDocuments.Actor, "CharSlot_Track", new RigNodeAsset { X = 1500f });
+            TestDocuments.Open(view, editor); // 고친 세트를 다시 세운다(창에서는 세션이 한다)
+            Quad outside = view.ShownQuad()!.Value;
             Assert.True(view.ToScreen(outside.Center).X > view.StageRect.Right);
         }
         finally
@@ -379,13 +380,13 @@ public class ViewportViewTests
         {
             var y = new Mt.Authoring.Graph.CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Mt.Authoring.Model.Axis.Y);
             view.ScrubTo(0.3);
-            Assert.Equal(-18f, view.CurrentObjectQuad()!.Value.Center.Y, 2);
+            Assert.Equal(-18f, view.ShownQuad()!.Value.Center.Y, 2);
 
             view.Flags.SetMuted(y, true);
-            Assert.Equal(0f, view.CurrentObjectQuad()!.Value.Center.Y, 2);
+            Assert.Equal(0f, view.ShownQuad()!.Value.Center.Y, 2);
 
             view.Flags.SetMuted(y, false);
-            Assert.Equal(-18f, view.CurrentObjectQuad()!.Value.Center.Y, 2);
+            Assert.Equal(-18f, view.ShownQuad()!.Value.Center.Y, 2);
         }
         finally
         {
@@ -394,79 +395,7 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 씬의_오브젝트들은_배치대로_서고_클릭으로_고르며_모션은_선택_오브젝트에만_입힌다() => HeadlessUi.Run(() =>
-    {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
-
-        try
-        {
-            Assert.Equal("s1", view.SelectedObjectId);
-            editor.AddSceneObject(null, "s2", "character", SceneLayers.Front);
-            editor.SetObjectPlacement(null, "s2", 300f, 0f, 0f, 1f, 1f);
-
-            Quad first = view.ObjectQuad("s1")!.Value;
-            Quad second = view.ObjectQuad("s2")!.Value;
-            Assert.Equal(300f, second.BottomLeft.X - first.BottomLeft.X, 1);
-
-            // 두 번째 오브젝트의 가운데를 클릭하면 그것이 선택된다.
-            Vec2 center = (second.BottomLeft + second.TopRight) * 0.5f;
-            Vec2 canvas = StageQuads.ToCanvas(center, view.StageSize);
-            Rect stage = view.StageRect;
-            double scale = stage.Width / view.StageSize.X;
-            Point at = view.TranslatePoint(new Point(stage.X + canvas.X * scale, stage.Y + canvas.Y * scale), window)!.Value;
-            view.Manipulator = ManipulatorMode.Select;
-            window.MouseDown(at, MouseButton.Left);
-            window.MouseUp(at, MouseButton.Left);
-            Assert.Equal("s2", view.SelectedObjectId);
-
-            // nod(y 0 → -18)는 선택 오브젝트(s2)에만 얹힌다.
-            view.ScrubTo(0.3);
-            Quad c1At = view.ObjectQuad("s1")!.Value;
-            Quad c2At = view.ObjectQuad("s2")!.Value;
-            Assert.Equal(first.BottomLeft.Y, c1At.BottomLeft.Y, 2);
-            Assert.Equal(second.BottomLeft.Y - 18f, c2At.BottomLeft.Y, 1);
-
-            // 오브젝트 삭제는 선택을 남은 것으로 옮긴다.
-            editor.RemoveSceneObject(null, "s2");
-            Assert.Equal("s1", view.SelectedObjectId);
-        }
-        finally
-        {
-            window.Close();
-        }
-    });
-
-    [Fact]
-    public void 카메라는_뼈대의_Zoom_Pan_노드에_들어가고_보기_변환은_항등이다() => HeadlessUi.Run(() =>
-    {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
-
-        try
-        {
-            Assert.True(view.CameraInTree);
-            Point origin = view.ToScreen(Vec2.Zero);
-            Quad rest = view.ObjectQuad("s1")!.Value;
-            Assert.Equal(0f, rest.Center.X, 1);
-
-            editor.SetCamera(null, 20f, 50f, 0f); // 배율 2, pan +50px
-            Assert.Equal(2f, view.CameraScale, 4);
-            Assert.Equal(origin, view.ToScreen(Vec2.Zero)); // 격자(StageShot_Root 공간)는 안 움직인다
-            Quad shot = view.ObjectQuad("s1")!.Value; // 오브젝트는 pan + 2·(자리) 만큼 — 런타임 StagePan/Zoom과 같다
-            Assert.Equal(50f, shot.Center.X, 1);
-            Assert.Equal((rest.TopRight.X - rest.TopLeft.X) * 2f, shot.TopRight.X - shot.TopLeft.X, 1);
-
-            Vec2 back = view.ToRoot(view.ToScreen(new Vec2(123f, -45f)));
-            Assert.Equal(123f, back.X, 2);
-            Assert.Equal(-45f, back.Y, 2);
-        }
-        finally
-        {
-            window.Close();
-        }
-    });
-
-    [Fact]
-    public void 리그가_없으면_오브젝트가_없고_rigKind가_다른_모션이어도_그려진다() => HeadlessUi.Run(() =>
+    public void 아무것도_안_열면_빈_무대이고_다른_것의_모션은_얹히지_않는다() => HeadlessUi.Run(() =>
     {
         MotionEditor editor = TestDocuments.Nod();
         editor.AddMotion("robot_wave", "robot", 1f);
@@ -476,48 +405,33 @@ public class ViewportViewTests
 
         try
         {
+            // 아무것도 안 열었다 — 빈 무대. 포즈를 물어도 던지지 않는다.
             view.Bind(editor, "nod");
             Assert.False(view.HasRig);
-            Assert.Null(view.CurrentObjectQuad());
-
-            view.SetRig(RigSchemaFile.Load(TestDocuments.FixturePath("rig-schemas.json")));
-            Assert.True(view.HasRig);
-
-            // 리그가 다른 모션: 오브젝트(s1 character)는 그대로 서고, 모션만 안 맞는다.
-            view.Bind(editor, "robot_wave");
-            Assert.True(view.HasRig);
-            Assert.NotNull(view.CurrentObjectQuad());
-            Assert.False(view.CanWear(view.SelectedObject!));
+            Assert.Null(view.SetView);
+            Assert.Null(view.CurrentPose());
+            Assert.Null(view.ShownQuad());
+            Assert.Empty(view.NodeChoices);
             view.InvalidateVisual();
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        }
-        finally
-        {
-            window.Close();
-        }
-    });
 
-    [Fact]
-    public void 숨긴_오브젝트는_클릭에_안_잡힌다() => HeadlessUi.Run(() =>
-    {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
+            TestDocuments.Open(view, editor);
+            Assert.True(view.HasRig);
+            view.ScrubTo(0.3);
+            Assert.Equal(-18f, view.ShownQuad()!.Value.Center.Y, 2);
 
-        try
-        {
-            editor.AddSceneObject(null, "s2", "character", SceneLayers.Mid);
-            Assert.Throws<InvalidOperationException>(() => editor.AddSceneObject(null, "pivot", "", SceneLayers.Front)); // 빈 오브젝트는 없다
+            // 다른 것의 모션: 세트는 그대로 서고, 그 모션은 얹히지 않는다.
+            view.Bind(editor, "robot_wave");
+            Assert.True(view.HasRig);
+            view.ScrubTo(0.3);
+            Assert.Equal(0f, view.ShownQuad()!.Value.Center.Y, 2);
+            view.InvalidateVisual();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-            view.Manipulator = ManipulatorMode.Select;
-            view.SelectedObjectId = "s2";
-            Quad quad = view.ObjectQuad("s2")!.Value;
-            Vec2 center = (quad.BottomLeft + quad.TopRight) * 0.5f;
-            Point onS2 = view.TranslatePoint(view.ToScreen(center), window)!.Value;
-            editor.SetObjectVisible(null, "s2", false);
-            editor.SetObjectVisible(null, "s1", false);
-            view.SelectedObjectId = null;
-            window.MouseDown(onS2, MouseButton.Left);
-            window.MouseUp(onS2, MouseButton.Left);
-            Assert.Null(view.SelectedObjectId);
+            // 닫으면 다시 빈 무대.
+            view.SetView = null;
+            Assert.False(view.HasRig);
+            Assert.Null(view.CurrentPose());
         }
         finally
         {

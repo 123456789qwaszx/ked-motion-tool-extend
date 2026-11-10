@@ -97,7 +97,7 @@ public class MotionPreviewTests
 
 public class StageQuadsTests
 {
-    private const string Node = ScenePreview.OutlineNode;
+    private const string Node = "CharacterPortraitSprite_Image";
 
     private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
 
@@ -342,19 +342,5 @@ public class KeyTimesTests
 
         List<float> selected = KeyTimes.OfSelection(nod, new[] { new KeyRef(y, 2), new KeyRef(y, 1), new KeyRef(y, 9) });
         Assert.Equal(new[] { 0.3f, 0.6f }, selected);
-    }
-}
-
-public class BaseResolutionFileTests
-{
-    [Fact]
-    public void 기준_해상도를_읽고_없거나_0이면_거부한다()
-    {
-        Vec2 size = BaseResolutionFile.Parse("""{ "canvasName": "[UIManager]", "referenceResolution": { "x": 1920.0, "y": 1080.0 } }""");
-        Assert.Equal(new Vec2(1920f, 1080f), size);
-
-        Assert.Throws<System.Text.Json.JsonException>(() => BaseResolutionFile.Parse("""{ "referenceResolution": { "x": 0, "y": 1080 } }"""));
-        Assert.Throws<System.Text.Json.JsonException>(() => BaseResolutionFile.Parse("""{ }"""));
-        Assert.Null(BaseResolutionFile.TryFindBeside(Fixtures.PathOf("rig-schemas.json")));
     }
 }

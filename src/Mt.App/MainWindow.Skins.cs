@@ -8,8 +8,8 @@ using Mt.Authoring.Rig;
 
 namespace Mt.App;
 
-// 스킨의 셸(PLAN-parts.md P1) — "씬" 탭 아래, 조각 노드가 있는 리그의 오브젝트를 골랐을 때만 보인다.
-// 스킨 = 조각마다 붙일 그림의 묶음에 이름을 붙인 것. 오브젝트는 스킨을 고르고, 스킨의 조각 줄에서 그림을 정한다.
+// 스킨의 셸(PLAN-parts.md P1) — "오브젝트" 탭 아래, 그림 오브젝트가 있는 컷이나 세트를 열었을 때만 보인다.
+// 스킨 = 그림 오브젝트(조각)마다 붙일 그림의 묶음에 이름을 붙인 것. 어느 스킨을 입혀 볼지는 보기 상태다(문서를 안 바꾼다) — 스킨의 조각 줄에서 그림을 정한다.
 public partial class MainWindow
 {
     private const string NoSkin = "(없음)";
@@ -34,9 +34,9 @@ public partial class MainWindow
     {
         _skinPanel.Children.Add(Header("스킨 (조각 그림)"));
         _skinPanel.Children.Add(Labeled("입은 스킨", _skinCombo));
-        ToolTip.SetTip(_skinCombo, "이 오브젝트가 입는 스킨 — 조각마다 어떤 그림을 그릴지의 묶음. 같은 리그의 스킨만 보인다. 그림이 없는 조각은 안 그린다");
+        ToolTip.SetTip(_skinCombo, "연 컷/세트에 입혀 보는 스킨 — 그림 오브젝트마다 어떤 그림을 그릴지의 묶음. 그 컷/세트의 스킨만 보인다. 그림이 없는 오브젝트는 안 그린다. 뷰포트에서 보는 것만 바뀐다(문서는 그대로)");
         Button add = SmallButton("스킨 추가", (_, _) => Guard("스킨 추가", () => AddSkin()));
-        ToolTip.SetTip(add, "이 리그의 새 스킨(skin, skin_2…)을 만들어 이 오브젝트에 입힌다 — 되돌리기 한 번. 이름은 아래 칸에서(한글도 된다)");
+        ToolTip.SetTip(add, "연 컷/세트의 새 스킨(skin, skin_2…)을 만들어 입혀 본다 — 되돌리기 한 번. 이름은 아래 칸에서(한글도 된다)");
         _skinPanel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -48,24 +48,18 @@ public partial class MainWindow
 
         _skinCombo.SelectionChanged += (_, _) =>
         {
-            if (_refreshing || _skinCombo.SelectedItem is not string choice || _viewport.SelectedObject is not { } o)
+            if (_refreshing || _skinCombo.SelectedItem is not string choice || _viewport.SetView is null)
             {
                 return;
             }
 
-            // 세트 보기의 오브젝트는 문서에 없다 — 입혀 보는 스킨은 보기 상태다(문서를 안 바꾼다).
-            if (_viewport.SetView is not null)
-            {
-                _viewport.SetSkin = choice == NoSkin ? null : choice;
-                RefreshSkinPanel();
-                return;
-            }
-
-            Guard("스킨 입히기", () => _session.Editor.SetObjectSkin(null, o.Id, choice == NoSkin ? null : choice));
+            // 입혀 보는 스킨은 보기 상태다(문서를 안 바꾼다).
+            _viewport.SetSkin = choice == NoSkin ? null : choice;
+            RefreshSkinPanel();
         };
         OnCommit(_skinName, text =>
         {
-            if (!_refreshing && _viewport.SelectedObject?.Skin is { } current && text.Trim() != current)
+            if (!_refreshing && _viewport.SetSkin is { } current && text.Trim() != current)
             {
                 Guard("스킨 이름", () => _session.Editor.RenameSkin(current, text));
             }
@@ -73,30 +67,37 @@ public partial class MainWindow
         return _skinPanel;
     }
 
-    /// <summary>고른 오브젝트의 리그에 조각 노드가 있을 때만 보인다 — 조각 없는 리그(캐릭터)에는 스킨이 없다.</summary>
+    /// <summary>연 컷/세트에 그림 오브젝트(조각)가 있을 때만 보인다.</summary>
     private void RefreshSkinPanel()
     {
         _refreshDepth++;
 
         try
         {
-            SceneObject? o = _viewport.SelectedObject;
-            IReadOnlyList<string> parts = o is null ? Array.Empty<string>() : RigParts.Of(_session.Rig, o.Rig);
+            string? kind = _viewport.SetView;
+            IReadOnlyList<string> parts = kind is null ? Array.Empty<string>() : RigParts.Of(_session.Rig, kind);
             _skinPanel.IsVisible = parts.Count > 0;
             _skinParts.Children.Clear();
             _skinSetupBoxes.Clear();
 
-            if (o is null || parts.Count == 0)
+            if (kind is null || parts.Count == 0)
             {
                 return;
             }
 
-            var choices = new List<string> { NoSkin };
-            choices.AddRange(_session.Editor.Document.Skins.Where(s => s.Rig == o.Rig).Select(s => s.Name));
-            _skinCombo.ItemsSource = choices;
-            _skinCombo.SelectedIndex = o.Skin is null ? 0 : Math.Max(0, choices.IndexOf(o.Skin));
+            // 스킨이 하나라도 있으면 그 가운데 하나를 입혀 본다(뷰포트가 첫 스킨을 고른다) — 없을 때만 "(없음)".
+            List<string> choices = _session.Editor.Document.Skins.Where(s => s.Rig == kind).Select(s => s.Name).ToList();
 
-            SkinAsset? skin = _session.Editor.Document.FindSkin(o.Skin);
+            if (choices.Count == 0)
+            {
+                choices.Add(NoSkin);
+            }
+
+            string? worn = _viewport.SetSkin;
+            _skinCombo.ItemsSource = choices;
+            _skinCombo.SelectedIndex = worn is null ? 0 : Math.Max(0, choices.IndexOf(worn));
+
+            SkinAsset? skin = _session.Editor.Document.FindSkin(worn);
             _skinName.IsEnabled = skin is not null;
 
             if (!_skinName.IsFocused)
@@ -241,10 +242,10 @@ public partial class MainWindow
         };
     }
 
-    /// <summary>고른 오브젝트의 리그로 새 스킨을 만들어 입힌다 — 되돌리기 한 번.</summary>
+    /// <summary>연 컷/세트의 새 스킨을 만들어 입혀 본다 — 되돌리기 한 번.</summary>
     private string? AddSkin()
     {
-        if (_viewport.SelectedObject is not { } o)
+        if (_viewport.SetView is not { } rig)
         {
             return null;
         }
@@ -257,28 +258,15 @@ public partial class MainWindow
             name = $"skin_{n}";
         }
 
-        string id = o.Id;
-        string rig = o.Rig;
-
-        if (_viewport.SetView is not null)
-        {
-            editor.AddSkin(name, rig);
-            _viewport.SetSkin = name;
-            RefreshSkinPanel();
-            return name;
-        }
-
-        editor.Batch(MotionChangeKind.Scene, () =>
-        {
-            editor.AddSkin(name, rig);
-            editor.SetObjectSkin(null, id, name);
-        });
+        editor.AddSkin(name, rig);
+        _viewport.SetSkin = name;
+        RefreshSkinPanel();
         return name;
     }
 
     private void RemoveSkin()
     {
-        if (_viewport.SelectedObject?.Skin is { } skin)
+        if (_viewport.SetSkin is { } skin)
         {
             _session.Editor.RemoveSkin(skin);
         }
