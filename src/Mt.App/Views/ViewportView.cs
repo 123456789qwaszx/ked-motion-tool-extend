@@ -711,6 +711,12 @@ public sealed class ViewportView : Control
             return first;
         }
 
+        // 색 오브젝트뿐인 세트 — 첫 색 사각형.
+        if (RigParts.ColorsOf(_rig, o.Rig).Keys.FirstOrDefault(n => pose.Contains(o.KeyOf(n))) is { } colored)
+        {
+            return PortraitLayout.RectQuad(pose, o.KeyOf(colored));
+        }
+
         string? image = ScenePreview.ImageKeyOf(pose, o);
         return image is not null
             ? PortraitLayout.VisualQuad(pose, image, AspectOf(o))
@@ -2308,26 +2314,54 @@ public sealed class ViewportView : Control
 
     private void DrawObject(DrawingContext context, RectNodeTree pose, SceneObject o, bool selected)
     {
-        // 조각이 있는 리그(이모지 등) — 스킨이 그림을 준 조각만, 덤프 순서로 그린다. 스킨을 안 입었으면 아래의 윤곽으로 떨어진다.
-        if (_rig is not null && RigParts.Of(_rig, o.Rig).Count > 0 && DrawnParts(pose, o) is { Count: > 0 } parts && WornBy(pose, o) is { } worn)
-        {
-            foreach (string node in parts)
-            {
-                if (PartQuadOf(pose, o, node) is { } part)
-                {
-                    Bitmap? image = ImageOf(worn, node);
-                    float alpha = EffectiveAlpha(pose, o.KeyOf(node), o.Prefix, _drawAlphas);
+        // 조각·색이 있는 리그(세트) — 리그의 노드 순서로(뒤의 것이 위): 색 오브젝트는 사각형을 채우고, 조각은 스킨이 준 그림을 그린다.
+        // 그릴 것이 하나도 없으면(스킨을 안 입었고 색도 없다) 아래의 윤곽으로 떨어진다.
+        IReadOnlyDictionary<string, string> colors = RigParts.ColorsOf(_rig, o.Rig);
+        IReadOnlyList<string> parts = DrawnParts(pose, o);
+        Worn? wornNow = WornBy(pose, o);
 
-                    if (alpha <= 0.001f)
-                    {
-                        continue;
-                    }
+        if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
+        {
+            foreach (RigSchemaNodeDto rigNode in drawn.nodes)
+            {
+                string node = rigNode.id;
+                string key = o.KeyOf(node);
+
+                if (!pose.Contains(key))
+                {
+                    continue;
+                }
+
+                float alpha = EffectiveAlpha(pose, key, o.Prefix, _drawAlphas);
+
+                if (alpha <= 0.001f)
+                {
+                    continue;
+                }
+
+                if (colors.TryGetValue(node, out string? fill) && IsSetNodeShown(node) && Color.TryParse(fill, out Color color))
+                {
+                    Quad rect = PortraitLayout.RectQuad(pose, key);
 
                     using (context.PushOpacity(alpha))
                     {
-                        DrawImageQuad(context, part, image);
+                        context.DrawGeometry(new SolidColorBrush(color), null, new PolylineGeometry(
+                            new[] { ToControl(rect.TopLeft), ToControl(rect.TopRight), ToControl(rect.BottomRight), ToControl(rect.BottomLeft) }, true));
                     }
                 }
+
+                if (wornNow is { } wearing && parts.Contains(node) && PartQuadOf(pose, o, node) is { } part)
+                {
+                    using (context.PushOpacity(alpha))
+                    {
+                        DrawImageQuad(context, part, ImageOf(wearing, node));
+                    }
+                }
+            }
+
+            if (wornNow is not { } worn || parts.Count == 0)
+            {
+                return;
             }
 
             if (PlacedPart is { } picked && picked.Skin == worn.Skin.Name && PartQuadOf(pose, o, picked.Node) is { } held)
@@ -2933,10 +2967,7 @@ public sealed class ViewportView : Control
     /// <summary>배치 모드에서 오브젝트를 집었다 — 하이어아키·칸이 그것을 따라 고른다.</summary>
     public event EventHandler<string>? LayoutNodePicked;
 
-    private static RigNodeAsset CopyOf(RigNodeAsset n) => new()
-    {
-        Id = n.Id, Parent = n.Parent, X = n.X, Y = n.Y, Width = n.Width, Height = n.Height, Image = n.Image, Alpha = n.Alpha, Rotation = n.Rotation, ScaleX = n.ScaleX, ScaleY = n.ScaleY,
-    };
+    private static RigNodeAsset CopyOf(RigNodeAsset n) => n.Clone();
 
     /// <summary>그 자리의 오브젝트(위에 그려진 것 먼저) — 사각형이 있는 것만 집힌다. 없으면, 고른 오브젝트의 원점 가까이를 눌렀을 때 그것(묶기만 하는 오브젝트를 옮기는 길).</summary>
     private string? LayoutNodeAt(RectNodeTree pose, SceneObject o, RigAsset rig, Point position)

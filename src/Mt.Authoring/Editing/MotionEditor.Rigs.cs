@@ -192,8 +192,10 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException("노드의 회전은 수, 배율은 0이 아닌 수다.");
         }
 
+        string? color = NormalizeColor(value.Color);
+
         if (node.X == value.X && node.Y == value.Y && node.Width == value.Width && node.Height == value.Height && node.Image == value.Image && node.Alpha == value.Alpha
-            && node.Rotation == value.Rotation && node.ScaleX == value.ScaleX && node.ScaleY == value.ScaleY)
+            && node.Rotation == value.Rotation && node.ScaleX == value.ScaleX && node.ScaleY == value.ScaleY && node.Color == color)
         {
             return;
         }
@@ -209,7 +211,28 @@ public sealed partial class MotionEditor
             node.Rotation = value.Rotation;
             node.ScaleX = value.ScaleX;
             node.ScaleY = value.ScaleY;
+            node.Color = color;
         });
+    }
+
+    private static readonly Regex ColorRule = new("^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$", RegexOptions.Compiled);
+
+    /// <summary>색 글을 고른 꼴로 — "#RRGGBB" 또는 "#RRGGBBAA"(대문자). 비면 null(색 오브젝트가 아니다). 꼴이 아니면 막는다.</summary>
+    public static string? NormalizeColor(string? color)
+    {
+        string text = (color ?? "").Trim();
+
+        if (text.Length == 0)
+        {
+            return null;
+        }
+
+        if (!text.StartsWith('#'))
+        {
+            text = "#" + text;
+        }
+
+        return ColorRule.IsMatch(text) ? text.ToUpperInvariant() : throw new InvalidOperationException($"색은 #RRGGBB 또는 #RRGGBBAA다 ('{color}')");
     }
 
     /// <summary>노드를 다른 부모 밑으로 옮긴다(비면 루트) — 밑의 노드도 함께, 새 부모의 식구들 맨 뒤로. 제 밑으로는 못 옮긴다.</summary>
@@ -341,7 +364,13 @@ public sealed partial class MotionEditor
     private static RigAsset CloneRig(RigAsset rig) => new()
     {
         Kind = rig.Kind,
-        Nodes = rig.Nodes.Select(n => new RigNodeAsset { Id = n.Id, Parent = n.Parent ?? "", X = n.X, Y = n.Y, Width = n.Width, Height = n.Height, Image = n.Image, Alpha = n.Alpha, Rotation = n.Rotation, ScaleX = n.ScaleX, ScaleY = n.ScaleY }).ToList(),
+        Nodes = rig.Nodes.Select(n =>
+        {
+            RigNodeAsset copy = n.Clone();
+            copy.Parent = n.Parent ?? "";
+            copy.Color = NormalizeColor(n.Color);
+            return copy;
+        }).ToList(),
     };
 
     private RigAsset RequireRig(string kind)

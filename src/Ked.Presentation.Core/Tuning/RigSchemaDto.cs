@@ -73,6 +73,12 @@ namespace Ked.Presentation.Core
         /// 없는 필드는 false로 읽힌다 — 예전 덤프는 그대로다.
         /// </summary>
         public bool hasImage;
+
+        /// <summary>
+        /// 단색 사각형의 색("#RRGGBB" 또는 "#RRGGBBAA") — 스프라이트 없이 노드의 rect를 이 색으로 채운다(화면 전환의 패널 등).
+        /// 없거나 비면 색 노드가 아니다 — 예전 덤프는 그대로다.
+        /// </summary>
+        public string fillColor;
     }
 
     [Serializable]

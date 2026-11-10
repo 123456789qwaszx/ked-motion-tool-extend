@@ -1267,4 +1267,65 @@ public class SkinShellTests
             }
         });
     }
+
+    [Fact]
+    public void 색_사각형을_더하면_스킨_없이_세트에_서고_끌어서_옮기고_칸에서_색을_바꾼다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                window.NewSetFromForm();
+                window.InspectorTab = 1;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                RigNodeAsset Node(string id) => editor.Document.FindRig("set")!.Find(id)!;
+
+                // 색 사각형 더하기 — 오브젝트 + 크기 + 색이 한 칸. 스킨이 없어도 선다(세트의 오브젝트 사각형이 그 색 사각형이다).
+                long revision = editor.Revision;
+                Assert.Equal("Color1", window.AddColorNodeFromForm());
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal(("Body", 400f, 300f, "#3D5A80", false), (Node("Color1").Parent, Node("Color1").Width, Node("Color1").Height, Node("Color1").Color, Node("Color1").Image));
+                Assert.Null(view.SetSkin);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Quad quad = view.ObjectQuad(ViewportView.SetObjectId)!.Value;
+                Assert.Equal(400f, quad.BottomRight.X - quad.BottomLeft.X, 1);
+                Assert.Equal("#3D5A80", window.RigNodeColorBox.Text);
+
+                // 칸에서 색을 바꾼다(Enter) — 한 칸. 틀린 글은 막히고 문서는 그대로다.
+                window.RigNodeColorBox.Focus();
+                window.RigNodeColorBox.Text = "ee6c4d";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal("#EE6C4D", Node("Color1").Color);
+                window.RigNodeColorBox.Text = "red";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal("#EE6C4D", Node("Color1").Color);
+
+                // 배치 모드에서 끌어 옮긴다 — 색은 그대로 남는다.
+                Point At(Vec2 p) => view.TranslatePoint(view.ToScreen(p), window) ?? throw new InvalidOperationException("뷰가 창에 붙어 있지 않다");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Vec2 grab = view.ObjectQuad(ViewportView.SetObjectId)!.Value.Center;
+                var drop = new Vec2(grab.X + 50f, grab.Y + 20f);
+                window.MouseDown(At(grab), MouseButton.Left);
+                window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(At(drop), MouseButton.Left);
+                Assert.Equal((50f, 20f, "#EE6C4D"), (Node("Color1").X, Node("Color1").Y, Node("Color1").Color));
+
+                // 색을 비우면 보통 오브젝트로 돌아간다.
+                window.SelectSetNode("Color1");
+                window.RigNodeColorBox.Focus();
+                window.RigNodeColorBox.Text = "";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Null(Node("Color1").Color);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

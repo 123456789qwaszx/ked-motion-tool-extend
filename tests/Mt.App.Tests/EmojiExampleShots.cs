@@ -116,6 +116,11 @@ public class EmojiExampleShots
                 window.AddImageObjectFromForm(Path.Combine(artDirectory, "think_cloud.png"), new Ked.Presentation.Core.Vec2(-180f, 60f));
                 window.AddImageObjectFromForm(Path.Combine(artDirectory, "idea_bulb.png"), new Ked.Presentation.Core.Vec2(120f, 100f));
                 window.AddImageObjectFromForm(Path.Combine(artDirectory, "sparkle.png"), new Ked.Presentation.Core.Vec2(40f, -150f));
+                window.SelectSetNode("Body");
+                window.AddColorNodeFromForm(); // 색 사각형 — 그림들 뒤에 깔리게 앞으로 옮긴다
+                window.MoveSetNodeFromForm(-1);
+                window.MoveSetNodeFromForm(-1);
+                window.MoveSetNodeFromForm(-1);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 window.Viewport.FitToSet();
                 Shot("set-layout");

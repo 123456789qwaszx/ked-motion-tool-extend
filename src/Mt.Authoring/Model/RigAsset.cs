@@ -44,11 +44,19 @@ public sealed class RigNodeAsset
 
     public float ScaleY { get; set; } = 1f;
 
+    /// <summary>
+    /// 색 — 있으면 **단색 사각형**이다: 그림 없이 이 노드의 사각형을 이 색으로 채운다(<c>PLAN-set.md</c> S4 — 화면 전환·소개의 패널).
+    /// "#RRGGBB" 또는 "#RRGGBBAA". null이면 색 오브젝트가 아니다. 그림과 함께 켜면 그림 뒤에 색이 깔린다.
+    /// </summary>
+    public string? Color { get; set; }
+
     /// <summary>그림을 그리는 노드(조각)인가 — 스킨이 여기에 그림을 준다.</summary>
     public bool Image { get; set; }
 
     /// <summary>불투명도를 받는가(CanvasGroup) — 알파 채널을 놓을 수 있다.</summary>
     public bool Alpha { get; set; }
+
+    public RigNodeAsset Clone() => (RigNodeAsset)MemberwiseClone();
 }
 
 /// <summary>툴의 리그 ↔ 코어의 리그 스키마. 해석(트리 세우기)은 코어가 한다.</summary>
@@ -95,6 +103,7 @@ public static class RigAssetCodec
                 hasCanvasGroup = node.Alpha,
                 canvasGroupAlpha = 1f,
                 hasImage = node.Image,
+                fillColor = node.Color,
             });
         }
 

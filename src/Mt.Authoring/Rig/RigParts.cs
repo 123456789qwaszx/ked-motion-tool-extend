@@ -25,6 +25,12 @@ public static partial class RigParts
         return rig.nodes.Where(n => n.hasImage || IsPartNode(n.id)).Select(n => n.id).ToList();
     }
 
+    /// <summary>그 rigKind의 색 오브젝트 — 노드 id → 색("#RRGGBB[AA]"). 없으면 빈 표.</summary>
+    public static IReadOnlyDictionary<string, string> ColorsOf(RigSchemaFile? file, string rigKind)
+        => file is not null && file.TryGetRig(rigKind, out RigSchemaRigDto dto)
+            ? dto.nodes.Where(n => !string.IsNullOrEmpty(n.fillColor)).ToDictionary(n => n.id, n => n.fillColor, StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+
     /// <summary>그 rigKind의 조각 노드 id. 덤프에 없는 리그면 빈 목록.</summary>
     public static IReadOnlyList<string> Of(RigSchemaFile? file, string rigKind)
         => file is not null && file.TryGetRig(rigKind, out RigSchemaRigDto dto) ? Of(dto) : Array.Empty<string>();

@@ -30,6 +30,7 @@ public partial class MainWindow
     private readonly TextBox _rigNodeRotation = new() { FontSize = 11 };
     private readonly TextBox _rigNodeScaleX = new() { FontSize = 11 };
     private readonly TextBox _rigNodeScaleY = new() { FontSize = 11 };
+    private readonly TextBox _rigNodeColor = new() { FontSize = 11, PlaceholderText = "(색 없음) #RRGGBB" };
     private readonly CheckBox _rigNodeImage = new() { Content = "그림을 그린다", FontSize = 11 };
     private readonly CheckBox _rigNodeAlpha = new() { Content = "불투명도를 받는다", FontSize = 11 };
 
@@ -51,6 +52,11 @@ public partial class MainWindow
 
     /// <summary>테스트 손잡이 — 가만히 선 자세의 회전·배율 칸.</summary>
     internal (TextBox Rotation, TextBox ScaleX, TextBox ScaleY) RigNodePoseBoxes => (_rigNodeRotation, _rigNodeScaleX, _rigNodeScaleY);
+
+    /// <summary>테스트 손잡이 — 색 칸과 "색 사각형 더하기".</summary>
+    internal TextBox RigNodeColorBox => _rigNodeColor;
+
+    internal string? AddColorNodeFromForm() => AddColorNode(EditedRigNode?.Id ?? "");
 
     /// <summary>테스트 손잡이 — 그림 파일을 그 자리(루트 공간)에 그림 오브젝트로.</summary>
     internal string? AddImageObjectFromForm(string path, Ked.Presentation.Core.Vec2 at) => AddImageObject(path, at);
@@ -127,6 +133,8 @@ public partial class MainWindow
         _rigNodeFields.Children.Add(Labeled("회전", _rigNodeRotation));
         _rigNodeFields.Children.Add(Labeled("배율 X", _rigNodeScaleX));
         _rigNodeFields.Children.Add(Labeled("배율 Y", _rigNodeScaleY));
+        _rigNodeFields.Children.Add(Labeled("색", _rigNodeColor));
+        ToolTip.SetTip(_rigNodeColor, "색 — #RRGGBB 또는 #RRGGBBAA. 적으면 단색 사각형이 된다(그림 없이 너비 × 높이를 이 색으로 채운다 — 화면 전환·소개의 패널). 비우면 색 오브젝트가 아니다");
         _rigNodeFields.Children.Add(_rigNodeImage);
         _rigNodeFields.Children.Add(_rigNodeAlpha);
         _setNodePanel.Children.Add(_rigNodeFields);
@@ -192,7 +200,7 @@ public partial class MainWindow
             }
         };
 
-        foreach (TextBox box in new[] { _rigNodeX, _rigNodeY, _rigNodeW, _rigNodeH, _rigNodeRotation, _rigNodeScaleX, _rigNodeScaleY })
+        foreach (TextBox box in new[] { _rigNodeX, _rigNodeY, _rigNodeW, _rigNodeH, _rigNodeRotation, _rigNodeScaleX, _rigNodeScaleY, _rigNodeColor })
         {
             OnCommit(box, _ => CommitRigNode());
         }
@@ -424,6 +432,7 @@ public partial class MainWindow
             Rotation = TryFloat(_rigNodeRotation.Text ?? "", out float rotation) ? rotation : node.Rotation,
             ScaleX = TryFloat(_rigNodeScaleX.Text ?? "", out float sx) ? sx : node.ScaleX,
             ScaleY = TryFloat(_rigNodeScaleY.Text ?? "", out float sy) ? sy : node.ScaleY,
+            Color = _rigNodeColor.Text,
             Image = _rigNodeImage.IsChecked == true,
             Alpha = _rigNodeAlpha.IsChecked == true,
         };
@@ -447,6 +456,31 @@ public partial class MainWindow
         }
 
         _session.Editor.AddRigNode(kind, id, under ?? EditedRigNode?.Id, image);
+        SelectSetNode(id);
+        return id;
+    }
+
+    /// <summary>색 사각형을 더한다 — 오브젝트를 만들고 크기와 색을 주는 것이 한 칸. 이름은 Color1….</summary>
+    private string? AddColorNode(string under)
+    {
+        if (SelectedSet is not { } kind || EditedRig is not { } rig)
+        {
+            return null;
+        }
+
+        string id = "Color1";
+
+        for (int i = 2; rig.Find(id) is not null; i++)
+        {
+            id = "Color" + i.ToString(CultureInfo.InvariantCulture);
+        }
+
+        MotionEditor editor = _session.Editor;
+        editor.Batch(MotionChangeKind.Document, () =>
+        {
+            editor.AddRigNode(kind, id, under, image: false);
+            editor.UpdateRigNode(kind, id, new RigNodeAsset { Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
+        });
         SelectSetNode(id);
         return id;
     }
@@ -486,6 +520,7 @@ public partial class MainWindow
         string where = nodeId is null ? "맨 위에" : $"{nodeId} 밑에";
         Item(_hierarchyMenu, $"오브젝트 더하기 — {where}", () => AddSetNode(image: false, under: nodeId ?? ""));
         Item(_hierarchyMenu, $"그림 오브젝트 더하기 — {where}", () => AddSetNode(image: true, under: nodeId ?? ""));
+        Item(_hierarchyMenu, $"색 사각형 더하기 — {where}", () => AddColorNode(nodeId ?? ""));
 
         if (nodeId is null || rig?.Find(nodeId) is not { } node)
         {
@@ -605,6 +640,7 @@ public partial class MainWindow
             Write(_rigNodeRotation, node is null ? "" : F(node.Rotation));
             Write(_rigNodeScaleX, node is null ? "" : F(node.ScaleX));
             Write(_rigNodeScaleY, node is null ? "" : F(node.ScaleY));
+            Write(_rigNodeColor, node?.Color ?? "");
             _rigNodeImage.IsChecked = node?.Image == true;
             _rigNodeAlpha.IsChecked = node?.Alpha == true;
 

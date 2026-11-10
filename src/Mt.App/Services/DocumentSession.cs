@@ -150,7 +150,7 @@ public sealed class DocumentSession
     private string _composedKey = "";
 
     private static string RigsKeyOf(MotionDocument document)
-        => string.Join("|", document.Rigs.Select(r => r.Kind + ":" + string.Join(",", r.Nodes.Select(n => $"{n.Id}<{n.Parent}@{n.X},{n.Y}#{n.Width}x{n.Height}r{n.Rotation}s{n.ScaleX},{n.ScaleY}{(n.Image ? "i" : "")}{(n.Alpha ? "a" : "")}"))));
+        => string.Join("|", document.Rigs.Select(r => r.Kind + ":" + string.Join(",", r.Nodes.Select(n => $"{n.Id}<{n.Parent}@{n.X},{n.Y}#{n.Width}x{n.Height}r{n.Rotation}s{n.ScaleX},{n.ScaleY}c{n.Color}{(n.Image ? "i" : "")}{(n.Alpha ? "a" : "")}"))));
 
     /// <summary>문서가 정의한 리그를 덤프와 같은 모양의 파일로 내보낸다 — 런타임이 그것으로 리그를 세운다.</summary>
     public bool ExportRigs(string path)

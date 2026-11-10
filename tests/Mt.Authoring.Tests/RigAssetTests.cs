@@ -281,4 +281,39 @@ public class RigAssetTests
         Assert.Equal("Emoji_Anchor", editor.Document.FindEmoji("sweat")!.AnchorNode);
         Assert.True(editor.Document.FindSkin("땀")!.Parts.ContainsKey("Emoji_Part1"));
     }
+
+    [Fact]
+    public void 색_오브젝트는_덤프와_같은_모양에_fillColor로_나가고_색_글은_고른_꼴로_선다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(new RigAsset { Kind = "wipe", Nodes = { new RigNodeAsset { Id = "Body", Alpha = true } } });
+        editor.AddRigNode("wipe", "Panel", "Body");
+        long revision = editor.Revision;
+
+        // 색을 주면 색 오브젝트 — 한 칸. "#" 없이, 소문자로 적어도 고른 꼴로 선다. 같은 값은 무기록.
+        editor.UpdateRigNode("wipe", "Panel", new RigNodeAsset { Width = 1920f, Height = 400f, Color = "3d5a80", Alpha = true });
+        editor.UpdateRigNode("wipe", "Panel", new RigNodeAsset { Width = 1920f, Height = 400f, Color = "#3D5A80", Alpha = true });
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Equal("#3D5A80", editor.Document.FindRig("wipe")!.Find("Panel")!.Color);
+        Assert.Throws<InvalidOperationException>(() => editor.UpdateRigNode("wipe", "Panel", new RigNodeAsset { Color = "blue" }));
+        Assert.Equal("#11223344", MotionEditor.NormalizeColor(" #11223344 ")); // 불투명도까지
+        Assert.Null(MotionEditor.NormalizeColor("  "));
+
+        // 세운 리그: 색 표에 그 노드가 서고, 그림 노드는 아니다(조각이 아니다).
+        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        Assert.Equal("#3D5A80", RigParts.ColorsOf(composed, "wipe")["Panel"]);
+        Assert.Empty(RigParts.Of(composed, "wipe"));
+        Assert.Empty(RigParts.ColorsOf(composed, "character"));
+
+        // 산출물과 저작본 — 색이 없는 노드에는 안 적힌다(저작본).
+        Assert.Contains("\"fillColor\": \"#3D5A80\"", RigAssets.WriteSchemas(editor.Document, new Vec2(1920f, 1080f)), StringComparison.Ordinal);
+        string json = MotionDocumentJson.Write(editor.Document);
+        Assert.Equal(1, json.Split("\"color\"").Length - 1);
+        Assert.Equal("#3D5A80", MotionDocumentJson.Read(json).FindRig("wipe")!.Find("Panel")!.Color);
+
+        // 비우면 색 오브젝트가 아니다.
+        editor.UpdateRigNode("wipe", "Panel", new RigNodeAsset { Width = 1920f, Height = 400f, Alpha = true });
+        Assert.Null(editor.Document.FindRig("wipe")!.Find("Panel")!.Color);
+        Assert.Empty(RigParts.ColorsOf(RigAssets.Compose(Dump, editor.Document), "wipe"));
+    }
 }
