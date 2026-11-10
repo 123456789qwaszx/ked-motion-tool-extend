@@ -37,7 +37,6 @@ public class EmojiExampleTests
 
         Assert.True(!MotionValidator.Validate(document, rig.NodeIds, null, rig.AlphaNodeIds).Any(), string.Join("\n", MotionValidator.Validate(document, rig.NodeIds, null, rig.AlphaNodeIds).Select(p => $"{p.MotionName}: {p.Message}")));
         Assert.Empty(EmojiValidator.Validate(document, rig.NodeIds).Select(p => $"{p.EmojiName}: {p.Message}"));
-        Assert.Empty(ClipValidator.Validate(document, rig.NodeIds).Select(p => p.Message));
         Assert.Equal(22, document.Emojis.Count);
 
         string directory = ExampleDirectory();
@@ -56,13 +55,18 @@ public class EmojiExampleTests
     }
 
     [Fact]
-    public void 예시_클립에서_이벤트가_이모지를_띄우고_끈다()
+    public void 예시_모션을_차례로_틀면_이벤트가_이모지를_띄우고_끈다()
     {
         MotionEditor editor = EmojiExamples.Build();
         MotionDocument document = editor.Document;
-        ClipAsset clip = document.FindClip("emoji_demo")!;
+
+        // 대본이 s1에게 모션을 차례로 튼다: 놀람 → 기쁨(꽃이 머문다) → 진정(꽃이 진다) → 생각(점 풍선이 머문다) → 진정.
+        (string Motion, double At)[] script = { ("react_surprise", 0.3), ("react_happy", 2), ("react_calm", 4.5), ("react_think", 5.5), ("react_calm", 9) };
+        List<(double Time, string? ObjectId, string Name, string? Value)> FiredUntil(double t)
+            => script.SelectMany(s => MotionEvents.Between(document.Find(s.Motion)!, double.NegativeInfinity, t - s.At)
+                .Select(e => (Time: s.At + e.T, ObjectId: (string?)"s1", e.Name, e.Value))).OrderBy(e => e.Time).ToList();
         string? Playing(double t)
-            => EmojiEvents.Resolve(document, document.ActiveSceneAsset!, ClipPreview.EventsBetween(document, clip, double.NegativeInfinity, t), t).SingleOrDefault().Emoji?.Name;
+            => EmojiEvents.Resolve(document, document.ActiveSceneAsset!, FiredUntil(t), t).SingleOrDefault().Emoji?.Name;
 
         Assert.Null(Playing(0.2));
         Assert.Equal("빨간경고막대기", Playing(0.6));

@@ -10,7 +10,7 @@ public sealed partial class MotionEditor
     {
         ArgumentNullException.ThrowIfNull(name);
         MotionAsset motion = Require(motionName);
-        var added = new MotionEventAsset { T = ClampAt(time), Name = name.Trim(), Value = string.IsNullOrEmpty(value) ? null : value };
+        var added = new MotionEventAsset { T = ClampEventTime(time), Name = name.Trim(), Value = string.IsNullOrEmpty(value) ? null : value };
         Mutate(MotionChangeKind.Metadata, () => InsertEvent(motion, added));
         return motion.Events.IndexOf(added);
     }
@@ -21,7 +21,7 @@ public sealed partial class MotionEditor
         ArgumentNullException.ThrowIfNull(name);
         MotionAsset motion = Require(motionName);
         MotionEventAsset old = RequireEvent(motion, index);
-        var next = new MotionEventAsset { T = ClampAt(time), Name = name.Trim(), Value = string.IsNullOrEmpty(value) ? null : value };
+        var next = new MotionEventAsset { T = ClampEventTime(time), Name = name.Trim(), Value = string.IsNullOrEmpty(value) ? null : value };
 
         Mutate(MotionChangeKind.Metadata, () =>
         {
@@ -62,5 +62,15 @@ public sealed partial class MotionEditor
         }
 
         return motion.Events[index];
+    }
+
+    private static float ClampEventTime(float time)
+    {
+        if (!float.IsFinite(time))
+        {
+            throw new InvalidOperationException($"이벤트 키의 시각은 수여야 한다 ('{time}')");
+        }
+
+        return Math.Max(0f, time);
     }
 }

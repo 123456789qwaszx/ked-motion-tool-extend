@@ -93,8 +93,10 @@ public static class EmojiValidator
                 {
                     Block($"{label} 모션 '{name}'이 없다");
                 }
-                else if (!ClipValidator.Wears(emoji.Rig ?? "", motion, rigNodeIds))
+                else if (!string.Equals(emoji.Rig ?? "", motion.Rig, StringComparison.Ordinal)
+                    && !(motion.Channels.Count > 0 && nodes is not null && motion.Channels.All(c => nodes.Contains(c.Node))))
                 {
+                    // 리그가 같거나, 채널의 노드가 전부 이모지의 리그에 있으면 입을 수 있다(ScenePreview.CanWear와 같은 판정).
                     Block($"{label} 모션 '{name}'의 리그 '{motion.Rig}'가 이모지의 리그 '{emoji.Rig}'에 안 맞는다");
                 }
             }

@@ -106,7 +106,7 @@ public class SkinShellTests
     }
 
     [Fact]
-    public void 붙는_리그를_만들면_부모_밑에_서서_따라가고_클립에서_캐릭터와_같이_돈다()
+    public void 붙는_리그를_만들면_부모_밑에_서서_따라가고_부모의_모션에도_따라간다()
     {
         HeadlessUi.Run(() =>
         {
@@ -145,7 +145,7 @@ public class SkinShellTests
                 float depthScale = characterMoved / 150f; // 슬롯 계층의 깊이 배율 — 붙은 리그도 그 아래라 같이 곱해진다
                 editor.Undo();
 
-                // 이모지의 모션(튀어나옴)과 캐릭터의 모션(슬롯 이동)을 클립에서 같이 돌린다 — 배역은 리그를 가리지 않는다.
+                // 캐릭터의 모션(슬롯 이동)에는 붙은 것이 따라가고, 이모지의 모션(튀어나옴)은 제 조각을 움직인다.
                 editor.AddMotion("pop", EmojiRigFixture.RigKind, 0.5f, MotionEnd.Commit, MotionChannelMode.Absolute);
                 editor.AddChannel("pop", "Emoji_Body", MotionChannelKind.Position);
                 editor.SetKeys("pop", "Emoji_Body", MotionChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 60f) });
@@ -153,26 +153,23 @@ public class SkinShellTests
                 editor.AddChannel("step", "CharSlot_Track_X", MotionChannelKind.Position);
                 editor.SetKeys("step", "CharSlot_Track_X", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 100f) });
 
-                window.AddClipFromForm();
-                window.Viewport.SelectedObjectId = "s1";
-                window.AddClipRoleFromForm();   // a = s1 (character)
-                window.Viewport.SelectedObjectId = id;
-                window.AddClipRoleFromForm();   // b = emoji1 (emoji)
-                Assert.Equal(new[] { "character", EmojiRigFixture.RigKind }, editor.Document.FindClip("clip")!.Roles.Select(r => r.Rig));
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                window.Timeline.PlaceMotion(0, "step", 0);
-                window.Timeline.PlaceMotion(1, "pop", 0);
                 Assert.Equal(0, window.ProblemRowsShown);
 
+                window.SelectMotion("step");
+                window.Viewport.SelectedObjectId = "s1";
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 window.Viewport.ScrubTo(0.5);
-                Quad end = window.Viewport.PartQuad(id, "Emoji_Part1")!.Value;
-                Assert.Equal(rest.Center.X + 100f * depthScale, end.Center.X, 1); // 캐릭터가 간 만큼
-                Assert.Equal(rest.Center.Y + 60f * depthScale, end.Center.Y, 1);  // 제 모션만큼(깊이 배율 아래)
+                Quad stepped = window.Viewport.PartQuad(id, "Emoji_Part1")!.Value;
+                Assert.Equal(rest.Center.X + 100f * depthScale, stepped.Center.X, 1); // 캐릭터가 간 만큼
+                Assert.Equal(rest.Center.Y, stepped.Center.Y, 1);
 
-                // 캐릭터 모션은 이모지 줄에 못 놓는다(리그가 다르다) — 문제 칸이 알린다.
-                window.Timeline.PlaceMotion(1, "step", 1);
-                Assert.Equal(1, window.ProblemRowsShown);
-                editor.Undo();
+                window.SelectMotion("pop");
+                window.Viewport.SelectedObjectId = id;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.Viewport.ScrubTo(0.5);
+                Quad popped = window.Viewport.PartQuad(id, "Emoji_Part1")!.Value;
+                Assert.Equal(rest.Center.X, popped.Center.X, 1);
+                Assert.Equal(rest.Center.Y + 60f * depthScale, popped.Center.Y, 1);  // 제 모션만큼(깊이 배율 아래)
 
                 // 부모를 지우면 붙은 것도 같이 — 한 칸.
                 window.SelectMotion("step");
@@ -311,7 +308,7 @@ public class SkinShellTests
                 editor.SetKeys("fade", "Emoji_Part1", MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(0.3f, 0f) });
                 window.SelectMotion("pop");
                 window.Viewport.SelectedObjectId = id;
-                window.InspectorTab = 4; // 이모지 탭
+                window.InspectorTab = 3; // 이모지 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // 이모지 추가 — 고른 오브젝트의 리그와 입은 스킨으로, 한 칸. 골라지고 모션 선택이 풀린다.
@@ -429,7 +426,7 @@ public class SkinShellTests
                 Assert.Equal(0, window.ProblemRowsShown);
 
                 // 이모지 정의 — 리그가 이미 있으니 그대로 쓴다.
-                window.InspectorTab = 4;
+                window.InspectorTab = 3;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 window.AddEmojiFromForm();
                 window.UpdateSelectedEmoji(e => { e.Enter = "pop"; e.HoldSeconds = 0.5f; });
@@ -530,19 +527,6 @@ public class SkinShellTests
                 window.Viewport.ScrubTo(0.55);
                 Assert.True(window.Viewport.IsDormantEmoji(id));
                 Assert.False(window.Viewport.IsDormantEmoji("s1"));
-
-                // 클립에서도 같다 — 블록이 놓인 시각부터 센다.
-                editor.AddClip("clip");
-                editor.AddClipRole("clip", "a", "character", "s1");
-                editor.AddClipTrack("clip", "a");
-                editor.AddClipBlock("clip", 0, "nod", 1f);
-                window.SelectClip("clip");
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                window.Viewport.ScrubTo(0.5);
-                Assert.True(window.Viewport.IsDormantEmoji(id));
-                window.Viewport.ScrubTo(1.2);
-                Assert.Equal(20f, BodyY(), 2);
-                Assert.Equal(new[] { "Emoji_Part1" }, window.Viewport.DrawnParts(Emoji()));
 
                 // 모르는 이모지 키는 문제 목록이 알린다(막지는 않는다).
                 Assert.Equal(0, window.ProblemRowsShown);
@@ -817,7 +801,7 @@ public class SkinShellTests
             {
                 MotionEditor editor = window.Session.Editor;
                 string id = window.CreateAttachedFromMenu(RigTemplates.EmojiKind, "s1"); // 리그도 그 자리에서 정의된다
-                window.InspectorTab = 4;
+                window.InspectorTab = 3;
                 Assert.Equal("emoji", window.AddEmojiFromForm());
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.Null(window.EmojiSkinPartBox("Emoji_Part1")); // 스킨이 아직 없다
@@ -883,7 +867,7 @@ public class SkinShellTests
             {
                 MotionEditor editor = window.Session.Editor;
                 string id = window.CreateAttachedFromMenu(RigTemplates.EmojiKind, "s1");
-                window.InspectorTab = 4;
+                window.InspectorTab = 3;
                 window.AddEmojiFromForm();
                 window.NewEmojiSkinFromForm(flipped: false);
                 editor.SetSkinPartImages("emoji", "Emoji_Part1", new[] { "art/a.png" });
@@ -982,7 +966,7 @@ public class SkinShellTests
                 editor.UpdateEmoji("sweat", new EmojiAsset { Enter = "pop", Hold = "bob", HoldSeconds = 1f });
                 editor.AddEmoji("other", RigTemplates.EmojiKind);
                 editor.UpdateEmoji("other", new EmojiAsset { Hold = "bob", HoldSeconds = 1f });
-                window.InspectorTab = 4;
+                window.InspectorTab = 3;
                 window.SelectEmoji("sweat");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 window.Viewport.SnapEnabled = false;
@@ -1378,7 +1362,7 @@ public class SkinShellTests
                 editor.AddMotion("in", "set", 0.4f, MotionEnd.Commit, MotionChannelMode.Absolute);
                 editor.AddChannel("in", "Color1", MotionChannelKind.Position);
                 editor.SetKeys("in", "Color1", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, -500f), TestDocuments.Key(0.4f, 0f) });
-                window.InspectorTab = 4; // 연출 탭
+                window.InspectorTab = 3; // 연출 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // 세트를 연 채 "연출 추가" — 그 세트의 연출이, 화면에 서는 것으로, 세트의 이름으로 선다(한 칸). 연출을 고르면 세트 보기를 떠난다.
@@ -1929,7 +1913,7 @@ public class SkinShellTests
                 // 연출을 틀어 "끝의 빛"(등장·머묾·퇴장에 다 키가 있다)의 자리와 크기를 적어 둔다.
                 List<(Vec2 Origin, Vec2 Edge)> Sample(string node)
                 {
-                    window.InspectorTab = 4;
+                    window.InspectorTab = 3;
                     window.SelectEmoji("station");
                     var samples = new List<(Vec2, Vec2)>();
 
