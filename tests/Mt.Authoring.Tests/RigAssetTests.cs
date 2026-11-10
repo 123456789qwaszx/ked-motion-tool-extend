@@ -370,4 +370,47 @@ public class RigAssetTests
         Assert.Equal(0.3f, Keys("Emoji_Part2")[1].T);
         Assert.Equal(0.4f, Keys("Emoji_Part3")[1].T);
     }
+
+    // ── 제 차례 전에는 숨긴다 ───────────────────────────────────────────
+
+    [Fact]
+    public void 제_차례_전까지_숨기면_움직이기_시작하는_시각에_나타나는_불투명도_키가_놓인다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(RigTemplates.Emoji(parts: 3));
+        editor.AddMotion("in", RigTemplates.EmojiKind, 1f, MotionEnd.Commit);
+        KeyAsset Lin(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
+        editor.AddChannel("in", "Emoji_Part1", MotionChannelKind.Position); // 0.4초에 움직이기 시작해 0.8초에 선다
+        editor.SetKeys("in", "Emoji_Part1", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, -100f), Lin(0.4f, -100f), Lin(0.8f, 0f), Lin(1f, 0f) });
+        editor.AddChannel("in", "Emoji_Part2", MotionChannelKind.Position); // 처음부터 끝까지 움직인다
+        editor.SetKeys("in", "Emoji_Part2", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, -100f), Lin(1f, 0f) });
+        (float T, float V)[] Alpha(string part) => editor.Document.Find("in")!.FindChannel(part, MotionChannelKind.Alpha)!.X!.Keys.Select(k => (MathF.Round(k.T, 3), k.V)).ToArray();
+
+        // 제 차례(0.4초) 전까지 0, 0.1초에 걸쳐 나타난다 — 한 칸.
+        long revision = editor.Revision;
+        Assert.True(editor.HideUntilTurn("in", "Emoji_Part1"));
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Equal(new[] { (0f, 0f), (0.4f, 0f), (0.5f, 1f), (1f, 1f) }, Alpha("Emoji_Part1"));
+
+        // 움직임을 마치면(0.8초) 숨긴다 — 있던 불투명도 커브를 갈아 치운다.
+        Assert.True(editor.HideAfterTurn("in", "Emoji_Part1"));
+        Assert.Equal(new[] { (0f, 1f), (0.7f, 1f), (0.8f, 0f), (1f, 0f) }, Alpha("Emoji_Part1"));
+
+        // 처음부터(끝까지) 움직이거나 움직임이 없는 오브젝트는 할 일이 없다(기록 없음).
+        revision = editor.Revision;
+        Assert.False(editor.HideUntilTurn("in", "Emoji_Part2"));
+        Assert.False(editor.HideAfterTurn("in", "Emoji_Part2"));
+        Assert.False(editor.HideUntilTurn("in", "Emoji_Part3"));
+        Assert.Equal(revision, editor.Revision);
+
+        // 전부 — 움직이는 오브젝트 가운데 늦게 나오는 것만, 한 칸. 규칙에 맞는다.
+        editor.Undo();
+        editor.Undo();
+        revision = editor.Revision;
+        Assert.Equal(1, editor.HideAllUntilTurn("in"));
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Null(editor.Document.Find("in")!.FindChannel("Emoji_Part2", MotionChannelKind.Alpha));
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+    }
 }

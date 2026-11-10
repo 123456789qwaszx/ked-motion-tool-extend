@@ -603,6 +603,11 @@ public partial class MainWindow
             }
 
             _hierarchyMenu.Items.Add(stagger);
+
+            // 제 차례 전에는 숨긴다 — 가만히 선 자세는 "다 보이는" 것이라, 늦게 나오는 오브젝트를 숨겨 두는 불투명도 키를 대신 놓는다.
+            Item(_hierarchyMenu, "제 차례 전까지 숨기기", () => HideSetNodeForTurn(nodeId, until: true));
+            Item(_hierarchyMenu, "움직임을 마치면 숨기기", () => HideSetNodeForTurn(nodeId, until: false));
+            Item(_hierarchyMenu, "전부: 제 차례 전까지 숨기기", () => HideSetNodeForTurn(null, until: true));
         }
 
         _hierarchyMenu.Items.Add(new Separator());
@@ -626,6 +631,36 @@ public partial class MainWindow
     internal void ShiftSetNodeKeysFromMenu(string node, float delta) => ShiftSetNodeKeys(node, delta);
 
     internal void StaggerSetNodesFromMenu(string node, float step) => StaggerSetNodesFrom(node, step);
+
+    /// <summary>테스트 손잡이 — 하이어아키 메뉴의 "제 차례 전까지 숨기기" · "움직임을 마치면 숨기기" · "전부"(node = null).</summary>
+    internal void HideSetNodeForTurnFromMenu(string? node, bool until) => HideSetNodeForTurn(node, until);
+
+    private void HideSetNodeForTurn(string? node, bool until)
+    {
+        if (_graph.Motion is not { } motion)
+        {
+            return;
+        }
+
+        if (node is null)
+        {
+            _session.SetStatus($"{motion.Name}: 오브젝트 {_session.Editor.HideAllUntilTurn(motion.Name)}개를 제 차례 전까지 숨겼다.");
+            return;
+        }
+
+        if (EditedRig?.Find(node) is { Alpha: false })
+        {
+            _session.SetStatus($"{node}: 불투명도를 받지 않는 오브젝트다 — \"불투명도를 받는다\"를 켠다.");
+            return;
+        }
+
+        bool done = until ? _session.Editor.HideUntilTurn(motion.Name, node) : _session.Editor.HideAfterTurn(motion.Name, node);
+
+        if (!done)
+        {
+            _session.SetStatus(until ? $"{node}: 처음부터 움직인다(숨길 구간이 없다)." : $"{node}: 끝까지 움직인다(숨길 구간이 없다).");
+        }
+    }
 
     private void ShiftSetNodeKeys(string node, float delta)
     {
