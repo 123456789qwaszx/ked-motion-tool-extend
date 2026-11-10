@@ -1455,4 +1455,68 @@ public class SkinShellTests
             }
         });
     }
+
+    [Fact]
+    public void 세트에_다른_세트를_넣으면_뷰포트에_펼쳐_서고_통째로_끌리고_원본을_고치면_따라온다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+
+                // 세트 둘: car(색 사각형 하나) · city(빈 세트).
+                Assert.Equal("set", window.NewSetFromForm());
+                window.SelectSetNode("Body");
+                window.AddColorNodeFromForm(); // set/Color1 — 400×300
+                Assert.Equal("set_2", window.NewSetFromForm());
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // 세트 넣기 — 한 칸. 인스턴스가 골라지고, 뷰포트의 세트에 안쪽의 것이 경로 이름으로 선다.
+                long revision = editor.Revision;
+                window.SelectSetNode(null);
+                Assert.Equal("set", window.AddSetInstanceFromMenu("set"));
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal("set", editor.Document.FindRig("set_2")!.Find("set")!.Set);
+                Assert.Equal("set", window.SetEditorState.Node);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.True(view.CurrentPose()!.Contains("set/set.Color1"));
+                Assert.True(view.IsLayoutMode);
+
+                // 안쪽의 것을 눌러도 그것을 품은 오브젝트가 집힌다 — 끌면 통째로 옮겨진다(안쪽은 그대로).
+                Point At(Vec2 p) => view.TranslatePoint(view.ToScreen(p), window) ?? throw new InvalidOperationException("뷰가 창에 붙어 있지 않다");
+                Vec2 Inner() => view.CurrentPose()!.TransformPoint("set/set.Color1", Vec3.Zero).XY;
+                Vec2 grab = Inner();
+                var drop = new Vec2(grab.X + 80f, grab.Y + 40f);
+                window.MouseDown(At(grab), MouseButton.Left);
+                Assert.Equal("set", window.SetEditorState.Node);
+                window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(At(drop), MouseButton.Left);
+                RigNodeAsset instance = editor.Document.FindRig("set_2")!.Find("set")!;
+                Assert.Equal((80f, 40f, "set"), (instance.X, instance.Y, instance.Set));
+                Assert.Equal(0f, editor.Document.FindRig("set")!.Find("Color1")!.X); // 원본 세트는 안 바뀐다
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(grab.X + 80f, Inner().X, 1);
+
+                // 원본을 고치면 품은 곳이 따라온다(참조).
+                editor.UpdateRigNode("set", "Color1", new RigNodeAsset { X = 25f, Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(grab.X + 80f + 25f, Inner().X, 1);
+
+                // 서로 품는 것은 막힌다 — 문서는 그대로다(메뉴에서는 상태줄에 까닭이 뜬다).
+                window.SelectSet("set");
+                revision = editor.Revision;
+                Assert.Throws<InvalidOperationException>(() => window.AddSetInstanceFromMenu("set_2"));
+                Assert.Equal(revision, editor.Revision);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

@@ -413,4 +413,123 @@ public class RigAssetTests
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
     }
+
+    // ── 세트가 세트를 품는다(PLAN-set.md S9) ───────────────────────────
+
+    /// <summary>car(Body › Shell(그림) · Wheel(색)) · sun(Disc(그림)) · city(Ground(색) + car 인스턴스 + sun 인스턴스).</summary>
+    private static MotionEditor NestedEditor()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(new RigAsset { Kind = "car", Nodes = { new RigNodeAsset { Id = "Body", Alpha = true } } });
+        editor.AddRigNode("car", "Shell", "Body", image: true);
+        editor.AddRigNode("car", "Wheel", "Body");
+        editor.UpdateRigNode("car", "Wheel", new RigNodeAsset { X = 30f, Y = -40f, Width = 20f, Height = 20f, Color = "#222222", Alpha = true });
+        editor.AddSkin("car_red", "car");
+        editor.SetSkinPart("car_red", "Shell", "art/car_red.png");
+        editor.AddSkin("car_blue", "car");
+        editor.SetSkinPart("car_blue", "Shell", "art/car_blue.png");
+
+        editor.AddRig(new RigAsset { Kind = "sun", Nodes = { new RigNodeAsset { Id = "Disc", Width = 100f, Height = 100f, Image = true, Alpha = true } } });
+        editor.AddSkin("sun", "sun");
+        editor.SetSkinPart("sun", "Disc", "art/sun.png");
+
+        editor.AddRig(new RigAsset { Kind = "city", Nodes = { new RigNodeAsset { Id = "Ground", Width = 1920f, Height = 200f, Color = "#334455", Alpha = true } } });
+        return editor;
+    }
+
+    [Fact]
+    public void 세트를_품으면_그_오브젝트들이_경로_이름으로_펼쳐져_한_덩어리로_선다()
+    {
+        MotionEditor editor = NestedEditor();
+        long revision = editor.Revision;
+
+        // 품는다 — 한 칸. 인스턴스 오브젝트는 통째로 옮기는 손잡이다(자리 · 배율).
+        RigNodeAsset car = editor.AddRigInstance("city", "car", "car");
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Equal(("car", true), (car.Set, car.Alpha));
+        editor.UpdateRigNode("city", "car", new RigNodeAsset { X = 300f, Y = 50f, ScaleX = 2f, ScaleY = 2f, Alpha = true });
+        Assert.Equal("car", editor.Document.FindRig("city")!.Find("car")!.Set); // 값을 고쳐도 품은 것은 그대로다
+        editor.AddRigInstance("city", "sun", "sun");
+
+        // 세운 리그: 품은 세트가 인스턴스 밑에 "인스턴스.이름"으로 펼쳐진다. 부모·색·그림 표시가 따라온다.
+        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        Assert.True(composed.TryGetRig("city", out RigSchemaRigDto dto));
+        Assert.Equal(new[] { "__root", "Ground", "car", "car.Body", "car.Shell", "car.Wheel", "sun", "sun.Disc" }, dto.nodes.Select(n => n.id));
+        Assert.Equal(("car", "car.Body", "car.Body"), (dto.nodes.Single(n => n.id == "car.Body").parent, dto.nodes.Single(n => n.id == "car.Shell").parent, dto.nodes.Single(n => n.id == "car.Wheel").parent));
+        Assert.Equal(new[] { "car.Shell", "sun.Disc" }, RigParts.Of(composed, "city"));
+        Assert.Equal("#222222", RigParts.ColorsOf(composed, "city")["car.Wheel"]);
+        Assert.Equal("car", RigAssetCodec.OwnerOf("car.Wheel"));
+
+        // 선 자리: 인스턴스의 자리·배율이 안쪽에 곱해진다 — 바퀴는 (300 + 30×2, 50 − 40×2).
+        var scene = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "c", Rig = "city" } } };
+        RectNodeTree tree = ScenePreview.Build(composed, scene);
+        Vec2 root = tree.TransformPoint("c/__root", Vec3.Zero).XY;
+        Vec2 wheel = tree.TransformPoint("c/car.Wheel", Vec3.Zero).XY;
+        Assert.Equal((360f, -30f), (MathF.Round(wheel.X - root.X, 1), MathF.Round(wheel.Y - root.Y, 1)));
+
+        // 실제로 입는 스킨: 품은 세트의 스킨이 경로 이름으로 — 인스턴스가 고른 것, 없으면 그 세트의 첫 스킨.
+        SkinAsset worn = RigAssets.EffectiveSkin(editor.Document, "city", null)!;
+        Assert.Equal(("art/car_red.png", "art/sun.png"), (worn.Parts["car.Shell"], worn.Parts["sun.Disc"]));
+        editor.SetRigInstanceSkin("city", "car", "car_blue");
+        Assert.Equal("art/car_blue.png", RigAssets.EffectiveSkin(editor.Document, "city", null)!.Parts["car.Shell"]);
+        Assert.Throws<InvalidOperationException>(() => editor.SetRigInstanceSkin("city", "car", "sun"));     // 다른 세트의 스킨
+        Assert.Throws<InvalidOperationException>(() => editor.SetRigInstanceSkin("city", "Ground", "sun"));  // 품은 오브젝트가 아니다
+        Assert.Same(editor.Document.FindSkin("sun"), RigAssets.EffectiveSkin(editor.Document, "sun", "sun")); // 품은 것이 없으면 제 스킨 그대로
+
+        // 참조다 — 원본 세트를 고치면 품은 곳이 따라온다.
+        editor.AddRigNode("car", "Light", "Body");
+        Assert.True(RigAssets.Compose(Dump, editor.Document).TryGetRig("city", out RigSchemaRigDto after));
+        Assert.Contains(after.nodes, n => n.id == "car.Light");
+
+        // 품은 것의 애니메이션: 인스턴스를 통째로 움직이는 키도, 안쪽의 것을 경로 이름으로 짚는 키도 놓인다 — 검증을 지난다.
+        editor.AddMotion("city_in", "city", 1f, MotionEnd.Commit);
+        editor.AddChannel("city_in", "car", MotionChannelKind.Position);
+        editor.SetKeys("city_in", "car", MotionChannelKind.Position, Axis.X, new[] { new KeyAsset { T = 0f, V = -500f, Tangent = TangentMode.Linear }, new KeyAsset { T = 1f, V = 0f, Tangent = TangentMode.Linear } });
+        editor.AddChannel("city_in", "car.Wheel", MotionChannelKind.Euler);
+        editor.SetKeys("city_in", "car.Wheel", MotionChannelKind.Euler, Axis.Z, new[] { new KeyAsset { T = 0f, V = 0f, Tangent = TangentMode.Linear }, new KeyAsset { T = 1f, V = -360f, Tangent = TangentMode.Linear } });
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+
+        // 산출물: 펼친 한 덩어리로 나간다(런타임은 품는다는 것을 모른다). 저작본은 참조만 적는다.
+        string schemas = RigAssets.WriteSchemas(editor.Document, new Vec2(1920f, 1080f));
+        Assert.Contains("\"id\": \"car.Wheel\"", schemas, StringComparison.Ordinal);
+        string json = MotionDocumentJson.Write(editor.Document);
+        Assert.Contains("\"set\": \"car\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("car.Wheel\",\n          \"parent", json, StringComparison.Ordinal);
+        Assert.Equal(json, MotionDocumentJson.Write(MotionDocumentJson.Read(json)));
+    }
+
+    [Fact]
+    public void 서로_품는_것과_품긴_세트를_지우는_것은_막는다()
+    {
+        MotionEditor editor = NestedEditor();
+        editor.AddRigInstance("city", "car", "car");
+        long revision = editor.Revision;
+
+        Assert.Throws<InvalidOperationException>(() => editor.AddRigInstance("city", "self", "city"));  // 자기 자신
+        Assert.Throws<InvalidOperationException>(() => editor.AddRigInstance("car", "back", "city"));   // city가 car를 품고 있다
+        editor.AddRigInstance("sun", "inner", "car");                                                     // sun → car는 된다
+        Assert.Throws<InvalidOperationException>(() => editor.AddRigInstance("car", "far", "sun"));     // 두 다리 건너도 막는다
+        Assert.Throws<KeyNotFoundException>(() => editor.AddRigInstance("city", "ghost", "nope"));
+        Assert.Throws<InvalidOperationException>(() => editor.RemoveRig("car"));                          // 품긴 세트는 못 지운다
+        Assert.Equal(revision + 1, editor.Revision);
+
+        // 품은 것이 또 품은 것 — 경로가 이어진다.
+        editor.AddRigInstance("city", "sun", "sun");
+        Assert.True(RigAssets.Compose(Dump, editor.Document).TryGetRig("city", out RigSchemaRigDto dto));
+        Assert.Contains(dto.nodes, n => n.id == "sun.inner.Wheel");
+
+        // 인스턴스를 빼면 지울 수 있다.
+        editor.RemoveRigNode("city", "car");
+        editor.RemoveRigNode("sun", "inner");
+        editor.RemoveRig("car");
+        Assert.Null(editor.Document.FindRig("car"));
+
+        // 손으로 쓴 문서의 순환·없는 세트는 펼칠 때 건너뛴다(던지지 않는다).
+        var broken = new MotionDocument();
+        broken.Rigs.Add(new RigAsset { Kind = "a", Nodes = { new RigNodeAsset { Id = "x", Set = "b" }, new RigNodeAsset { Id = "y", Set = "ghost" } } });
+        broken.Rigs.Add(new RigAsset { Kind = "b", Nodes = { new RigNodeAsset { Id = "z", Set = "a" } } });
+        Assert.True(RigAssets.Compose(Dump, broken).TryGetRig("a", out RigSchemaRigDto looped));
+        Assert.Equal(new[] { "__root", "x", "x.z", "y" }, looped.nodes.Select(n => n.id));
+    }
 }

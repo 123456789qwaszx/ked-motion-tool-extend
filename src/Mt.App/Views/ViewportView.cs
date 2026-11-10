@@ -379,7 +379,8 @@ public sealed class ViewportView : Control
 
         bool underSolo = _soloSetNode is null;
 
-        for (RigNodeAsset? at = rig.Find(node); at is not null; at = at.Parent.Length > 0 ? rig.Find(at.Parent) : null)
+        // 품은 세트 안쪽의 것은 그것을 품은 오브젝트를 따른다(안쪽은 여기서 따로 숨기지 않는다).
+        for (RigNodeAsset? at = rig.Find(RigAssetCodec.OwnerOf(node)); at is not null; at = at.Parent.Length > 0 ? rig.Find(at.Parent) : null)
         {
             if (_hiddenSetNodes.Contains(at.Id))
             {
@@ -1627,7 +1628,33 @@ public sealed class ViewportView : Control
             upright = true;
         }
 
-        return _editor.Document.FindSkin(name) is { } skin && string.Equals(skin.Rig, o.Rig, StringComparison.Ordinal) ? new Worn(skin, seconds, upright) : null;
+        return EffectiveSkinOf(o.Rig, name) is { } skin ? new Worn(skin, seconds, upright) : null;
+    }
+
+    // 실제로 입는 스킨(제 스킨 + 품은 세트들의 스킨) — 그릴 때마다 여러 번 찾으니 문서가 바뀔 때까지 들고 있는다.
+    private readonly Dictionary<(string Rig, string? Skin), SkinAsset?> _effectiveSkins = new();
+    private long _effectiveSkinsAt = -1;
+
+    private SkinAsset? EffectiveSkinOf(string rig, string? name)
+    {
+        if (_editor is null)
+        {
+            return null;
+        }
+
+        if (_effectiveSkinsAt != _editor.Revision)
+        {
+            _effectiveSkins.Clear();
+            _effectiveSkinsAt = _editor.Revision;
+        }
+
+        if (!_effectiveSkins.TryGetValue((rig, name), out SkinAsset? skin))
+        {
+            skin = RigAssets.EffectiveSkin(_editor.Document, rig, name);
+            _effectiveSkins[(rig, name)] = skin;
+        }
+
+        return skin;
     }
 
     /// <summary>그 오브젝트가 좌우로 뒤집혀 서 있는가(부모 캐릭터의 배율 x가 음수 등) — 조각 사각형의 손잡이 방향으로 본다.</summary>
@@ -3030,21 +3057,27 @@ public sealed class ViewportView : Control
     {
         var at = new Pixel(position.X, position.Y);
 
-        foreach (RigNodeAsset node in Enumerable.Reverse(rig.Nodes))
+        // 펼친 리그의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
+        if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
         {
-            string key = o.KeyOf(node.Id);
-
-            if (!pose.Contains(key) || node.Width <= 0f || node.Height <= 0f || !IsSetNodeShown(node.Id))
+            foreach (RigSchemaNodeDto node in Enumerable.Reverse(dto.nodes))
             {
-                continue;
-            }
+                string key = o.KeyOf(node.id);
+                string owner = RigAssetCodec.OwnerOf(node.id);
 
-            Quad quad = (node.Image ? PartQuadOf(pose, o, node.Id) : null) ?? PortraitLayout.RectQuad(pose, key);
-            var polygon = new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft }.Select(c => ToControl(c)).Select(p => new Pixel(p.X, p.Y)).ToList();
+                if (node.id == RigSchemaLoader.RootKey || !pose.Contains(key) || node.sizeDelta is null || node.sizeDelta.x <= 0f || node.sizeDelta.y <= 0f
+                    || rig.Find(owner) is null || !IsSetNodeShown(node.id))
+                {
+                    continue;
+                }
 
-            if (GraphHitTest.Contains(polygon, at))
-            {
-                return node.Id;
+                Quad quad = (node.hasImage ? PartQuadOf(pose, o, node.id) : null) ?? PortraitLayout.RectQuad(pose, key);
+                var polygon = new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft }.Select(c => ToControl(c)).Select(p => new Pixel(p.X, p.Y)).ToList();
+
+                if (GraphHitTest.Contains(polygon, at))
+                {
+                    return owner;
+                }
             }
         }
 

@@ -500,6 +500,32 @@ public partial class MainWindow
         return id;
     }
 
+    /// <summary>테스트 손잡이 — 하이어아키의 "세트 넣기 ▸ (세트)".</summary>
+    internal string? AddSetInstanceFromMenu(string setKind) => AddSetInstance(setKind, EditedRigNode?.Id ?? "");
+
+    /// <summary>다른 세트를 품는다 — 인스턴스 오브젝트의 이름은 그 세트의 이름에서(겹치면 번호).</summary>
+    private string? AddSetInstance(string setKind, string under)
+    {
+        if (SelectedSet is not { } kind || EditedRig is not { } rig)
+        {
+            return null;
+        }
+
+        string stem = new string(setKind.Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_').ToArray());
+        stem = stem.Length > 0 && char.IsAsciiLetter(stem[0]) ? stem : "Set";
+        string id = stem;
+
+        for (int i = 2; rig.Find(id) is not null; i++)
+        {
+            id = $"{stem}_{i.ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        _session.Editor.AddRigInstance(kind, id, setKind, under);
+        RefreshAssets();
+        SelectSetNode(id);
+        return id;
+    }
+
     /// <summary>색 사각형을 더한다 — 오브젝트를 만들고 크기와 색을 주는 것이 한 칸. 이름은 Color1….</summary>
     private string? AddColorNode(string under)
     {
@@ -561,6 +587,20 @@ public partial class MainWindow
         Item(_hierarchyMenu, $"오브젝트 더하기 — {where}", () => AddSetNode(image: false, under: nodeId ?? ""));
         Item(_hierarchyMenu, $"그림 오브젝트 더하기 — {where}", () => AddSetNode(image: true, under: nodeId ?? ""));
         Item(_hierarchyMenu, $"색 사각형 더하기 — {where}", () => AddColorNode(nodeId ?? ""));
+
+        // 다른 세트를 품는다 — 그 세트의 인스턴스(참조). 서로 품게 되는 것은 편집기가 막는다.
+        if (rig is not null && _session.Editor.Document.Rigs.Count > 1 && (nodeId is null || !nodeId.Contains(RigAssetCodec.PathSeparator, StringComparison.Ordinal)))
+        {
+            var insert = new MenuItem { Header = $"세트 넣기 — {where}", FontSize = 11 };
+
+            foreach (string other in _session.Editor.Document.Rigs.Select(r => r.Kind).Where(k => k != rig.Kind).OrderBy(k => k, StringComparer.Ordinal))
+            {
+                string captured = other;
+                Item(insert, captured, () => AddSetInstance(captured, nodeId ?? ""));
+            }
+
+            _hierarchyMenu.Items.Add(insert);
+        }
 
         if (nodeId is null || rig?.Find(nodeId) is not { } node)
         {
@@ -746,7 +786,8 @@ public partial class MainWindow
             _rigNodeFields.IsEnabled = node is not null;
             _setNodeTitle.Text = rig is null ? ""
                 : node is null ? $"세트 {rig.Kind} — 오브젝트 {rig.Nodes.Count}개. 하이어아키에서 오브젝트를 고르면 여기서 고친다(우클릭: 더하기 · 지우기 · 순서 · 부모)"
-                : $"세트 {rig.Kind} › {node.Id}";
+                : string.IsNullOrEmpty(node.Set) ? $"세트 {rig.Kind} › {node.Id}"
+                : $"세트 {rig.Kind} › {node.Id} → 세트 {node.Set}를 품었다(참조 — 안쪽은 그 세트를 열어 고친다. 이 칸의 자리·배율·회전은 통째로 옮긴다)";
 
             void Write(TextBox box, string text)
             {

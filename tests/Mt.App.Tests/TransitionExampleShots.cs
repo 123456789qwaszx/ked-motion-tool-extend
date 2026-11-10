@@ -76,6 +76,19 @@ public class TransitionExampleShots
                 }
 
                 window.StageOnlyChecked = false;
+
+                // 세트가 세트를 품는다 — 새 세트에 pillar를 둘 넣는다(하나는 작게 돌려서). 화면에만: 저장하지 않는다.
+                window.NewSetFromForm();
+                window.SelectSetNode(null);
+                string first = window.AddSetInstanceFromMenu("pillar")!;
+                window.Session.Editor.UpdateRigNode("set", first, new Mt.Authoring.Model.RigNodeAsset { X = -480f, ScaleX = 0.45f, ScaleY = 0.45f, Alpha = true });
+                window.SelectSetNode(null);
+                string second = window.AddSetInstanceFromMenu("pillar")!;
+                window.Session.Editor.UpdateRigNode("set", second, new Mt.Authoring.Model.RigNodeAsset { X = 470f, Y = -40f, ScaleX = 0.4f, ScaleY = 0.4f, Rotation = -8f, Alpha = true });
+                window.InspectorTab = 1;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.Viewport.ResetView();
+                Shot("nested");
                 window.Session.Open(Path.Combine(root!.FullName, "examples", "transitions", "station", "station.motion-authoring.json"));
 
                 // 세트를 연다 — 배치 모드.
