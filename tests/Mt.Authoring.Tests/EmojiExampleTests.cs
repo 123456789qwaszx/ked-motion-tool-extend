@@ -182,4 +182,58 @@ public class EmojiExampleTests
         Assert.Equal(0f, Offset("sun.disc", 1.4), 1);
         Assert.True(Offset("sun.disc", 1.5 + 1.5 + 0.4) < -200f);
     }
+
+    [Theory]
+    [InlineData("lapis", "orb")]
+    [InlineData("heredity", "seed,crystal")]
+    [InlineData("mercury", "star")]
+    public void 조립으로_지은_세_장면은_검증을_지나고_저장된_파일과_같다(string name, string nested)
+    {
+        string directory = Path.Combine(Path.GetDirectoryName(ExampleDirectory())!, "transitions", name);
+        string layers = Path.Combine(directory, "art", "layers.tsv");
+        MotionEditor editor = name switch
+        {
+            "lapis" => TransitionExamples.BuildLapis(layers),
+            "heredity" => TransitionExamples.BuildHeredity(layers),
+            _ => TransitionExamples.BuildMercury(layers),
+        };
+        MotionDocument document = editor.Document;
+        RigSchemaFile rig = RigAssets.Compose(Dump, document);
+
+        string Problems<T>(IEnumerable<T> problems, Func<T, string> text) => string.Join("\n", problems.Select(text));
+        Assert.True(!MotionValidator.Validate(document, rig.NodeIds, null, rig.AlphaNodeIds).Any(), Problems(MotionValidator.Validate(document, rig.NodeIds, null, rig.AlphaNodeIds), p => $"{p.MotionName}: {p.Message}"));
+        Assert.True(!EmojiValidator.Validate(document, rig.NodeIds).Any(), Problems(EmojiValidator.Validate(document, rig.NodeIds), p => $"{p.EmojiName}: {p.Message}"));
+
+        string path = Path.Combine(directory, name + ".motion-authoring.json");
+        string json = MotionDocumentJson.Write(document);
+
+        if (Environment.GetEnvironmentVariable("MT_WRITE_EXAMPLES") == "1")
+        {
+            File.WriteAllText(path, json);
+        }
+
+        Assert.Equal(json, File.ReadAllText(path));
+        Assert.All(document.Skins.SelectMany(s => s.AllImages()).Distinct(), image => Assert.True(File.Exists(Path.Combine(directory, image)), image));
+
+        // 조립: 뺀 세트마다 인스턴스가 서고, 등장이 그 세트의 애니메이션을 재생 블록으로 틀며, 제 차례 전에는 인스턴스가 숨어 있다.
+        EmojiAsset cue = document.FindEmoji(name)!;
+        var scene = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "t", Rig = name } } };
+        RectNodeTree template = ScenePreview.Build(rig, scene);
+
+        foreach (string set in nested.Split(','))
+        {
+            Assert.Equal(set, document.FindRig(name)!.Find(set)!.Set);
+            MotionPlayAsset play = Assert.Single(document.Find(name + "_in")!.Plays, p => p.Node == set);
+            Assert.Equal(set, document.Find(play.Motion)!.Rig);
+            var early = new Dictionary<string, float>(StringComparer.Ordinal);
+            EmojiPreview.Pose(template, document, cue, scene.Objects[0], play.At - 0.1, early);
+            Assert.Equal(0f, early["t/" + set], 2);
+            var late = new Dictionary<string, float>(StringComparer.Ordinal);
+            EmojiPreview.Pose(template, document, cue, scene.Objects[0], document.Find(name + "_in")!.Duration, late);
+            Assert.Equal(1f, late.TryGetValue("t/" + set, out float shown) ? shown : 1f, 2);
+        }
+
+        // 산출물은 한 덩어리로 나간다.
+        Assert.DoesNotContain("plays", MotionsJson.Write(MotionExport.ToClips(document)), StringComparison.Ordinal);
+    }
 }

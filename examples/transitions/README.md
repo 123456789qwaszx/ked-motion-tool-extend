@@ -7,9 +7,13 @@
   **조립**으로 지었다: 해는 따로 세트 `sun`(빛 + 해, 애니메이션 `sun_rise` · `sun_pulse` · `sun_set`)이고, `pillar`가 그것을 품어 제 애니메이션에서 **재생 블록**으로 튼다
   (`pillar_in`의 0.6초에 뜬다 · `pillar_hold`에서 두 번 숨쉰다 · `pillar_out`의 처음에 진다). 해의 키는 `pillar`에 없다 — `sun`을 열어 `sun_rise`를 고치면 `pillar`가 따라온다.
   해는 제 차례 전까지 인스턴스째로 숨는다("제 차례 전까지 숨기기"가 재생 블록의 시작을 차례로 친다).
+- `lapis/` · `heredity/` · `mercury/` — **처음부터 조립으로** 지은 세 장면. 층 표를 통째로 들인 뒤 **새 세트로 빼기**로 가르고, 뺀 세트의 애니메이션을 재생 블록으로 튼다.
+  - `lapis`(바닷속 기둥들) — 바닥과 기둥이 차례로 솟고 양옆의 줄기가 닫히듯 들어온다. 구슬이 따로 세트 `orb`(톡 나타난다 · 둥실거린다 · 사그라든다).
+  - `heredity`(달과 떠 있는 섬) — 달이 커지며 떠오르고 섬이 솟는다. 품은 세트 **둘**: 씨앗 `seed`(구슬 + 소용돌이)와 수정 `crystal`(수정 + 빛). 퇴장에서는 인스턴스째로 사그라든다(바깥의 제 키).
+  - `mercury`(행성과 고래) — 대기가 번지고 행성이 솟고 고래가 가로질러 들어온다. 별이 따로 세트 `star`(켜진다 · 깜빡인다 · 꺼진다).
 - 문서는 편집기 명령으로 지었다: `tests/Mt.Authoring.Tests/TransitionExamples.cs`. 고쳤으면
   `MT_WRITE_EXAMPLES=1 dotnet test tests/Mt.Authoring.Tests --filter EmojiExampleTests`로 다시 쓴다.
-- 그림은 `tools/make-transition-art.py`가 도형으로 그린다(다섯 장면 — 저장소에는 station과 pillar만 넣었다).
+- 그림은 `tools/make-transition-art.py`가 도형으로 그린다(다섯 장면 전부 저장소에 있다).
 - 화면을 그림으로 뽑기: `MT_RENDER_DIR=<폴더> dotnet test tests/Mt.App.Tests --filter TransitionExampleShots`.
 
 ## 어떻게 지었나

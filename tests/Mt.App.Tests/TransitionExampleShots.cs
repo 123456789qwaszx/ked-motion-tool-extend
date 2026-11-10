@@ -91,6 +91,26 @@ public class TransitionExampleShots
                 Shot("pillar-instance");
                 window.SelectSet(null);
 
+                // 조립으로 지은 세 장면 — 수명을 따라.
+                foreach (string name in new[] { "lapis", "heredity", "mercury" })
+                {
+                    window.Session.Open(Path.Combine(root!.FullName, "examples", "transitions", name, name + ".motion-authoring.json"));
+                    window.InspectorTab = 4;
+                    window.SelectEmoji(name);
+                    window.StageOnlyChecked = true;
+
+                    foreach (double t in new[] { 0.5, 0.9, 1.5, 2.4, 3.5 })
+                    {
+                        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                        window.Viewport.ScrubTo(t);
+                        Shot($"{name}-t{t:0.00}");
+                    }
+
+                    window.StageOnlyChecked = false;
+                }
+
+                window.Session.Open(Path.Combine(root!.FullName, "examples", "transitions", "pillar", "pillar.motion-authoring.json"));
+
                 // 세트가 세트를 품는다 — 새 세트에 pillar를 둘 넣는다(하나는 작게 돌려서). 화면에만: 저장하지 않는다.
                 window.NewSetFromForm();
                 window.SelectSetNode(null);

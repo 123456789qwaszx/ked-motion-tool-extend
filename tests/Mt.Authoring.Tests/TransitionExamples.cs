@@ -277,4 +277,288 @@ internal static class TransitionExamples
         editor.UpdateEmoji(Pillar, new EmojiAsset { Skin = Pillar, Enter = In, Hold = Hold, Exit = Out, HoldSeconds = 1.5f, Screen = true });
         return editor;
     }
+
+    // ── 나머지 세 장면 — 처음부터 조립으로: 층 표를 통째로 들인 뒤 "새 세트로 빼기"로 가르고, 뺀 세트의 애니메이션을 재생 블록으로 튼다 ──
+
+    public const string Lapis = "lapis";
+    public const string Heredity = "heredity";
+    public const string Mercury = "mercury";
+
+    private static MotionEditor Begin(string kind, string layersPath)
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(new RigAsset { Kind = kind });
+        editor.ImportLayers(kind, LayerSheet.Load(layersPath), "art", kind, Stage);
+        return editor;
+    }
+
+    /// <summary>등장의 머리 — 바탕색이 0.25초에 화면을 덮고 거기서 <c>covered</c>가 울린다.</summary>
+    private static void Cover(MotionEditor editor, string motion, float duration)
+    {
+        Curve(editor, motion, MotionEditor.BackdropNode, MotionChannelKind.Alpha, Axis.X, L(0f, 0f), L(0.25f, 1f), L(duration, 1f));
+        editor.AddMotionEvent(motion, 0.25f, "covered");
+    }
+
+    /// <summary>퇴장의 꼬리 — 바탕색이 끝에서 걷힌다.</summary>
+    private static void Uncover(MotionEditor editor, string motion, float duration)
+        => Curve(editor, motion, MotionEditor.BackdropNode, MotionChannelKind.Alpha, Axis.X, L(0f, 1f), L(duration * 0.55f, 1f), L(duration, 0f));
+
+    private static void Fade(MotionEditor editor, string motion, string node, float duration, float from, float to, float a, float b)
+        => Curve(editor, motion, node, MotionChannelKind.Alpha, Axis.X, Ramp(duration, from, to, a, b));
+
+    private static void Slide(MotionEditor editor, string motion, string node, Axis axis, float duration, float from, float to, float a, float b)
+        => Curve(editor, motion, node, MotionChannelKind.Position, axis, Ramp(duration, from, to, a, b));
+
+    private static void Cue(MotionEditor editor, string kind, float holdSeconds)
+    {
+        editor.AddEmoji(kind, kind);
+        editor.UpdateEmoji(kind, new EmojiAsset { Skin = kind, Enter = kind + "_in", Hold = kind + "_hold", Exit = kind + "_out", HoldSeconds = holdSeconds, Screen = true });
+    }
+
+    /// <summary>
+    /// 바닷속 기둥들 — 바닥과 기둥이 아래에서 차례로 솟고, 양옆의 나무줄기가 닫히듯 들어오고, 물고기 떼와 가오리가 헤엄쳐 들어온다.
+    /// 빛나는 구슬은 따로 세트(<c>orb</c>: 톡 나타난다 · 둥실거린다 · 사그라든다)로 빼 재생 블록으로 튼다.
+    /// </summary>
+    public static MotionEditor BuildLapis(string layersPath)
+    {
+        MotionEditor editor = Begin(Lapis, layersPath);
+        const MotionChannelMode Rel = MotionChannelMode.Relative;
+
+        // 구슬을 새 세트로 뺀다 — 자리와 그림을 데리고 가고 그 자리에 인스턴스 orb가 선다.
+        editor.ExtractRigNodes(Lapis, new[] { "orb" }, "orb");
+        editor.AddMotion("orb_pop", "orb", 0.5f, MotionEnd.Commit, Rel);
+        Scale(editor, "orb_pop", "orb", K(0f, 0.2f), K(0.32f, 1.15f), F(0.5f, 1f));
+        editor.AddMotion("orb_bob", "orb", 2f, MotionEnd.Restore, Rel);
+        Curve(editor, "orb_bob", "orb", MotionChannelKind.Position, Axis.Y, K(0f, 0f), K(1f, 22f), K(2f, 0f));
+        Scale(editor, "orb_bob", "orb", K(0f, 1f), K(1f, 1.06f), K(2f, 1f));
+        editor.AddMotion("orb_fade", "orb", 0.3f, MotionEnd.Commit, Rel);
+        Scale(editor, "orb_fade", "orb", F(0f, 1f), F(0.3f, 0.5f));
+        Fade(editor, "orb_fade", "orb", 0.3f, 0f, 0.3f, 1f, 0f);
+
+        // ── 등장(1.4초)
+        const string In = "lapis_in";
+        const float D = 1.4f;
+        editor.AddMotion(In, Lapis, D, MotionEnd.Commit, Rel);
+        Cover(editor, In, D);
+        Fade(editor, In, "light_band", D, 0.2f, 0.9f, 0f, 1f);
+        string[] rising = { "seabed_far", "pillars_far", "pillars_mid", "seabed_near" };
+
+        foreach (string layer in rising)
+        {
+            Slide(editor, In, layer, Axis.Y, D, 0.2f, 0.75f, -760f, 0f);
+        }
+
+        editor.StaggerNodes(In, rising, 0.1f);
+        Slide(editor, In, "trunk_left", Axis.X, D, 0.5f, 1.0f, -420f, 0f);
+        Slide(editor, In, "trunk_right", Axis.X, D, 0.55f, 1.05f, 420f, 0f);
+        Slide(editor, In, "fish_school", Axis.X, D, 0.6f, 1.3f, 900f, 0f);
+        Slide(editor, In, "ray", Axis.X, D, 0.7f, 1.35f, -900f, 0f);
+        editor.HideUntilTurn(In, "ray"); // 화면 밖까지 못 나가는 자리라 제 차례 전에는 숨긴다
+        Fade(editor, In, "stars", D, 0.8f, 1.3f, 0f, 1f);
+        editor.AddMotionPlay(In, "orb", "orb_pop", 0.85f);
+        editor.HideUntilTurn(In, "orb");
+
+        // ── 머묾(2초, 되풀이)
+        const string Hold = "lapis_hold";
+        editor.AddMotion(Hold, Lapis, 2f, MotionEnd.Restore, Rel);
+        Curve(editor, Hold, "fish_school", MotionChannelKind.Position, Axis.X, K(0f, 0f), K(1f, -46f), K(2f, 0f));
+        Curve(editor, Hold, "ray", MotionChannelKind.Position, Axis.Y, K(0f, 0f), K(1f, 20f), K(2f, 0f));
+        Curve(editor, Hold, "stars", MotionChannelKind.Alpha, Axis.X, K(0f, 1f), K(1f, 0.55f), K(2f, 1f));
+        editor.AddMotionPlay(Hold, "orb", "orb_bob", 0f);
+
+        // ── 퇴장(1초)
+        const string Out = "lapis_out";
+        const float E = 1f;
+        editor.AddMotion(Out, Lapis, E, MotionEnd.Commit, Rel);
+        editor.AddMotionPlay(Out, "orb", "orb_fade", 0f);
+        Fade(editor, Out, "stars", E, 0f, 0.3f, 1f, 0f);
+        Slide(editor, Out, "fish_school", Axis.X, E, 0f, 0.5f, 0f, -1900f);
+        Slide(editor, Out, "ray", Axis.X, E, 0f, 0.5f, 0f, 1300f);
+        Slide(editor, Out, "trunk_left", Axis.X, E, 0.1f, 0.55f, 0f, -420f);
+        Slide(editor, Out, "trunk_right", Axis.X, E, 0.1f, 0.55f, 0f, 420f);
+        string[] sinking = { "seabed_near", "pillars_mid", "pillars_far", "seabed_far" };
+
+        foreach (string layer in sinking)
+        {
+            Slide(editor, Out, layer, Axis.Y, E, 0.15f, 0.55f, 0f, -760f);
+        }
+
+        editor.StaggerNodes(Out, sinking, 0.07f);
+        Fade(editor, Out, "light_band", E, 0.3f, 0.7f, 1f, 0f);
+        Uncover(editor, Out, E);
+        Cue(editor, Lapis, 1.5f);
+        return editor;
+    }
+
+    /// <summary>
+    /// 달과 떠 있는 섬 — 달이 커지며 떠오르고 소용돌이가 돌아 들어오고, 섬들이 솟고 나뭇가지가 위에서 내려온다.
+    /// 씨앗(구슬 + 그 안의 소용돌이)과 수정(수정 + 빛)은 따로 세트로 빼 제 애니메이션을 재생 블록으로 튼다 — 한 연출에 품은 세트 둘.
+    /// </summary>
+    public static MotionEditor BuildHeredity(string layersPath)
+    {
+        MotionEditor editor = Begin(Heredity, layersPath);
+        const MotionChannelMode Rel = MotionChannelMode.Relative;
+
+        // 씨앗 — 구슬과 그 안의 소용돌이.
+        editor.ExtractRigNodes(Heredity, new[] { "orb", "orb_swirl" }, "seed");
+        editor.AddMotion("seed_in", "seed", 0.6f, MotionEnd.Commit, Rel);
+        Scale(editor, "seed_in", "orb", K(0f, 0.3f), K(0.4f, 1.1f), F(0.6f, 1f));
+        Scale(editor, "seed_in", "orb_swirl", F(0f, 0.3f), F(0.6f, 1f));
+        Curve(editor, "seed_in", "orb_swirl", MotionChannelKind.Euler, Axis.Z, F(0f, -160f), F(0.6f, 0f));
+        editor.AddMotion("seed_sway", "seed", 1.5f, MotionEnd.Restore, Rel);
+        Curve(editor, "seed_sway", "orb_swirl", MotionChannelKind.Euler, Axis.Z, K(0f, 0f), K(0.75f, 28f), K(1.5f, 0f));
+        Scale(editor, "seed_sway", "orb", K(0f, 1f), K(0.75f, 1.05f), K(1.5f, 1f));
+
+        // 수정 — 수정과 그 빛.
+        editor.ExtractRigNodes(Heredity, new[] { "crystals", "crystals_light" }, "crystal");
+        editor.AddMotion("crystal_in", "crystal", 0.6f, MotionEnd.Commit, Rel);
+        Slide(editor, "crystal_in", "crystals", Axis.Y, 0.6f, 0f, 0.45f, -260f, 0f);
+        Slide(editor, "crystal_in", "crystals_light", Axis.Y, 0.6f, 0f, 0.45f, -260f, 0f);
+        Fade(editor, "crystal_in", "crystals_light", 0.6f, 0.3f, 0.6f, 0f, 1f);
+        editor.AddMotion("crystal_glint", "crystal", 1.5f, MotionEnd.Restore, Rel);
+        Curve(editor, "crystal_glint", "crystals_light", MotionChannelKind.Alpha, Axis.X, K(0f, 1f), K(0.75f, 0.45f), K(1.5f, 1f));
+
+        // ── 등장(1.5초)
+        const string In = "heredity_in";
+        const float D = 1.5f;
+        editor.AddMotion(In, Heredity, D, MotionEnd.Commit, Rel);
+        Cover(editor, In, D);
+        Fade(editor, In, "moon", D, 0.2f, 0.8f, 0f, 1f);
+        Scale(editor, In, "moon", Ramp(D, 0.2f, 1.0f, 0.6f, 1f));
+        Fade(editor, In, "spiral", D, 0.3f, 1.0f, 0f, 1f);
+        Curve(editor, In, "spiral", MotionChannelKind.Euler, Axis.Z, Ramp(D, 0.3f, 1.2f, -40f, 0f));
+        string[] islands = { "island", "islets" };
+
+        foreach (string layer in islands)
+        {
+            Slide(editor, In, layer, Axis.Y, D, 0.35f, 0.9f, -760f, 0f);
+        }
+
+        editor.StaggerNodes(In, islands, 0.15f);
+        Slide(editor, In, "canopy", Axis.Y, D, 0.5f, 1.0f, 520f, 0f);
+        editor.AddMotionPlay(In, "crystal", "crystal_in", 0.65f);
+        editor.HideUntilTurn(In, "crystal");
+        editor.AddMotionPlay(In, "seed", "seed_in", 0.8f);
+        editor.HideUntilTurn(In, "seed");
+        string[] leaves = { "leaf_1", "leaf_2", "leaf_3" };
+
+        foreach (string leaf in leaves)
+        {
+            Fade(editor, In, leaf, D, 1.0f, 1.2f, 0f, 1f);
+            Slide(editor, In, leaf, Axis.Y, D, 1.0f, 1.3f, 120f, 0f);
+        }
+
+        editor.StaggerNodes(In, leaves, 0.07f);
+
+        // ── 머묾(3초, 되풀이) — 씨앗이 흔들리고 수정이 반짝인다(각각 두 번).
+        const string Hold = "heredity_hold";
+        editor.AddMotion(Hold, Heredity, 3f, MotionEnd.Restore, Rel);
+        editor.AddMotionPlay(Hold, "seed", "seed_sway", 0f, repeat: 2);
+        editor.AddMotionPlay(Hold, "crystal", "crystal_glint", 0f, repeat: 2);
+
+        for (int i = 0; i < leaves.Length; i++)
+        {
+            Curve(editor, Hold, leaves[i], MotionChannelKind.Position, Axis.X, K(0f, 0f), K(1.5f, 24f + i * 8f), K(3f, 0f));
+            Curve(editor, Hold, leaves[i], MotionChannelKind.Euler, Axis.Z, K(0f, 0f), K(1.5f, i % 2 == 0 ? -30f : 30f), K(3f, 0f));
+        }
+
+        Curve(editor, Hold, "spiral", MotionChannelKind.Euler, Axis.Z, K(0f, 0f), K(1.5f, 6f), K(3f, 0f));
+
+        // ── 퇴장(1초) — 품은 세트는 인스턴스째로 사그라든다(제 키).
+        const string Out = "heredity_out";
+        const float E = 1f;
+        editor.AddMotion(Out, Heredity, E, MotionEnd.Commit, Rel);
+
+        foreach (string leaf in leaves)
+        {
+            Fade(editor, Out, leaf, E, 0f, 0.2f, 1f, 0f);
+        }
+
+        Fade(editor, Out, "seed", E, 0f, 0.3f, 1f, 0f);
+        Scale(editor, Out, "seed", Ramp(E, 0f, 0.3f, 1f, 0.5f));
+        Fade(editor, Out, "crystal", E, 0.05f, 0.35f, 1f, 0f);
+        Slide(editor, Out, "canopy", Axis.Y, E, 0.1f, 0.5f, 0f, 520f);
+        Slide(editor, Out, "islets", Axis.Y, E, 0.15f, 0.55f, 0f, -760f);
+        Slide(editor, Out, "island", Axis.Y, E, 0.22f, 0.62f, 0f, -760f);
+        Fade(editor, Out, "spiral", E, 0.2f, 0.6f, 1f, 0f);
+        Fade(editor, Out, "moon", E, 0.3f, 0.7f, 1f, 0f);
+        Uncover(editor, Out, E);
+        Cue(editor, Heredity, 1.5f);
+        return editor;
+    }
+
+    /// <summary>
+    /// 행성과 고래 — 대기가 번지고 행성이 아래에서 솟고, 고래 둘과 물고기 떼가 가로질러 들어온다.
+    /// 별(빛 + 별)은 따로 세트 <c>star</c>로 빼 켜진다 · 깜빡인다 · 꺼진다를 재생 블록으로 튼다.
+    /// </summary>
+    public static MotionEditor BuildMercury(string layersPath)
+    {
+        MotionEditor editor = Begin(Mercury, layersPath);
+        const MotionChannelMode Rel = MotionChannelMode.Relative;
+
+        editor.ExtractRigNodes(Mercury, new[] { "star_glow", "star" }, "star");
+        editor.AddMotion("star_on", "star", 0.6f, MotionEnd.Commit, Rel);
+        Scale(editor, "star_on", "star", K(0f, 0.1f), K(0.35f, 1.25f), F(0.6f, 1f));
+        Scale(editor, "star_on", "star_glow", Ramp(0.6f, 0.1f, 0.6f, 0.4f, 1f));
+        Fade(editor, "star_on", "star_glow", 0.6f, 0.1f, 0.6f, 0f, 1f);
+        editor.AddMotion("star_twinkle", "star", 1.25f, MotionEnd.Restore, Rel);
+        Scale(editor, "star_twinkle", "star_glow", K(0f, 1f), K(0.6f, 1.12f), K(1.25f, 1f));
+        Curve(editor, "star_twinkle", "star", MotionChannelKind.Euler, Axis.Z, K(0f, 0f), K(0.6f, 20f), K(1.25f, 0f));
+        editor.AddMotion("star_off", "star", 0.4f, MotionEnd.Commit, Rel);
+        Scale(editor, "star_off", "star", F(0f, 1f), F(0.4f, 0.1f));
+        Fade(editor, "star_off", "star_glow", 0.4f, 0f, 0.3f, 1f, 0f);
+        Fade(editor, "star_off", "star", 0.4f, 0.2f, 0.4f, 1f, 0f);
+
+        // ── 등장(1.5초)
+        const string In = "mercury_in";
+        const float D = 1.5f;
+        editor.AddMotion(In, Mercury, D, MotionEnd.Commit, Rel);
+        Cover(editor, In, D);
+        string[] air = { "atmosphere", "atmosphere_inner" };
+
+        foreach (string layer in air)
+        {
+            Fade(editor, In, layer, D, 0.2f, 0.8f, 0f, 1f);
+            Scale(editor, In, layer, Ramp(D, 0.2f, 0.9f, 1.2f, 1f));
+        }
+
+        editor.StaggerNodes(In, air, 0.12f);
+        Slide(editor, In, "planet", Axis.Y, D, 0.3f, 0.95f, -820f, 0f);
+        Slide(editor, In, "planet_bands", Axis.Y, D, 0.3f, 0.95f, -820f, 0f);
+        Slide(editor, In, "clouds", Axis.X, D, 0.45f, 1.15f, -620f, 0f);
+        Fade(editor, In, "clouds", D, 0.45f, 0.8f, 0f, 1f);
+        Fade(editor, In, "stars", D, 0.6f, 1.2f, 0f, 1f);
+        editor.AddMotionPlay(In, "star", "star_on", 0.7f);
+        editor.HideUntilTurn(In, "star");
+        Slide(editor, In, "whale_big", Axis.X, D, 0.5f, 1.4f, 1700f, 0f);
+        Slide(editor, In, "whale_small", Axis.X, D, 0.7f, 1.45f, 900f, 0f);
+        Slide(editor, In, "fish_school", Axis.X, D, 0.8f, 1.45f, 900f, 0f);
+
+        // ── 머묾(2.5초, 되풀이) — 고래가 느리게 헤엄치고 별이 두 번 깜빡인다.
+        const string Hold = "mercury_hold";
+        editor.AddMotion(Hold, Mercury, 2.5f, MotionEnd.Restore, Rel);
+        Curve(editor, Hold, "whale_big", MotionChannelKind.Position, Axis.Y, K(0f, 0f), K(1.25f, 26f), K(2.5f, 0f));
+        Curve(editor, Hold, "whale_big", MotionChannelKind.Euler, Axis.Z, K(0f, 0f), K(1.25f, -3f), K(2.5f, 0f));
+        Curve(editor, Hold, "whale_small", MotionChannelKind.Position, Axis.Y, K(0f, 0f), K(1.25f, -18f), K(2.5f, 0f));
+        Curve(editor, Hold, "fish_school", MotionChannelKind.Position, Axis.X, K(0f, 0f), K(1.25f, -36f), K(2.5f, 0f));
+        editor.AddMotionPlay(Hold, "star", "star_twinkle", 0f, repeat: 2);
+
+        // ── 퇴장(1초)
+        const string Out = "mercury_out";
+        const float E = 1f;
+        editor.AddMotion(Out, Mercury, E, MotionEnd.Commit, Rel);
+        editor.AddMotionPlay(Out, "star", "star_off", 0f);
+        Slide(editor, Out, "whale_big", Axis.X, E, 0f, 0.6f, 0f, -1500f);
+        Slide(editor, Out, "whale_small", Axis.X, E, 0f, 0.5f, 0f, -2000f);
+        Slide(editor, Out, "fish_school", Axis.X, E, 0f, 0.45f, 0f, -1900f);
+        Fade(editor, Out, "stars", E, 0.1f, 0.4f, 1f, 0f);
+        Fade(editor, Out, "clouds", E, 0.15f, 0.5f, 1f, 0f);
+        Slide(editor, Out, "planet", Axis.Y, E, 0.2f, 0.65f, 0f, -820f);
+        Slide(editor, Out, "planet_bands", Axis.Y, E, 0.2f, 0.65f, 0f, -820f);
+        Fade(editor, Out, "atmosphere_inner", E, 0.3f, 0.65f, 1f, 0f);
+        Fade(editor, Out, "atmosphere", E, 0.35f, 0.7f, 1f, 0f);
+        Uncover(editor, Out, E);
+        Cue(editor, Mercury, 1.5f);
+        return editor;
+    }
 }
