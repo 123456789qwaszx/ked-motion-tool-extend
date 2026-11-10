@@ -135,4 +135,107 @@ internal static class TransitionExamples
         editor.UpdateEmoji(Station, new EmojiAsset { Skin = Station, Enter = In, Hold = Hold, Exit = Out, HoldSeconds = 1f, Screen = true });
         return editor;
     }
+
+    public const string Pillar = "pillar";
+
+    /// <summary>
+    /// 기울어진 기둥과 노을 — station과 다른 결로 짓는다: 층들을 **같은 타이밍으로 놓은 뒤 시차(<see cref="MotionEditor.StaggerNodes"/>)로 민다**.
+    /// 지평선의 것들(노을 · 도시 둘 · 언덕)이 아래에서 차례로 솟고, 해가 떠오르고, 기둥이 넘어지듯 들어와 선다.
+    /// </summary>
+    public static MotionEditor BuildPillar(string layersPath)
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(new RigAsset { Kind = Pillar });
+        editor.ImportLayers(Pillar, LayerSheet.Load(layersPath), "art", Pillar, Stage);
+
+        const MotionChannelMode Rel = MotionChannelMode.Relative;
+        string[] horizon = { "haze", "city_far", "city_near", "hill" };
+        string[] petals = { "petal_1", "petal_2", "petal_3" };
+
+        // ── 등장(1.5초) ──
+        const string In = "pillar_in";
+        const float D = 1.5f;
+        editor.AddMotion(In, Pillar, D, MotionEnd.Commit, Rel);
+        Curve(editor, In, MotionEditor.BackdropNode, MotionChannelKind.Alpha, Axis.X, L(0f, 0f), L(0.25f, 1f), L(D, 1f));
+        editor.AddMotionEvent(In, 0.25f, "covered");
+
+        // 지평선의 층 넷 — 전부 0.2~0.7초에 아래에서 솟게 놓고, 시차로 0.12초씩 민다(하나씩 키를 옮기지 않는다).
+        foreach (string layer in horizon)
+        {
+            Curve(editor, In, layer, MotionChannelKind.Position, Axis.Y, Ramp(D, 0.2f, 0.7f, -620f, 0f));
+        }
+
+        editor.StaggerNodes(In, horizon, 0.12f);
+
+        Curve(editor, In, "clouds_far", MotionChannelKind.Position, Axis.X, Ramp(D, 0.15f, 1.0f, 520f, 0f));
+        Curve(editor, In, "clouds_far", MotionChannelKind.Alpha, Axis.X, Ramp(D, 0.15f, 0.5f, 0f, 1f));
+        Curve(editor, In, "clouds_near", MotionChannelKind.Position, Axis.X, Ramp(D, 0.25f, 1.1f, -640f, 0f));
+        Curve(editor, In, "clouds_near", MotionChannelKind.Alpha, Axis.X, Ramp(D, 0.25f, 0.6f, 0f, 1f));
+
+        // 해가 지평선 아래에서 떠오르고 빛이 번진다.
+        Curve(editor, In, "sun", MotionChannelKind.Position, Axis.Y, Ramp(D, 0.6f, 1.3f, -300f, 0f));
+        // 가만히 선 자세는 "다 보이는" 것이라, 제 차례 전에는 숨겨 둬야 한다 — 지평선에 가려지지 않는 층은 불투명도로.
+        Curve(editor, In, "sun", MotionChannelKind.Alpha, Axis.X, Ramp(D, 0.6f, 0.75f, 0f, 1f));
+        Curve(editor, In, "sun_glow", MotionChannelKind.Alpha, Axis.X, Ramp(D, 0.7f, 1.4f, 0f, 1f));
+        Scale(editor, In, "sun_glow", Ramp(D, 0.7f, 1.4f, 0.5f, 1f));
+
+        // 기둥 — 왼쪽 밖에서 넘어지듯 들어와 살짝 넘쳤다가 선다.
+        Curve(editor, In, "pillar", MotionChannelKind.Position, Axis.X, Ramp(D, 0.55f, 1.05f, -640f, 0f));
+        Curve(editor, In, "pillar", MotionChannelKind.Euler, Axis.Z, F(0f, 28f), F(0.55f, 28f), K(1.05f, -4f), F(1.25f, 0f), F(D, 0f));
+
+        // 꽃잎 — 같은 타이밍으로 놓고 시차로.
+        foreach (string petal in petals)
+        {
+            Curve(editor, In, petal, MotionChannelKind.Alpha, Axis.X, Ramp(D, 1.0f, 1.2f, 0f, 1f));
+            Curve(editor, In, petal, MotionChannelKind.Position, Axis.X, Ramp(D, 1.0f, 1.3f, 180f, 0f));
+        }
+
+        editor.StaggerNodes(In, petals, 0.08f);
+
+        // ── 머묾(3초, 되풀이) — 꽃잎이 흔들리고 구름이 천천히 숨쉰다.
+        const string Hold = "pillar_hold";
+        editor.AddMotion(Hold, Pillar, 3f, MotionEnd.Restore, Rel);
+
+        for (int i = 0; i < petals.Length; i++)
+        {
+            float sway = 26f + i * 10f;
+            Curve(editor, Hold, petals[i], MotionChannelKind.Position, Axis.X, K(0f, 0f), K(1.5f, -sway), K(3f, 0f));
+            Curve(editor, Hold, petals[i], MotionChannelKind.Position, Axis.Y, K(0f, 0f), K(0.75f, 14f), K(2.25f, -14f), K(3f, 0f));
+            Curve(editor, Hold, petals[i], MotionChannelKind.Euler, Axis.Z, K(0f, 0f), K(1.5f, i % 2 == 0 ? 40f : -40f), K(3f, 0f));
+        }
+
+        Curve(editor, Hold, "clouds_near", MotionChannelKind.Position, Axis.X, K(0f, 0f), K(1.5f, 24f), K(3f, 0f));
+        Scale(editor, Hold, "sun_glow", K(0f, 1f), K(1.5f, 1.08f), K(3f, 1f));
+
+        // ── 퇴장(1초) — 해가 지고, 지평선이 가라앉고(시차 — 앞의 것부터), 기둥이 기울어 나가고, 바탕색이 걷힌다.
+        const string Out = "pillar_out";
+        const float E = 1f;
+        editor.AddMotion(Out, Pillar, E, MotionEnd.Commit, Rel);
+
+        foreach (string petal in petals)
+        {
+            Curve(editor, Out, petal, MotionChannelKind.Alpha, Axis.X, Ramp(E, 0f, 0.2f, 1f, 0f));
+        }
+
+        Curve(editor, Out, "sun", MotionChannelKind.Position, Axis.Y, Ramp(E, 0f, 0.5f, 0f, -300f));
+        Curve(editor, Out, "sun", MotionChannelKind.Alpha, Axis.X, Ramp(E, 0.3f, 0.5f, 1f, 0f));
+        Curve(editor, Out, "sun_glow", MotionChannelKind.Alpha, Axis.X, Ramp(E, 0f, 0.4f, 1f, 0f));
+        Curve(editor, Out, "pillar", MotionChannelKind.Position, Axis.X, Ramp(E, 0.1f, 0.6f, 0f, -640f));
+        Curve(editor, Out, "pillar", MotionChannelKind.Euler, Axis.Z, Ramp(E, 0.1f, 0.6f, 0f, 28f));
+        string[] sinking = { "hill", "city_near", "city_far", "haze" };
+
+        foreach (string layer in sinking)
+        {
+            Curve(editor, Out, layer, MotionChannelKind.Position, Axis.Y, Ramp(E, 0.15f, 0.55f, 0f, -620f));
+        }
+
+        editor.StaggerNodes(Out, sinking, 0.08f);
+        Curve(editor, Out, "clouds_far", MotionChannelKind.Alpha, Axis.X, Ramp(E, 0.3f, 0.7f, 1f, 0f));
+        Curve(editor, Out, "clouds_near", MotionChannelKind.Alpha, Axis.X, Ramp(E, 0.3f, 0.7f, 1f, 0f));
+        Curve(editor, Out, MotionEditor.BackdropNode, MotionChannelKind.Alpha, Axis.X, L(0f, 1f), L(0.55f, 1f), L(E, 0f));
+
+        editor.AddEmoji(Pillar, Pillar);
+        editor.UpdateEmoji(Pillar, new EmojiAsset { Skin = Pillar, Enter = In, Hold = Hold, Exit = Out, HoldSeconds = 1.5f, Screen = true });
+        return editor;
+    }
 }

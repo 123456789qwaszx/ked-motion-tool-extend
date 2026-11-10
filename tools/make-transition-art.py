@@ -45,6 +45,13 @@ def hexrgb(c):
     return tuple(int(c[i:i + 2], 16) for i in (0, 2, 4))
 
 
+def shift(image, dx, dy):
+    """밀기 — 넘친 것은 버린다(ImageChops.offset은 반대편으로 돌아 나와, 아래 끝의 그림자가 위 끝에 띠로 찍힌다)."""
+    out = Image.new(image.mode, image.size, 0)
+    out.paste(image, (dx, dy))
+    return out
+
+
 _grain = None
 
 
@@ -68,12 +75,12 @@ def finish(m, color, shadow=0.34, crop=False, rim=True):
     body = ImageChops.overlay(body, Image.merge("RGB", (gr, gr, gr)))
     if rim:
         # 위 모서리의 밝은 테: 마스크에서 아래로 2px 민 것을 뺀 띠.
-        top = ImageChops.subtract(a, ImageChops.offset(a, 0, 3))
+        top = ImageChops.subtract(a, shift(a, 0, 3))
         light = Image.new("RGB", (W, H), tuple(min(255, int(c + (255 - c) * 0.45)) for c in (r, g, b)))
         body = Image.composite(light, body, top.filter(ImageFilter.GaussianBlur(0.8)))
     out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     if shadow > 0:
-        sh = ImageChops.offset(a, 7, 12).filter(ImageFilter.GaussianBlur(9)).point(lambda v: int(v * shadow))
+        sh = shift(a, 7, 12).filter(ImageFilter.GaussianBlur(9)).point(lambda v: int(v * shadow))
         out = Image.merge("RGBA", (Image.new("L", (W, H), 12), Image.new("L", (W, H), 14), Image.new("L", (W, H), 24), sh))
     out.alpha_composite(Image.merge("RGBA", (*body.split(), a)))
     if crop:

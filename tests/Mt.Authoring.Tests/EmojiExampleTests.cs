@@ -125,4 +125,42 @@ public class EmojiExampleTests
         MotionEventAsset covered = Assert.Single(document.Find("station_in")!.Events);
         Assert.Equal(("covered", 0.25f), (covered.Name, covered.T));
     }
+
+    [Fact]
+    public void 기둥과_노을_예시는_시차로_지은_층들이_차례로_솟고_저장된_파일과_같다()
+    {
+        string directory = Path.Combine(Path.GetDirectoryName(ExampleDirectory())!, "transitions", "pillar");
+        MotionEditor editor = TransitionExamples.BuildPillar(Path.Combine(directory, "art", "layers.tsv"));
+        MotionDocument document = editor.Document;
+        RigSchemaFile rig = RigAssets.Compose(Dump, document);
+
+        Assert.Equal(13, document.FindRig(TransitionExamples.Pillar)!.Nodes.Count); // 바탕색 + 층 열둘
+        string Problems<T>(IEnumerable<T> problems, Func<T, string> text) => string.Join("\n", problems.Select(text));
+        Assert.True(!MotionValidator.Validate(document, rig.NodeIds, null, rig.AlphaNodeIds).Any(), Problems(MotionValidator.Validate(document, rig.NodeIds, null, rig.AlphaNodeIds), p => $"{p.MotionName}: {p.Message}"));
+        Assert.True(!EmojiValidator.Validate(document, rig.NodeIds).Any(), Problems(EmojiValidator.Validate(document, rig.NodeIds), p => $"{p.EmojiName}: {p.Message}"));
+
+        string path = Path.Combine(directory, "pillar.motion-authoring.json");
+        string json = MotionDocumentJson.Write(document);
+
+        if (Environment.GetEnvironmentVariable("MT_WRITE_EXAMPLES") == "1")
+        {
+            File.WriteAllText(path, json);
+        }
+
+        Assert.Equal(json, File.ReadAllText(path));
+        Assert.All(document.Skins.SelectMany(s => s.AllImages()).Distinct(), image => Assert.True(File.Exists(Path.Combine(directory, image)), image));
+
+        // 시차: 지평선의 층 넷이 0.12초씩 늦게 솟기 시작한다(노을 0.2 · 먼 도시 0.32 · 가까운 도시 0.44 · 언덕 0.56).
+        float StartOf(string node) => document.Find("pillar_in")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys[1].T;
+        Assert.Equal(new[] { 0.2f, 0.32f, 0.44f, 0.56f }, new[] { "haze", "city_far", "city_near", "hill" }.Select(n => MathF.Round(StartOf(n), 2)));
+
+        // 등장의 가운데에서 노을은 이미 올라왔고 언덕은 아직 아래에 있다.
+        EmojiAsset cue = document.FindEmoji(TransitionExamples.Pillar)!;
+        var scene = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "t", Rig = TransitionExamples.Pillar } } };
+        RectNodeTree template = ScenePreview.Build(rig, scene);
+        float Offset(string node, double t) => EmojiPreview.Pose(template, document, cue, scene.Objects[0], t).GetState("t/" + node).AnchoredPosition.Y - template.GetState("t/" + node).AnchoredPosition.Y;
+        Assert.True(Offset("haze", 0.7) > -1f);
+        Assert.True(Offset("hill", 0.7) < -300f);
+        Assert.Equal(0f, Offset("hill", 1.5), 1);
+    }
 }

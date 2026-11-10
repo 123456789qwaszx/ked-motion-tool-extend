@@ -3,9 +3,10 @@
 화면 이동 연출 하나를 **세트**로 지은 것이다(`docs/PLAN-set.md` S6) — 이모지 밖에서 범용 구조가 서는지 보려고 만들었다.
 
 - `station/station.motion-authoring.json` — 앱에서 **열기…** 로 연다. 그림은 `station/art/`(층 PNG 열 장 + 층 표 `layers.tsv`).
+- `pillar/pillar.motion-authoring.json` — 기둥과 노을. 층들을 같은 타이밍으로 놓고 **시차**로 밀어 지은 것(지평선의 층들이 차례로 솟고, 해가 떠오르고, 기둥이 넘어지듯 들어온다).
 - 문서는 편집기 명령으로 지었다: `tests/Mt.Authoring.Tests/TransitionExamples.cs`. 고쳤으면
   `MT_WRITE_EXAMPLES=1 dotnet test tests/Mt.Authoring.Tests --filter EmojiExampleTests`로 다시 쓴다.
-- 그림은 `tools/make-transition-art.py`가 도형으로 그린다(다섯 장면 — 저장소에는 station만 넣었다).
+- 그림은 `tools/make-transition-art.py`가 도형으로 그린다(다섯 장면 — 저장소에는 station과 pillar만 넣었다).
 - 화면을 그림으로 뽑기: `MT_RENDER_DIR=<폴더> dotnet test tests/Mt.App.Tests --filter TransitionExampleShots`.
 
 ## 어떻게 지었나
@@ -19,5 +20,5 @@
 
 ## 보는 법
 
-- **연출** 탭에서 `station`을 고르면 수명 한 번이 돈다(씬에 세트를 놓지 않아도 된다).
+- **연출** 탭에서 `station`을 고르면 수명 한 번이 돈다(씬에 세트를 놓지 않아도 된다). 재생 줄의 **무대만**을 켜면 무대 밖이 가려져 게임에서 보이는 그대로다.
 - 왼쪽 **세트** 목록에서 `station`을 열면 배치 모드 — 층을 끌어 자리를 잡는다. 그 아래 **애니메이션** 목록에서 하나를 고르면 그 애니메이션을 고친다.

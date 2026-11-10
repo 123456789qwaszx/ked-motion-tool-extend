@@ -56,6 +56,28 @@ public class TransitionExampleShots
                     Shot($"station-t{t:0.00}");
                 }
 
+                // 무대만 보기 — 무대 밖을 가린다(게임에서 보이는 그대로).
+                window.StageOnlyChecked = true;
+                window.Viewport.ScrubTo(0.6);
+                Shot("station-stage-only");
+                window.StageOnlyChecked = false;
+
+                // 기둥과 노을.
+                window.Session.Open(Path.Combine(root!.FullName, "examples", "transitions", "pillar", "pillar.motion-authoring.json"));
+                window.InspectorTab = 4;
+                window.SelectEmoji("pillar");
+                window.StageOnlyChecked = true;
+
+                foreach (double t in new[] { 0.3, 0.6, 0.9, 1.2, 1.5, 2.3, 3.2, 3.6, 3.95 })
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                    window.Viewport.ScrubTo(t);
+                    Shot($"pillar-t{t:0.00}");
+                }
+
+                window.StageOnlyChecked = false;
+                window.Session.Open(Path.Combine(root!.FullName, "examples", "transitions", "station", "station.motion-authoring.json"));
+
                 // 세트를 연다 — 배치 모드.
                 window.SelectSet("station");
                 window.InspectorTab = 1;
