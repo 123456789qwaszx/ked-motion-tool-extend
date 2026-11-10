@@ -32,6 +32,9 @@ public partial class MainWindow
 
     internal void RemoveCutFromForm() => RemoveSelectedCut();
 
+    /// <summary>테스트 손잡이 — "컷 내보내기…"(파일 고르기 뒤의 일).</summary>
+    internal bool ExportCutToFile(string path) => SelectedCut is { } name && _session.ExportCut(name, path);
+
     internal (TextBox Name, TextBox Frames, TextBox Zoom, TextBox PanX, TextBox PanY) CutBoxes => (_cutName, _cutFrames, _cutZoom, _cutPanX, _cutPanY);
 
     internal TextBox RigNodeDepthBox => _rigNodeDepth;
@@ -60,7 +63,23 @@ public partial class MainWindow
         ToolTip.SetTip(add, "빈 컷(240프레임 = 10초)을 만들어 연다 — 이름 cut, cut_2…. 하이어아키에서 우클릭해 오브젝트를 놓거나, 아래 세트 줄의 \"그림 가져오기…\" · \"층 표 가져오기…\"로 그림을 들인다");
         ToolTip.SetTip(remove, "연 컷을 지운다 — 그 타임라인과 그림 표도 함께(되돌리기 한 번). 그 컷이 품은 세트는 남는다");
         ToolTip.SetTip(close, "컷을 닫는다");
-        LeftPanel.Children.Insert(2, new WrapPanel { Orientation = Orientation.Horizontal, Children = { add, remove, close } });
+        Button export = SmallButton("컷 내보내기…", async (_, _) =>
+        {
+            try
+            {
+                if (SelectedCut is { } name
+                    && await PickSaveAsync("컷 내보내기", name + ".cut.json", new Avalonia.Platform.Storage.FilePickerFileType("컷 파일") { Patterns = new[] { "*.cut.json", "*.json" } }) is { } path)
+                {
+                    _session.ExportCut(name, path);
+                }
+            }
+            catch (Exception exception)
+            {
+                _session.SetStatus($"컷 내보내기 실패: {exception.Message}");
+            }
+        });
+        ToolTip.SetTip(export, "연 컷을 컷 파일(cut/1)로 내보낸다 — 게임이 읽는 것. 묶음(세트)은 오브젝트로 펼치고 재생 블록은 키로 구운 한 덩어리이고, 시각은 프레임으로 적힌다. 그림은 복사하지 않고 그 파일 기준 경로로 적는다");
+        LeftPanel.Children.Insert(2, new WrapPanel { Orientation = Orientation.Horizontal, Children = { add, remove, close, export } });
 
         _cutFields.Children.Add(Labeled("컷 이름", _cutName));
         _cutFields.Children.Add(Labeled("길이(프레임)", _cutFrames));

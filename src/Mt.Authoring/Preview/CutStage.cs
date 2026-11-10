@@ -50,18 +50,8 @@ public static class CutStage
     public static string[] PointsOf(CutAsset cut)
         => new[] { CameraPan, CameraZoom }.Concat(cut.Nodes.Where(n => n.Parent.Length == 0).Select(n => DepthNodeOf(n.Id))).ToArray();
 
-    /// <summary>깊이의 눈금과 그 층의 이름 — 가까워지는 차례.</summary>
-    private static readonly (float Level, string Layer)[] Marks =
-    {
-        (DepthLevelLabels.Far, SceneLayers.Far),
-        (DepthLevelLabels.Back, SceneLayers.Back),
-        (DepthLevelLabels.Mid, SceneLayers.Mid),
-        (DepthLevelLabels.Front, SceneLayers.Front),
-        (DepthLevelLabels.Close, SceneLayers.Close),
-    };
-
     /// <summary>깊이를 안 준 오브젝트의 깊이 — mid.</summary>
-    public const float DefaultDepth = DepthLevelLabels.Mid;
+    public const float DefaultDepth = CutMath.DefaultDepth;
 
     /// <summary>
     /// 컷의 오브젝트들을 세운 트리 — 카메라와 깊이는 아직 안 들어갔다(틀이 전부 제자리). 포즈를 잡은 뒤 <see cref="Apply"/>로 넣는다.
@@ -192,32 +182,16 @@ public static class CutStage
         return tree is not null && tree.Contains(key) ? tree.GetState(key).AnchoredPosition.X : node.Depth ?? DefaultDepth;
     }
 
-    /// <summary>깊이에 따른 크기 — mid에서 1(지은 그대로), 멀수록 작게. 깊이 커브가 없으면 1.</summary>
-    public static float SizeAt(float level, DepthTuningFile? depth)
-        => depth is not null && depth.TryScaleOf(level, out float at) && depth.TryScaleOf(DefaultDepth, out float mid) && mid > 1e-6f ? at / mid : 1f;
+    /// <summary>깊이에 따른 크기 — mid에서 1(지은 그대로), 멀수록 작게. 깊이 커브가 없으면 1. 계산은 코어(<see cref="CutMath.SizeAt"/>) — 게임의 재생과 같은 함수다.</summary>
+    public static float SizeAt(float level, DepthTuningFile? depth) => CutMath.SizeAt(level, depth?.Level!);
 
     /// <summary>
-    /// 깊이에 따라 카메라에 따르는 정도 — 눈금 사이는 곧게 잇고, 양 끝 밖은 끝의 값(far보다 멀거나 close보다 가까워도 더 달라지지 않는다).
+    /// 깊이에 따라 카메라에 따르는 정도 — 눈금 사이는 곧게 잇고, 양 끝 밖은 끝의 값. 계산은 코어(<see cref="CutMath.ResponseAt"/>).
     /// </summary>
     public static (Vec2 PanResponse, float ZoomScaleResponse) ResponseAt(float level)
     {
-        if (level <= Marks[0].Level)
-        {
-            return StageNodes.ResponseOf(Marks[0].Layer);
-        }
-
-        for (int i = 1; i < Marks.Length; i++)
-        {
-            if (level <= Marks[i].Level)
-            {
-                float t = (level - Marks[i - 1].Level) / (Marks[i].Level - Marks[i - 1].Level);
-                (Vec2 panA, float zoomA) = StageNodes.ResponseOf(Marks[i - 1].Layer);
-                (Vec2 panB, float zoomB) = StageNodes.ResponseOf(Marks[i].Layer);
-                return (new Vec2(panA.X + (panB.X - panA.X) * t, panA.Y + (panB.Y - panA.Y) * t), zoomA + (zoomB - zoomA) * t);
-            }
-        }
-
-        return StageNodes.ResponseOf(Marks[^1].Layer);
+        CutMath.ResponseAt(level, out float pan, out float zoom);
+        return (new Vec2(pan, 0f), zoom);
     }
 
     /// <summary>

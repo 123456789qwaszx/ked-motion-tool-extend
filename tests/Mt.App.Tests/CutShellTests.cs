@@ -312,6 +312,23 @@ public class CutShellTests
                 Assert.EndsWith("08_microbe_sun.png", At(9.0), StringComparison.Ordinal);
                 Assert.All(window.Session.SkinImages(), image => Assert.NotNull(image.Path));
                 Assert.Equal(0, window.ProblemRowsShown);
+
+                // 컷 내보내기 — 게임이 읽는 파일. 다른 폴더에 내도 그림 경로가 그 파일 기준으로 적혀 그림을 찾는다. 문서는 안 바뀐다.
+                string folder = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"cut-{Guid.NewGuid():N}");
+                Directory.CreateDirectory(folder);
+                string exported = Path.Combine(folder, "cut.cut.json");
+                revision = editor.Revision;
+                Assert.True(window.ExportCutToFile(exported));
+                Assert.Equal(revision, editor.Revision);
+                Ked.Presentation.Core.CutFileDto file = Mt.Authoring.Serialization.CutFileJson.Read(File.ReadAllText(exported));
+                Assert.Equal(("cut", 240), (file.name, file.frames));
+                Assert.All(file.objects.Where(o => o.image is not null), o => Assert.True(File.Exists(Path.Combine(folder, o.image)), o.image));
+                Assert.Equal(48f, file.images.Single(t => t.target == "sign").keys[0].f);
+                Assert.True(File.Exists(Path.Combine(folder, file.images.Single(t => t.target == "sign").keys[0].v)));
+
+                // 코어의 재생기가 그 파일을 그대로 읽는다 — 47프레임에는 원래 그림, 48프레임부터 바뀐 그림.
+                Assert.EndsWith("06_sign.png", Ked.Presentation.Core.CutPlayer.Evaluate(file, 47f, null).Image["sign"], StringComparison.Ordinal);
+                Assert.EndsWith("08_microbe_sun.png", Ked.Presentation.Core.CutPlayer.Evaluate(file, 48f, null).Image["sign"], StringComparison.Ordinal);
             }
             finally
             {

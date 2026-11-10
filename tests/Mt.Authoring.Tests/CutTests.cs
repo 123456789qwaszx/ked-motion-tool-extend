@@ -401,4 +401,142 @@ public class CutTests
         Assert.Null(MotionSwaps.ImageAt(Timeline(), "cast.actor", 3.0));
         Assert.Throws<ArgumentOutOfRangeException>(() => editor.RemoveImageKey("cast_arrival", 5));
     }
+
+    // ── 컷 파일 — 게임이 읽는 것. 툴의 미리보기와 코어의 재생이 같은 모습을 낸다 ─────
+
+    /// <summary>오브젝트의 키(자리·배율·회전·불투명도) · 카메라의 키 · 깊이의 키 · 그림 키 · 이벤트 · 품은 세트와 재생 블록이 다 든 컷.</summary>
+    private static MotionEditor RichCut()
+    {
+        (MotionEditor editor, CutAsset _) = StageCut();
+        KeyAsset K(float t, float v) => new() { T = t, V = v };
+
+        editor.AddSkin("arrival", "arrival");
+        editor.SetSkinPart("arrival", "hero", "art/hero_calm.png");
+        editor.SetSkinPart("arrival", "sky", "art/sky.png");
+
+        editor.AddChannel("arrival", "hero", MotionChannelKind.Position);
+        editor.SetKeys("arrival", "hero", MotionChannelKind.Position, Axis.X, new[] { K(0f, -400f), K(1.5f, 0f), K(6f, 120f) });
+        editor.AddKey("arrival", "hero", MotionChannelKind.Position, Axis.Y, K(3f, 40f)); // 하나뿐인 키
+        editor.AddChannel("arrival", "hero", MotionChannelKind.Scale);
+        editor.SetKeys("arrival", "hero", MotionChannelKind.Scale, Axis.X, new[] { K(2f, 1f), K(4f, 1.5f) });
+        editor.AddChannel("arrival", "arm", MotionChannelKind.Euler);
+        editor.SetKeys("arrival", "arm", MotionChannelKind.Euler, Axis.Z, new[] { K(0.5f, 0f), K(2.5f, 90f), K(8f, -30f) });
+        editor.AddChannel("arrival", "near", MotionChannelKind.Alpha);
+        editor.SetKeys("arrival", "near", MotionChannelKind.Alpha, Axis.X, new[] { K(0f, 0f), K(1f, 1f) });
+
+        editor.SetCutCamera("arrival", new CameraSettings { PanY = 20f });
+        editor.SetCutCameraKey("arrival", 1f, new CameraSettings { PanY = 20f });
+        editor.SetCutCameraKey("arrival", 5f, new CameraSettings { PanX = 240f, PanY = 20f, Zoom = 4f });
+        editor.SetCutDepthKey("arrival", "hero", 2f, 14f);
+        editor.SetCutDepthKey("arrival", "hero", 7f, 2f);
+        editor.AddImageKey("arrival", "hero", 4f, "art/hero_smile.png");
+        editor.AddMotionEvent("arrival", 2.5f, "sfx", "pop");
+
+        // 묶음 — 세트 prop(Body 밑에 Tip)과 그 움직임(상대값, 유지)을 컷에 품고 1초부터 두 번 튼다.
+        editor.AddRig(new RigAsset { Kind = "prop", Nodes = { new RigNodeAsset { Id = "Body", Width = 60f, Height = 60f, Image = true, Alpha = true } } });
+        editor.AddRigNode("prop", "Tip", "Body", image: true);
+        editor.UpdateRigNode("prop", "Tip", new RigNodeAsset { X = 40f, Width = 10f, Height = 10f, Image = true, Alpha = true });
+        editor.AddMotion("prop_turn", "prop", 1f, MotionEnd.Commit);
+        editor.AddChannel("prop_turn", "Body", MotionChannelKind.Euler);
+        editor.SetKeys("prop_turn", "Body", MotionChannelKind.Euler, Axis.Z, new[] { K(0f, 0f), K(1f, 45f) });
+        editor.AddImageKey("prop_turn", "Tip", 0.5f, "art/tip_lit.png");
+        editor.AddRigInstance("arrival", "prop", "prop");
+        editor.UpdateRigNode("arrival", "prop", new RigNodeAsset { X = -300f, Y = 200f, Alpha = true });
+        editor.SetCutNodeDepth("arrival", "prop", 16f);
+        editor.AddMotionPlay("arrival", "prop", "prop_turn", 1f, repeat: 2);
+        return editor;
+    }
+
+    [Fact]
+    public void 컷_파일은_펼쳐_구운_한_덩어리이고_프레임으로_적힌다()
+    {
+        MotionEditor editor = RichCut();
+        CutAsset cut = editor.Document.FindCut("arrival")!;
+        CutFileDto file = CutFileJson.Build(editor.Document, cut, new Vec2(1920f, 1080f), image => "img/" + image);
+
+        Assert.Equal((CutPlayer.Format, "arrival", 240, 24), (file.format, file.name, file.frames, file.fps));
+        Assert.Equal((1920f, 1080f, 20f), (file.stage.width, file.stage.height, file.camera.panY));
+
+        // 오브젝트 — 품은 세트가 경로 이름으로 펼쳐져 있다. 맨 위 오브젝트만 parent가 비고 깊이를 가진다. 그림은 컷 파일 기준 경로.
+        Assert.Equal(new[] { "sky", "hero", "arm", "near", "prop", "prop.Body", "prop.Tip" }, file.objects.Select(o => o.id));
+        Assert.Equal(new[] { "", "", "hero", "", "", "prop", "prop.Body" }, file.objects.Select(o => o.parent));
+        Assert.Equal(new[] { 0f, 14f, 20f, 16f }, file.objects.Where(o => o.parent.Length == 0).Select(o => o.depth));
+        Assert.Equal("img/art/hero_calm.png", file.objects.Single(o => o.id == "hero").image);
+        Assert.Null(file.objects.Single(o => o.id == "arm").image); // 그림을 안 준 조각
+
+        // 트랙 — 시각은 프레임, 카메라와 깊이는 제 자리로, 재생 블록은 경로 이름의 키로 구워져 있다. 저작본의 점(Camera_Pan · __depth)은 안 보인다.
+        CutTrackDto heroX = file.tracks.Single(t => t.target == "hero" && t.what == "x");
+        Assert.Equal(new[] { 0f, 36f, 144f }, heroX.keys.Select(k => k.f));
+        Assert.Equal(new[] { 72f }, file.tracks.Single(t => t.target == "hero" && t.what == "y").keys.Select(k => k.f));
+        Assert.Equal(new[] { 24f, 120f }, file.tracks.Single(t => t.target == CutPlayer.CameraTarget && t.what == "panX").keys.Select(k => k.f));
+        Assert.Equal(new[] { 48f, 168f }, file.tracks.Single(t => t.target == "hero" && t.what == "depth").keys.Select(k => k.f));
+        Assert.Contains(file.tracks, t => t.target == "prop.Body" && t.what == "rotation");
+        Assert.DoesNotContain(file.tracks, t => t.target.Contains("Camera_", StringComparison.Ordinal) || t.target.EndsWith("__depth", StringComparison.Ordinal));
+
+        // 그림 트랙(계단 키) · 이벤트 — 품은 애니메이션의 그림 키도 바퀴마다 구워져 있다(1초 + 0.5초, 2초 + 0.5초).
+        Assert.Equal((96f, "img/art/hero_smile.png"), (file.images.Single(t => t.target == "hero").keys[0].f, file.images.Single(t => t.target == "hero").keys[0].v));
+        Assert.Equal(new[] { 36f, 60f }, file.images.Single(t => t.target == "prop.Tip").keys.Select(k => k.f));
+        Assert.Equal((60f, "sfx", "pop"), (file.events[0].f, file.events[0].name, file.events[0].value));
+
+        // 글로 적고 다시 읽어도 같다. 모르는 형식은 거절한다.
+        string json = CutFileJson.Write(file);
+        Assert.Contains("\"format\": \"cut/1\"", json, StringComparison.Ordinal);
+        Assert.Equal(json, CutFileJson.Write(CutFileJson.Read(json)));
+        Assert.Throws<System.Text.Json.JsonException>(() => CutFileJson.Read(json.Replace("cut/1", "cut/9", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void 툴의_미리보기와_코어의_컷_재생이_모든_프레임에서_같은_모습을_낸다()
+    {
+        MotionEditor editor = RichCut();
+        CutAsset cut = editor.Document.FindCut("arrival")!;
+        var depth = DepthTuningFile.Load(Fixtures.PathOf("presets/depth.json"));
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Vec2 stage = rig.Dto.capturedUnderParentSize.ToVec2();
+        MotionAsset timeline = editor.Document.Find("arrival")!;
+        rig.TryGetRig("arrival", out RigSchemaRigDto dto);
+        SkinAsset skin = RigAssets.EffectiveSkin(editor.Document, "arrival", "arrival")!;
+
+        // 게임이 읽는 길 그대로: 글로 적은 파일을 코어의 DTO로 읽어 코어의 재생기에 넣는다.
+        CutFileDto file = CutFileJson.Read(CutFileJson.Write(CutFileJson.Build(editor.Document, cut, stage)));
+        Vec3[] probes = { Vec3.Zero, new Vec3(50f, 0f, 0f), new Vec3(0f, 30f, 0f) };
+
+        for (int frame = 0; frame <= cut.Frames; frame += 6)
+        {
+            double seconds = frame / (double)CutAsset.Fps;
+
+            // 툴: 타임라인을 얹고 카메라와 깊이를 넣는다(뷰포트가 하는 그대로).
+            var alphas = new Dictionary<string, float>(StringComparer.Ordinal);
+            RectNodeTree tool = MotionPreview.Pose(CutStage.Build(rig, cut, "cut/")!, timeline, seconds, MotionChannelMode.Absolute, null, "cut/", alphas);
+            CutStage.Apply(tool, cut, "cut/", depth);
+
+            // 코어: 컷 파일의 그 프레임.
+            CutPose game = CutPlayer.Evaluate(file, frame, depth.Level);
+
+            foreach (CutObjectDto o in file.objects)
+            {
+                foreach (Vec3 probe in probes)
+                {
+                    Vec3 a = tool.TransformPoint("cut/" + o.id, probe);
+                    Vec3 b = game.Tree.TransformPoint(o.id, probe);
+                    Assert.True(MathF.Abs(a.X - b.X) < 0.05f && MathF.Abs(a.Y - b.Y) < 0.05f, $"{o.id} @ {frame}f: 툴 ({a.X}, {a.Y}) · 코어 ({b.X}, {b.Y})");
+                }
+
+                float toolAlpha = alphas.TryGetValue("cut/" + o.id, out float alpha) ? alpha : 1f;
+                float gameAlpha = game.Alpha.TryGetValue(o.id, out float gameA) ? gameA : 1f;
+                Assert.True(MathF.Abs(toolAlpha - gameAlpha) < 1e-3f, $"{o.id} @ {frame}f: 불투명도 {toolAlpha} · {gameAlpha}");
+
+                string? toolImage = MotionSwaps.ImageAt(timeline, o.id, seconds) ?? skin.ImageAt(o.id, 0);
+                Assert.Equal(toolImage, game.Image.GetValueOrDefault(o.id));
+            }
+
+            Assert.Equal(
+                CutStage.DrawOrder(cut, dto.nodes, tool, "cut/").Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsPointNode(id)),
+                game.DrawOrder);
+        }
+
+        // 이벤트 — 구간 (after, until] 프레임.
+        Assert.Equal("sfx", Assert.Single(CutPlayer.EventsBetween(file, 59f, 60f)).name);
+        Assert.Empty(CutPlayer.EventsBetween(file, 60f, 240f));
+    }
 }

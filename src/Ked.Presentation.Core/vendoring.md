@@ -27,6 +27,7 @@
 | `Motion/MotionClip.cs` | `MotionEvent`(Time·Name·Value) · `MotionClip.Events` — 이벤트 키(명세 `docs/PLAN-parts.md` §2.5) |
 | `Motion/MotionRules.cs` | 이벤트: 이름 규칙 · 시각 0~길이 · 오름차순 |
 | `Tuning/RigSchemaDto.cs` | `RigSchemaNodeDto.fillColor` — 단색 사각형 노드의 색(명세 `docs/PLAN-set.md` S4). 툴이 정의한 세트의 색 오브젝트 |
+| `Cut/CutFileDto.cs` · `Cut/CutMath.cs` · `Cut/CutPlayer.cs` | **컷**(`cut/1`) — 저작 도구가 형태를 정한 파일의 모양과, "이 프레임에 각 오브젝트와 카메라가 어디 있는가"를 내는 계산. 깊이의 크기와 카메라에 따르는 정도(층별 응답을 깊이의 눈금 사이에서 이어 쓴다). 툴의 미리보기와 게임의 재생이 이 함수를 쓴다(명세 `docs/PLAN-standalone.md` §6·§7). 통째로 새 폴더라 저쪽의 것과 겹치지 않는다 |
 | `Tuning/RigSchemaDto.cs` | `RigSchemaNodeDto.hasImage` — 그림 노드 표시(명세 `docs/PLAN-parts.md` §2.2). 툴이 정의한 리그(§9)가 이 필드로 조각을 가린다 |
 
 ## 동기화 절차

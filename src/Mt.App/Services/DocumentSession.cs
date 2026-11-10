@@ -166,6 +166,37 @@ public sealed class DocumentSession
         return true;
     }
 
+    /// <summary>
+    /// 컷을 컷 파일(<c>cut/1</c>)로 내보낸다 — 다 펼쳐 구운 한 덩어리. 그림 경로는 그 파일 기준으로 적힌다(그림은 복사하지 않는다).
+    /// 막는 문제가 있는 타임라인이면 안 나간다.
+    /// </summary>
+    public bool ExportCut(string cutName, string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (Editor.Document.FindCut(cutName) is not { } cut)
+        {
+            SetStatus($"컷 '{cutName}'이 없다.");
+            return false;
+        }
+
+        List<MotionProblem> blocking = MotionValidator.Blocking(MotionValidator.Validate(Editor.Document, RigNodeIds, null, Rig?.AlphaNodeIds))
+            .Where(p => Editor.Document.Find(p.MotionName)?.Rig is { } rig && (rig == cutName || Editor.Document.FindRig(rig) is not null)).ToList();
+
+        if (blocking.Count > 0)
+        {
+            SetStatus($"컷 내보내기 막힘 — 문제 {blocking.Count}건을 먼저 고친다: {blocking[0]}");
+            return false;
+        }
+
+        string folder = Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".";
+        CutFileDto file = CutFileJson.Build(Editor.Document, cut, StageSize,
+            image => Path.GetRelativePath(folder, ResolveFromDocument(image)).Replace('\\', '/'));
+        File.WriteAllBytes(path, new System.Text.UTF8Encoding(false).GetBytes(CutFileJson.Write(file)));
+        SetStatus($"내보냈다: {path} — 컷 {cut.Name}({cut.Frames}프레임 · 오브젝트 {file.objects.Count}개 · 트랙 {file.tracks.Count + file.images.Count}개, {CutPlayer.Format})");
+        return true;
+    }
+
     /// <summary>실은 덤프 파일의 경로. null이면 내장 리그다.</summary>
     public string? RigPath { get; private set; }
 
