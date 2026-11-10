@@ -21,6 +21,7 @@ public partial class MainWindow
     private readonly StackPanel _cutFields = new() { Spacing = 3 };
     private readonly Button _cutCameraKey = new() { Content = "키", FontSize = 11, Padding = new Avalonia.Thickness(6, 1), Margin = new Avalonia.Thickness(3, 0, 0, 0) };
     private readonly TextBox _rigNodeDepth = new() { FontSize = 11, PlaceholderText = "(mid 14)" };
+    private readonly Button _rigNodeDepthKey = new() { Content = "키", FontSize = 11, Padding = new Avalonia.Thickness(6, 1), Margin = new Avalonia.Thickness(3, 0, 0, 0) };
     private Control? _rigNodeDepthRow;
     private bool _switchingLists;
 
@@ -36,6 +37,8 @@ public partial class MainWindow
     internal TextBox RigNodeDepthBox => _rigNodeDepth;
 
     /// <summary>테스트 손잡이 — 카메라의 "키" 단추.</summary>
+    internal void KeyCutDepthFromForm() => _rigNodeDepthKey.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
     internal void KeyCutCameraFromForm() => _cutCameraKey.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
     internal bool RigNodeDepthShown => _rigNodeDepthRow?.IsVisible == true;
@@ -111,7 +114,16 @@ public partial class MainWindow
 
         _cutCameraKey.Click += (_, _) => WithOpenCut(cut => _session.Editor.SetCutCameraKey(cut.Name, CutTimeNow(cut), CameraFromBoxes(cut)));
         ToolTip.SetTip(_cutCameraKey, "카메라의 키 — 지금 프레임에 카메라 칸의 값(당기기 · 밀기 X · 밀기 Y)으로 키를 놓는다. 카메라는 타임라인의 트랙이다(그래프에 Camera_Pan · Camera_Zoom으로 보인다). 키가 한 번 놓이면 그 뒤로 칸을 고치는 것이 그 프레임의 키가 된다");
-        _viewport.TimeChanged += (_, _) => RefreshCutFields(); // 카메라 칸은 지금 프레임의 값을 보인다
+        _viewport.TimeChanged += (_, _) => RefreshCutFields(); // 카메라·깊이 칸은 지금 프레임의 값을 보인다
+        _rigNodeDepthKey.Click += (_, _) => WithOpenCut(cut =>
+        {
+            if (EditedRigNode is { Parent.Length: 0 } node)
+            {
+                float depth = TryFloat(_rigNodeDepth.Text ?? "", out float typed) ? typed : _viewport.CutDepthNow(node.Id) ?? CutStage.DefaultDepth;
+                _session.Editor.SetCutDepthKey(cut.Name, node.Id, CutTimeNow(cut), depth);
+            }
+        });
+        ToolTip.SetTip(_rigNodeDepthKey, "깊이의 키 — 지금 프레임에 이 오브젝트의 깊이로 키를 놓는다(오브젝트가 멀어지고 가까워진다). 깊이는 타임라인의 트랙이다(그래프에 이름__depth로 보인다). 키가 한 번 놓이면 그 뒤로 칸을 고치는 것이 그 프레임의 키가 된다");
 
         // 오브젝트의 깊이 — 컷의 맨 위 오브젝트에서만 선다("세트의 오브젝트" 칸 안, 부모 칸 아래 — 줄은 그 칸을 지을 때 선다).
         ToolTip.SetTip(_rigNodeDepth, $"깊이(depthLevel) — far 0 · back 10 · mid 14 · front 16 · close 20, {MotionEditor.MinDepth:0}~{MotionEditor.MaxDepth:0}. 멀수록 작게 보이고 카메라에 덜 따라 움직이며 뒤에 그려진다. 비우면 mid. 맨 위 오브젝트만 가진다(밑의 것은 부모를 따른다)");
@@ -127,7 +139,15 @@ public partial class MainWindow
                 }
                 else if (TryFloat(trimmed, out float depth))
                 {
-                    _session.Editor.SetCutNodeDepth(cut.Name, node.Id, depth);
+                    // 깊이에 키가 있으면 지금 프레임의 키로, 없으면 가만히 선 값으로(카메라 칸과 같다).
+                    if (_session.Editor.CutDepthIsKeyed(cut.Name, node.Id))
+                    {
+                        _session.Editor.SetCutDepthKey(cut.Name, node.Id, CutTimeNow(cut), depth);
+                    }
+                    else
+                    {
+                        _session.Editor.SetCutNodeDepth(cut.Name, node.Id, depth);
+                    }
                 }
             }
         }));
@@ -251,7 +271,9 @@ public partial class MainWindow
                 _rigNodeDepthRow.IsVisible = top;
             }
 
-            Write(_rigNodeDepth, top && node!.Depth is { } depth ? F(depth) : "");
+            // 키가 있으면 지금 프레임의 값, 없으면 적힌 값(안 적혔으면 빈 칸 = mid).
+            bool depthKeyed = top && _session.Editor.CutDepthIsKeyed(cut!.Name, node!.Id);
+            Write(_rigNodeDepth, !top ? "" : depthKeyed ? F(_viewport.CutDepthNow(node!.Id) ?? CutStage.DefaultDepth) : node!.Depth is { } depth ? F(depth) : "");
         }
         finally
         {

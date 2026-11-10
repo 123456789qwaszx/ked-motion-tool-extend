@@ -19,9 +19,9 @@ public static class RigAssets
         ArgumentNullException.ThrowIfNull(dump);
         ArgumentNullException.ThrowIfNull(document);
         Vec2 stage = dump.Dto.capturedUnderParentSize.ToVec2();
-        // 컷은 오브젝트 계층에 카메라의 점 둘이 더 선다 — 카메라가 같은 타임라인의 트랙이 된다(그 점의 자리 = 밀기·당기기의 값).
+        // 컷은 오브젝트 계층에 값만 담는 점들이 더 선다(카메라 둘 · 맨 위 오브젝트마다 깊이 하나) — 카메라와 깊이가 같은 타임라인의 트랙이 된다.
         return dump.With(document.Rigs.Select(r => RigAssetCodec.ToDto(r, stage, document.FindRig))
-            .Concat(document.Cuts.Select(c => RigAssetCodec.WithPoints(RigAssetCodec.ToDto(c.Rig, stage, document.FindRig), Preview.CutStage.CameraPan, Preview.CutStage.CameraZoom))));
+            .Concat(document.Cuts.Select(c => RigAssetCodec.WithPoints(RigAssetCodec.ToDto(c.Rig, stage, document.FindRig), Preview.CutStage.PointsOf(c)))));
     }
 
     /// <summary>

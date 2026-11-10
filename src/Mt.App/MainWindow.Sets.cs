@@ -311,7 +311,11 @@ public partial class MainWindow
         _setNodePanel.Children.Add(_setNodeTitle);
         _rigNodeFields.Children.Add(Labeled("이름", _rigNodeId));
         _rigNodeFields.Children.Add(Labeled("부모", _rigNodeParent));
-        _rigNodeDepthRow = Labeled("깊이", _rigNodeDepth);
+        var depthRow = new DockPanel();
+        DockPanel.SetDock(_rigNodeDepthKey, Dock.Right);
+        depthRow.Children.Add(_rigNodeDepthKey);
+        depthRow.Children.Add(_rigNodeDepth);
+        _rigNodeDepthRow = Labeled("깊이", depthRow);
         _rigNodeDepthRow.IsVisible = false;
         _rigNodeFields.Children.Add(_rigNodeDepthRow);
         _rigNodeFields.Children.Add(Labeled("X", _rigNodeX));

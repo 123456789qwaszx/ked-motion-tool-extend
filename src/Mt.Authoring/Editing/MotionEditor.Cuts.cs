@@ -193,6 +193,47 @@ public sealed partial class MotionEditor
         }
     }
 
+    /// <summary>
+    /// 컷의 타임라인에 **깊이의 키**를 놓는다 — 그 시각에 그 맨 위 오브젝트의 깊이. 한 칸. 깊이는 타임라인의 트랙이다(<see cref="Preview.CutStage.DepthNodeOf"/>의 자리 채널 x).
+    /// </summary>
+    public void SetCutDepthKey(string cutName, string id, float time, float depth)
+    {
+        CutAsset cut = RequireCut(cutName);
+        RigNodeAsset node = cut.Rig.Find(id) ?? throw new KeyNotFoundException($"오브젝트 '{id}'가 컷 '{cutName}'에 없다.");
+        MotionAsset timeline = Document.Find(cutName) ?? throw new InvalidOperationException($"컷 '{cutName}'의 타임라인이 없다.");
+
+        if (node.Parent.Length > 0)
+        {
+            throw new InvalidOperationException($"'{id}'는 '{node.Parent}' 밑의 오브젝트다 — 깊이는 맨 위 오브젝트만 가진다.");
+        }
+
+        if (!float.IsFinite(depth) || depth < MinDepth || depth > MaxDepth)
+        {
+            throw new InvalidOperationException($"깊이는 {MinDepth:0}~{MaxDepth:0}의 수다 ('{depth}')");
+        }
+
+        if (!float.IsFinite(time) || time < 0f || time > cut.Seconds + MotionRules.Tolerance)
+        {
+            throw new InvalidOperationException($"키의 시각은 컷의 길이(0~{cut.Seconds:0.###}초) 안이다 ('{time}')");
+        }
+
+        string point = Preview.CutStage.DepthNodeOf(id);
+
+        Batch(MotionChangeKind.Keys, () =>
+        {
+            if (timeline.FindChannel(point, MotionChannelKind.Position) is null)
+            {
+                AddChannel(cutName, point, MotionChannelKind.Position);
+            }
+
+            AddKey(cutName, point, MotionChannelKind.Position, Axis.X, new KeyAsset { T = time, V = depth });
+        });
+    }
+
+    /// <summary>그 오브젝트의 깊이에 키가 있는가.</summary>
+    public bool CutDepthIsKeyed(string cutName, string id)
+        => Document.Find(cutName)?.FindChannel(Preview.CutStage.DepthNodeOf(id), MotionChannelKind.Position) is { X.Keys.Count: > 0 };
+
     private CutAsset RequireCut(string name)
     {
         ArgumentNullException.ThrowIfNull(name);

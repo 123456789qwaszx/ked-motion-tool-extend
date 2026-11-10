@@ -220,6 +220,12 @@ public sealed partial class MotionEditor
                 channel.Node = name;
             }
 
+            // 컷의 맨 위 오브젝트면 깊이의 트랙(이름__depth)도 따라온다.
+            foreach (ChannelAsset channel in Document.Motions.Where(m => m.Rig == kind).SelectMany(m => m.Channels).Where(c => c.Node == Preview.CutStage.DepthNodeOf(id)))
+            {
+                channel.Node = Preview.CutStage.DepthNodeOf(name);
+            }
+
             // 세트를 품은 오브젝트(인스턴스)면 — 그 안쪽을 짚던 경로 채널(이름.안쪽)과 그것을 트는 재생 블록도 따라온다.
             string prefix = id + RigAssetCodec.PathSeparator;
 
@@ -422,6 +428,11 @@ public sealed partial class MotionEditor
         if (rig.Find(name) is not null)
         {
             throw new InvalidOperationException($"노드 '{name}'가 리그 '{rig.Kind}'에 이미 있다.");
+        }
+
+        if (Preview.CutStage.IsPointNode(name))
+        {
+            throw new InvalidOperationException($"'{name}'는 카메라·깊이의 트랙이 쓰는 이름이다 — 다른 이름을 쓴다.");
         }
 
         return name;

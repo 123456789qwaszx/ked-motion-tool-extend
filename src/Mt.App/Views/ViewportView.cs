@@ -1647,6 +1647,10 @@ public sealed class ViewportView : Control
     public CameraSettings? CutCameraNow()
         => ShownCut is { } cut && SetScene() is { } scene && CurrentPose() is { } pose ? CutStage.CameraOf(pose, cut, scene.Objects[0].Prefix) : null;
 
+    /// <summary>그 시각(지금)의 그 맨 위 오브젝트의 깊이 — 타임라인의 키가 움직였으면 그 값. 컷이 아니거나 맨 위 오브젝트가 아니면 null.</summary>
+    public float? CutDepthNow(string id)
+        => ShownCut is { } cut && SetScene() is { } scene && cut.Rig.Find(id) is { Parent.Length: 0 } node ? CutStage.DepthOf(CurrentPose(), node, scene.Objects[0].Prefix) : null;
+
     /// <summary>연 것이 컷이면 그 컷 — 세트를 연 것이면 null.</summary>
     public CutAsset? ShownCut => _editor?.Document.FindCut(_setView);
 
@@ -2162,7 +2166,7 @@ public sealed class ViewportView : Control
         if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
         {
             // 컷이면 먼 것부터(깊이 순), 세트면 목록 순.
-            foreach (RigSchemaNodeDto rigNode in ShownCut is { } drawnCut && drawnCut.Name == o.Rig ? CutStage.DrawOrder(drawnCut, drawn.nodes) : drawn.nodes)
+            foreach (RigSchemaNodeDto rigNode in ShownCut is { } drawnCut && drawnCut.Name == o.Rig ? CutStage.DrawOrder(drawnCut, drawn.nodes, pose, o.Prefix) : drawn.nodes)
             {
                 string node = rigNode.id;
                 string key = o.KeyOf(node);
@@ -2928,7 +2932,7 @@ public sealed class ViewportView : Control
         // 펼친 리그의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
         if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto dto))
         {
-            foreach (RigSchemaNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut && pickedCut.Name == o.Rig ? CutStage.DrawOrder(pickedCut, dto.nodes) : dto.nodes))
+            foreach (RigSchemaNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut && pickedCut.Name == o.Rig ? CutStage.DrawOrder(pickedCut, dto.nodes, pose, o.Prefix) : dto.nodes))
             {
                 string key = o.KeyOf(node.id);
                 string? owner = PickableOf(node.id);

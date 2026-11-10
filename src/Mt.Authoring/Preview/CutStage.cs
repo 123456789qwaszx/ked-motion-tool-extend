@@ -33,6 +33,23 @@ public static class CutStage
     /// <summary>카메라의 점인가 — 하이어아키의 오브젝트가 아니다(그리지도 집지도 않는다).</summary>
     public static bool IsCameraNode(string? nodeId) => nodeId is CameraPan or CameraZoom;
 
+    /// <summary>
+    /// 깊이의 점 — 맨 위 오브젝트마다 하나씩 함께 서는 크기 없는 오브젝트(<c>이름__depth</c>). 그 자리의 x가 곧 그 오브젝트의 깊이다:
+    /// 카메라와 같은 길로 **타임라인의 트랙**이 된다(자리 채널의 x에 키를 놓으면 오브젝트가 멀어지고 가까워진다). 키가 없는 동안은 오브젝트에 적힌 깊이로 선다.
+    /// </summary>
+    public const string DepthSuffix = "__depth";
+
+    public static string DepthNodeOf(string objectId) => objectId + DepthSuffix;
+
+    public static bool IsDepthNode(string? nodeId) => nodeId is not null && nodeId.EndsWith(DepthSuffix, StringComparison.Ordinal);
+
+    /// <summary>값만 담는 점(카메라 · 깊이)인가 — 오브젝트가 아니다.</summary>
+    public static bool IsPointNode(string? nodeId) => IsCameraNode(nodeId) || IsDepthNode(nodeId);
+
+    /// <summary>컷의 오브젝트 계층과 함께 서는 점들의 이름 — 카메라 둘 + 맨 위 오브젝트마다 깊이 하나.</summary>
+    public static string[] PointsOf(CutAsset cut)
+        => new[] { CameraPan, CameraZoom }.Concat(cut.Nodes.Where(n => n.Parent.Length == 0).Select(n => DepthNodeOf(n.Id))).ToArray();
+
     /// <summary>깊이의 눈금과 그 층의 이름 — 가까워지는 차례.</summary>
     private static readonly (float Level, string Layer)[] Marks =
     {
@@ -81,6 +98,12 @@ public static class CutStage
             {
                 tree.Add(prefix + node.id, null, state.WithAnchoredPosition(new Vec2(cut.Camera.Zoom, 0f)));
             }
+            else if (IsDepthNode(node.id))
+            {
+                // 깊이의 점 — 가만히 선 자리가 그 오브젝트에 적힌 깊이다.
+                float rest = cut.Rig.Find(node.id[..^DepthSuffix.Length])?.Depth ?? DefaultDepth;
+                tree.Add(prefix + node.id, null, state.WithAnchoredPosition(new Vec2(rest, 0f)));
+            }
             else if (IsTop(node))
             {
                 // 맨 위 오브젝트 — 제 틀 밑에 선다(틀이 카메라에 따르는 정도를 받는다).
@@ -101,9 +124,8 @@ public static class CutStage
     /// <summary>
     /// 카메라와 깊이를 넣는다 — <see cref="Build"/>로 세워 포즈를 잡은 트리에 **한 번**(맨 위 오브젝트의 배율에 깊이의 배율을 곱하므로 두 번 넣으면 안 된다).
     /// </summary>
-    /// <remarks>카메라는 트리에 선 카메라의 점에서 읽는다 — 타임라인의 키가 그 점을 움직였으면 그 값이다.</remarks>
-    /// <param name="depthOf">그 시각의 깊이(키로 움직일 때) — 없으면 오브젝트에 적힌 값.</param>
-    public static void Apply(RectNodeTree tree, CutAsset cut, string prefix, DepthTuningFile? depth, Func<RigNodeAsset, float?>? depthOf = null)
+    /// <remarks>카메라와 깊이는 트리에 선 점에서 읽는다 — 타임라인의 키가 그 점을 움직였으면 그 값이다.</remarks>
+    public static void Apply(RectNodeTree tree, CutAsset cut, string prefix, DepthTuningFile? depth)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(cut);
@@ -129,7 +151,7 @@ public static class CutStage
                 continue;
             }
 
-            float level = depthOf?.Invoke(node) ?? node.Depth ?? DefaultDepth;
+            float level = DepthOf(tree, node, prefix);
             (Vec2 panResponse, float zoomResponse) = ResponseAt(level);
             float framing = MathF.Pow(scale, zoomResponse);
             RectNodeState frame = tree.GetState(frameKey);
@@ -160,6 +182,14 @@ public static class CutStage
 
         Vec2 pan = tree.GetState(prefix + CameraPan).AnchoredPosition;
         return new CameraSettings { PanX = pan.X, PanY = pan.Y, Zoom = tree.GetState(prefix + CameraZoom).AnchoredPosition.X };
+    }
+
+    /// <summary>그 포즈에서 그 맨 위 오브젝트의 깊이 — 깊이의 점의 자리. 점이 없는 트리면 오브젝트에 적힌 값.</summary>
+    public static float DepthOf(RectNodeTree? tree, RigNodeAsset node, string prefix)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        string key = prefix + DepthNodeOf(node.Id);
+        return tree is not null && tree.Contains(key) ? tree.GetState(key).AnchoredPosition.X : node.Depth ?? DefaultDepth;
     }
 
     /// <summary>깊이에 따른 크기 — mid에서 1(지은 그대로), 멀수록 작게. 깊이 커브가 없으면 1.</summary>
@@ -193,7 +223,8 @@ public static class CutStage
     /// <summary>
     /// 그리는 순서 — 먼 것부터(깊이가 작은 맨 위 오브젝트와 그 밑의 것들이 먼저), 같은 깊이는 목록 순. 펼친 리그의 노드들을 그 차례로 다시 세운다.
     /// </summary>
-    public static IReadOnlyList<RigSchemaNodeDto> DrawOrder(CutAsset cut, IReadOnlyList<RigSchemaNodeDto> nodes)
+    /// <param name="pose">그 시각의 포즈 — 주면 키로 움직인 깊이의 차례다. 없으면 오브젝트에 적힌 깊이.</param>
+    public static IReadOnlyList<RigSchemaNodeDto> DrawOrder(CutAsset cut, IReadOnlyList<RigSchemaNodeDto> nodes, RectNodeTree? pose = null, string prefix = "")
     {
         ArgumentNullException.ThrowIfNull(cut);
         ArgumentNullException.ThrowIfNull(nodes);
@@ -204,12 +235,12 @@ public static class CutStage
             top[node.Id] = node.Parent.Length == 0 ? node.Id : top.GetValueOrDefault(node.Parent, node.Parent);
         }
 
-        float DepthOf(RigSchemaNodeDto node)
+        float OrderDepth(RigSchemaNodeDto node)
         {
             string owner = RigAssetCodec.OwnerOf(node.id); // 품은 세트 안쪽의 것(a.b)은 그것을 품은 오브젝트를 따른다
-            return top.TryGetValue(owner, out string? root) ? cut.Rig.Find(root)?.Depth ?? DefaultDepth : float.NegativeInfinity;
+            return top.TryGetValue(owner, out string? root) && cut.Rig.Find(root) is { } rootNode ? DepthOf(pose, rootNode, prefix) : float.NegativeInfinity;
         }
 
-        return nodes.Select((node, index) => (node, index)).OrderBy(e => DepthOf(e.node)).ThenBy(e => e.index).Select(e => e.node).ToList();
+        return nodes.Select((node, index) => (node, index)).OrderBy(e => OrderDepth(e.node)).ThenBy(e => e.index).Select(e => e.node).ToList();
     }
 }

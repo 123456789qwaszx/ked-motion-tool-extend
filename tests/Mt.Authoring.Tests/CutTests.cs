@@ -243,7 +243,7 @@ public class CutTests
 
         // 그리는 순서 — 먼 것부터. 밑의 것은 제 맨 위 오브젝트를 따라간다. 깊이를 바꾸면 차례가 바뀐다.
         RigAssets.Compose(Dump, editor.Document).TryGetRig("arrival", out RigSchemaRigDto dto);
-        string[] Order() => CutStage.DrawOrder(cut, dto.nodes).Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsCameraNode(id)).ToArray();
+        string[] Order() => CutStage.DrawOrder(cut, dto.nodes).Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsPointNode(id)).ToArray();
         Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order());
         editor.SetCutNodeDepth("arrival", "hero", 30f);
         Assert.Equal(new[] { "sky", "near", "hero", "arm" }, Order());
@@ -296,5 +296,51 @@ public class CutTests
         editor.AddChannel("prop_in", "Body", MotionChannelKind.Position);
         editor.AddKey("prop_in", "Body", MotionChannelKind.Position, Axis.Y, new KeyAsset { T = 0.5f, V = 50f });
         Assert.NotEmpty(MotionValidator.Validate(editor.Document, RigAssets.Compose(Dump, editor.Document).NodeIds));
+    }
+
+    [Fact]
+    public void 깊이의_키는_타임라인에_놓이고_오브젝트가_멀어지면_작아지며_그리는_차례가_바뀐다()
+    {
+        (MotionEditor editor, CutAsset _) = StageCut();
+        var depth = DepthTuningFile.Load(Fixtures.PathOf("presets/depth.json"));
+
+        // hero(mid)가 0초에 깊이 20(가까이), 4초에 깊이 0(멀리) — 각각 한 칸.
+        long revision = editor.Revision;
+        editor.SetCutDepthKey("arrival", "hero", 0f, 20f);
+        editor.SetCutDepthKey("arrival", "hero", 4f, 0f);
+        Assert.Equal(revision + 2, editor.Revision);
+        Assert.True(editor.CutDepthIsKeyed("arrival", "hero"));
+        Assert.False(editor.CutDepthIsKeyed("arrival", "sky"));
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        CutAsset cut = editor.Document.FindCut("arrival")!;
+
+        RectNodeTree At(double t)
+        {
+            RectNodeTree posed = MotionPreview.Pose(CutStage.Build(rig, cut, "cut/")!, editor.Document.Find("arrival")!, t, MotionChannelMode.Absolute, null, "cut/");
+            CutStage.Apply(posed, cut, "cut/", depth);
+            return posed;
+        }
+
+        float Width(RectNodeTree tree) => tree.TransformPoint("cut/hero", new Vec3(50f, 0f, 0f)).X - tree.TransformPoint("cut/hero", new Vec3(-50f, 0f, 0f)).X;
+        Assert.True(Width(At(0)) > Width(At(2)) && Width(At(2)) > Width(At(4)), $"{Width(At(0))} · {Width(At(2))} · {Width(At(4))}");
+        Assert.Equal(20f, CutStage.DepthOf(At(0), cut.Rig.Find("hero")!, "cut/"), 3);
+        Assert.Equal(14f, CutStage.DepthOf(At(0), cut.Rig.Find("near")!, "cut/") - 6f, 3); // 키 없는 near는 적힌 깊이(20)
+
+        // 그리는 차례 — 0초에는 hero가 near(20)와 같은 깊이라 목록 순, 4초에는 맨 뒤(sky와 같은 0 — 목록 순으로 sky 다음).
+        rig.TryGetRig("arrival", out RigSchemaRigDto dto);
+        string[] Order(double t) => CutStage.DrawOrder(cut, dto.nodes, At(t), "cut/").Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsPointNode(id)).ToArray();
+        Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order(0));
+        Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order(4));
+        editor.SetCutNodeDepth("arrival", "sky", 5f);
+        cut = editor.Document.FindCut("arrival")!;
+        Assert.Equal(new[] { "hero", "arm", "sky", "near" }, Order(4)); // hero(0)가 sky(5)보다 멀어졌다
+
+        // 이름을 바꾸면 깊이의 트랙이 따라온다. 밑의 오브젝트와 범위 밖은 막힌다. 트랙이 쓰는 이름으로는 오브젝트를 못 만든다.
+        editor.RenameRigNode("arrival", "hero", "actor");
+        Assert.True(editor.CutDepthIsKeyed("arrival", "actor"));
+        Assert.Throws<InvalidOperationException>(() => editor.SetCutDepthKey("arrival", "arm", 0f, 10f));
+        Assert.Throws<InvalidOperationException>(() => editor.SetCutDepthKey("arrival", "actor", 0f, 50f));
+        Assert.Throws<InvalidOperationException>(() => editor.AddRigNode("arrival", "sky__depth"));
     }
 }
