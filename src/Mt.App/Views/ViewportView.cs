@@ -1632,15 +1632,8 @@ public sealed class ViewportView : Control
         MotionChannelKind kind = modifiers.HasFlag(KeyModifiers.Shift) ? MotionChannelKind.Scale : modifiers.HasFlag(KeyModifiers.Control) ? MotionChannelKind.Euler : MotionChannelKind.Position;
         bool keyed = timeline.FindChannel(id, kind) is { } channel && new[] { channel.X, channel.Y, channel.Z }.Any(curve => curve is { Keys.Count: > 0 });
 
-        if (keyed)
-        {
-            SelectedNode = id;
-            LayoutNodePicked?.Invoke(this, id);
-            InvalidateVisual();
-            return false;
-        }
-
-        return TryStartLayoutDrag(position, modifiers);
+        // 키가 없으면 가만히 선 값을, 있으면 지금 프레임의 키를 고친다.
+        return TryStartLayoutDrag(position, modifiers, keyed);
     }
 
     /// <summary>그 시각(지금)의 컷의 카메라 — 타임라인의 키가 움직였으면 그 값. 컷을 안 열었으면 null.</summary>
@@ -2447,8 +2440,8 @@ public sealed class ViewportView : Control
                 return;
             }
 
-            // 컷(타임라인이 붙어 있다) — 그 오브젝트의 그 값에 키가 없으면 끌기가 가만히 선 값을 바꾼다(마야: 키 없는 값은 그냥 그 값이다).
-            // 키가 있으면 오브젝트만 고르고 아래의 길(손잡이로 포즈를 잡아 키를 놓는다)로 넘긴다.
+            // 컷(타임라인이 붙어 있다) — 그 오브젝트의 그 값에 키가 없으면 끌기가 가만히 선 값을 바꾸고(마야: 키 없는 값은 그냥 그 값이다),
+            // 키가 있으면 끌어 놓은 자리가 지금 프레임의 키가 된다.
             if (TryStartCutDrag(position, e.KeyModifiers))
             {
                 e.Pointer.Capture(this);
@@ -2837,6 +2830,9 @@ public sealed class ViewportView : Control
     private sealed record LayoutDrag(string Node, string Kind, string NodeId, PlaceMode Mode, Vec2 StartRoot, Vec2 CenterRoot, RigNodeAsset Start)
     {
         public RigNodeAsset Now { get; set; } = Start;
+
+        /// <summary>컷에서 키가 있는 값을 끄는 중 — 놓으면 가만히 선 값이 아니라 지금 프레임의 키가 된다.</summary>
+        public bool Keys { get; init; }
     }
 
     private LayoutDrag? _layout;
@@ -2963,7 +2959,8 @@ public sealed class ViewportView : Control
     }
 
     /// <summary>끌기 = 자리, Shift+끌기 = 배율(원점에서의 거리 비), Ctrl+끌기 = 회전(원점 둘레).</summary>
-    private bool TryStartLayoutDrag(Point position, KeyModifiers modifiers)
+    /// <param name="keys">컷에서 키가 있는 값을 끈다 — 지금 프레임의 모습에서 시작해, 놓으면 그 프레임의 키가 된다.</param>
+    private bool TryStartLayoutDrag(Point position, KeyModifiers modifiers, bool keys = false)
     {
         if (_editor?.Document.FindRig(_setView) is not { } rig || SelectedObject is not { } o || CurrentPose() is not { } pose
             || LayoutNodeAt(pose, o, rig, position) is not { } id || ResolveSetNode(id) is not { } found)
@@ -2976,7 +2973,20 @@ public sealed class ViewportView : Control
         SelectedNode = id;
         LayoutNodePicked?.Invoke(this, id);
         PlaceMode mode = modifiers.HasFlag(KeyModifiers.Shift) ? PlaceMode.Scale : modifiers.HasFlag(KeyModifiers.Control) ? PlaceMode.Rotate : PlaceMode.Move;
-        _layout = new LayoutDrag(id, found.Rig.Kind, node.Id, mode, ToRoot(position), pose.TransformPoint(o.KeyOf(id), Vec3.Zero).XY, CopyOf(node));
+        RigNodeAsset start = CopyOf(node);
+
+        // 키가 있는 값이면 가만히 선 자세가 아니라 지금 프레임의 모습(카메라·깊이를 넣기 전의 값)에서 끈다.
+        if (keys && UnstagedPoseAt(_clock.Time, null) is { } unstaged && unstaged.Contains(o.KeyOf(id)))
+        {
+            RectNodeState now = unstaged.GetState(o.KeyOf(id));
+            start.X = now.AnchoredPosition.X;
+            start.Y = now.AnchoredPosition.Y;
+            start.ScaleX = now.LocalScale.X;
+            start.ScaleY = now.LocalScale.Y;
+            start.Rotation = now.LocalEulerAngles.Z;
+        }
+
+        _layout = new LayoutDrag(id, found.Rig.Kind, node.Id, mode, ToRoot(position), pose.TransformPoint(o.KeyOf(id), Vec3.Zero).XY, start) { Keys = keys };
         InvalidateVisual();
         return true;
     }
@@ -3065,7 +3075,11 @@ public sealed class ViewportView : Control
 
         try
         {
-            if (_setView is not null)
+            if (drag.Keys)
+            {
+                KeyDraggedValue(drag);
+            }
+            else if (_setView is not null)
             {
                 _editor?.UpdateRigNode(drag.Kind, drag.NodeId, drag.Now); // 안쪽을 고치는 중이면 품은 세트가 바뀐다
             }
@@ -3074,6 +3088,43 @@ public sealed class ViewportView : Control
         {
             InvalidateVisual();
         }
+    }
+
+    /// <summary>컷에서 키가 있는 값을 끌어 놓았다 — 지금 프레임에 그 값의 키를 놓는다(한 칸). 안 움직였으면 기록이 없다.</summary>
+    private void KeyDraggedValue(LayoutDrag drag)
+    {
+        if (_editor is null || ShownCut is not { } cut || _editor.Document.Find(cut.Name) is null)
+        {
+            return;
+        }
+
+        (MotionChannelKind kind, (Axis Axis, float From, float To)[] values) = drag.Mode switch
+        {
+            PlaceMode.Scale => (MotionChannelKind.Scale, new[] { (Axis.X, drag.Start.ScaleX, drag.Now.ScaleX), (Axis.Y, drag.Start.ScaleY, drag.Now.ScaleY) }),
+            PlaceMode.Rotate => (MotionChannelKind.Euler, new[] { (Axis.Z, drag.Start.Rotation, drag.Now.Rotation) }),
+            _ => (MotionChannelKind.Position, new[] { (Axis.X, drag.Start.X, drag.Now.X), (Axis.Y, drag.Start.Y, drag.Now.Y) }),
+        };
+
+        if (values.All(v => v.From == v.To))
+        {
+            return;
+        }
+
+        float time = (float)Math.Clamp(_clock.Time, 0, cut.Seconds);
+        string timeline = cut.Name;
+
+        _editor.Batch(MotionChangeKind.Keys, () =>
+        {
+            if (_editor.Document.Find(timeline)!.FindChannel(drag.Node, kind) is null)
+            {
+                _editor.AddChannel(timeline, drag.Node, kind);
+            }
+
+            foreach ((Axis axis, _, float to) in values)
+            {
+                _editor.AddKey(timeline, drag.Node, kind, axis, new KeyAsset { T = time, V = to });
+            }
+        });
     }
 
     /// <summary>루트 공간의 점을 세트의 그 오브젝트(없으면 세트의 맨 위) 안의 좌표로 — 그 밑에 새 오브젝트를 놓을 자리.</summary>

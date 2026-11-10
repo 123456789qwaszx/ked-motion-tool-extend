@@ -188,17 +188,32 @@ public class CutShellTests
                 Assert.Empty(Timeline().Channels);
                 Assert.Equal(revision + 1, editor.Revision);
 
-                // 자리에 키가 생기면 끌기가 가만히 선 자리를 건드리지 않는다 — 그 오브젝트가 골라질 뿐이다(키는 손잡이·채널 박스로).
+                // 자리에 키가 생기면 끌어 놓은 자리가 지금 프레임의 키가 된다(한 칸) — 가만히 선 자리는 그대로다.
                 editor.AddChannel("cut", "Color1", MotionChannelKind.Position);
                 editor.AddKey("cut", "Color1", MotionChannelKind.Position, Axis.X, new KeyAsset { T = 0f, V = 60f });
+                window.Graph.CurrentTime = 1.0;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 grab = view.CurrentPose()!.TransformPoint("set/Color1", Vec3.Zero).XY;
-                drop = new Vec2(grab.X + 40f, grab.Y);
+                drop = new Vec2(grab.X + 40f, grab.Y + 10f);
+                revision = editor.Revision;
                 window.MouseDown(At(grab), MouseButton.Left);
                 window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
                 window.MouseUp(At(drop), MouseButton.Left);
-                Assert.Equal(60f, Color().X);
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal((60f, 30f), (Color().X, Color().Y));
                 Assert.Equal("Color1", view.SelectedNode);
+                ChannelAsset moved = Timeline().FindChannel("Color1", MotionChannelKind.Position)!;
+                Assert.Equal(new[] { (0f, 60f), (1f, 100f) }, moved.X!.Keys.Select(k => (k.T, k.V)));
+                Assert.Equal(new[] { (1f, 40f) }, moved.Y!.Keys.Select(k => (k.T, k.V))); // 끌 때의 y(가만히 선 30) + 10 — y에도 키가 선다
+
+                // 누르기만 하고 안 끌면 키가 안 생긴다.
+                revision = editor.Revision;
+                grab = view.CurrentPose()!.TransformPoint("set/Color1", Vec3.Zero).XY;
+                window.MouseDown(At(grab), MouseButton.Left);
+                window.MouseUp(At(grab), MouseButton.Left);
+                Assert.Equal(revision, editor.Revision);
+                window.Graph.CurrentTime = 0.0;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // 카메라 — 키가 없는 동안 칸은 가만히 선 값을 고친다.
                 Type(window, window.CutBoxes.PanX, "50");
@@ -225,7 +240,7 @@ public class CutShellTests
                     return view.CurrentPose()!.TransformPoint("set/Color1", Vec3.Zero).X;
                 }
 
-                Assert.Equal(200f, X(2.0) - X(0.0), 1);
+                Assert.Equal(240f, X(2.0) - X(0.0), 1); // 카메라 200 + 오브젝트의 제 키 40(0초 60 → 1초 100)
                 window.Graph.CurrentTime = 0.0;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 view.Focus();
