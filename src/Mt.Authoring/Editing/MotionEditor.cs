@@ -24,6 +24,7 @@ public sealed partial class MotionEditor
     {
         Document = document ?? throw new ArgumentNullException(nameof(document));
         Document.EnsureDefaultScene();
+        Preview.MotionFlatten.Refresh(Document);
     }
 
     public MotionDocument Document { get; private set; }
@@ -1420,6 +1421,8 @@ public sealed partial class MotionEditor
 
     private void Raise(MotionChangeKind kind)
     {
+        // 재생 블록이 있는 애니메이션의 구운 것을 다시 만든다 — 품은 세트의 애니메이션이나 가만히 선 자세가 바뀌었을 수 있다.
+        Preview.MotionFlatten.Refresh(Document);
         Revision++;
         Changed?.Invoke(this, new MotionChangedEventArgs(kind));
     }

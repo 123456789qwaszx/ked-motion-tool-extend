@@ -67,7 +67,7 @@ public static class ClipPreview
             ClipBlock block = placed.Block;
             ClipTrack track = clip.Tracks[placed.Track];
 
-            if (!block.IsMotion || block.IsMuted || isMuted?.Invoke(track) == true || document.Find(block.Motion) is not { Events.Count: > 0 } motion)
+            if (!block.IsMotion || block.IsMuted || isMuted?.Invoke(track) == true || (document.Find(block.Motion) is { } found ? found.Flattened ?? found : null) is not { Events.Count: > 0 } motion)
             {
                 continue;
             }
@@ -100,7 +100,7 @@ public static class ClipPreview
     public static List<MotionEventAsset> EventsBetween(MotionAsset motion, double after, double until)
     {
         ArgumentNullException.ThrowIfNull(motion);
-        return motion.Events.Where(e => e.T > after + EventEpsilon && e.T <= until + EventEpsilon).ToList();
+        return (motion.Flattened ?? motion).Events.Where(e => e.T > after + EventEpsilon && e.T <= until + EventEpsilon).ToList(); // 품은 애니메이션의 이벤트까지
     }
 
     /// <summary>

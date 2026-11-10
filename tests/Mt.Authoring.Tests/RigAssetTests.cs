@@ -532,4 +532,147 @@ public class RigAssetTests
         Assert.True(RigAssets.Compose(Dump, broken).TryGetRig("a", out RigSchemaRigDto looped));
         Assert.Equal(new[] { "__root", "x", "x.z", "y" }, looped.nodes.Select(n => n.id));
     }
+
+    // ── 재생 블록 — 품은 세트의 애니메이션을 튼다(PLAN-set.md S10·S11) ───
+
+    private static KeyAsset Lin(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
+
+    /// <summary>
+    /// <see cref="NestedEditor"/>에 더해: city가 car를 (300, 50)에 품고,
+    /// car의 애니메이션 roll(0.4초 유지 · 상대값: Body x 0 → 100) · hop(0.2초 복원 · 상대값: Body y 0 → 30 → 0, 0.1초에 이벤트 thud) · spin(0.5초 유지 · 절대값: Wheel 회전 0 → 90),
+    /// city의 애니메이션 city_in(2초 유지 · 상대값: Ground y −200 → 0).
+    /// </summary>
+    private static MotionEditor PlayEditor()
+    {
+        MotionEditor editor = NestedEditor();
+        editor.AddRigInstance("city", "car", "car");
+        editor.UpdateRigNode("city", "car", new RigNodeAsset { X = 300f, Y = 50f, Alpha = true });
+
+        editor.AddMotion("roll", "car", 0.4f, MotionEnd.Commit);
+        editor.AddChannel("roll", "Body", MotionChannelKind.Position);
+        editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 0f), Lin(0.4f, 100f) });
+
+        editor.AddMotion("hop", "car", 0.2f);
+        editor.AddChannel("hop", "Body", MotionChannelKind.Position);
+        editor.SetKeys("hop", "Body", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, 0f), Lin(0.1f, 30f), Lin(0.2f, 0f) });
+        editor.AddMotionEvent("hop", 0.1f, "thud");
+
+        editor.AddMotion("spin", "car", 0.5f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.AddChannel("spin", "Wheel", MotionChannelKind.Euler);
+        editor.SetKeys("spin", "Wheel", MotionChannelKind.Euler, Axis.Z, new[] { Lin(0f, 0f), Lin(0.5f, 90f) });
+
+        editor.AddMotion("city_in", "city", 2f, MotionEnd.Commit);
+        editor.AddChannel("city_in", "Ground", MotionChannelKind.Position);
+        editor.SetKeys("city_in", "Ground", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, -200f), Lin(2f, 0f) });
+        return editor;
+    }
+
+    private static Vec2 PosedAt(MotionEditor editor, string node, double t)
+    {
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        var scene = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "c", Rig = "city" } } };
+        RectNodeTree template = ScenePreview.Build(rig, scene);
+        RectNodeTree posed = MotionPreview.Pose(template, editor.Document.Find("city_in")!, t, MotionChannelMode.Relative, null, "c/");
+        return posed.GetState("c/" + node).AnchoredPosition - template.GetState("c/" + node).AnchoredPosition;
+    }
+
+    [Fact]
+    public void 재생_블록은_품은_세트의_애니메이션을_그_시각에_틀고_유지는_남고_복원은_돌아간다()
+    {
+        MotionEditor editor = PlayEditor();
+        long revision = editor.Revision;
+
+        // 0.5초에 roll(유지)을 두 번, 1.5초에 hop(복원). 각각 한 칸, 시작 시각 순으로 선다.
+        Assert.Equal(0, editor.AddMotionPlay("city_in", "car", "hop", 1.5f));
+        Assert.Equal(0, editor.AddMotionPlay("city_in", "car", "roll", 0.5f, repeat: 2));
+        Assert.Equal(revision + 2, editor.Revision);
+        MotionAsset motion = editor.Document.Find("city_in")!;
+        Assert.Equal(new[] { ("roll", 0.5f), ("hop", 1.5f) }, motion.Plays.Select(p => (p.Motion, p.At)));
+
+        // 구운 것: 제 채널(Ground) + 품은 것의 채널이 경로 이름으로. 저작본에는 재생 블록만 적힌다.
+        Assert.NotNull(motion.Flattened);
+        Assert.Equal(new[] { "Ground", "car.Body" }, motion.Flattened!.Channels.Select(c => c.Node).Distinct());
+        string json = MotionDocumentJson.Write(editor.Document);
+        Assert.Contains("\"plays\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("car.Body", json, StringComparison.Ordinal);
+        Assert.NotNull(MotionDocumentJson.Read(json).Find("city_in")!.Flattened); // 읽으면 다시 굽는다
+
+        // 미리보기: 블록 전에는 제자리 → roll 첫 바퀴(0.5~0.9) → 둘째 바퀴가 쌓인다(0.9~1.3: 100 → 200) → 그 자세가 남는다.
+        Assert.Equal(0f, PosedAt(editor, "car.Body", 0.3).X, 1);
+        Assert.Equal(50f, PosedAt(editor, "car.Body", 0.7).X, 1);
+        Assert.Equal(150f, PosedAt(editor, "car.Body", 1.1).X, 1);
+        Assert.Equal(200f, PosedAt(editor, "car.Body", 1.4).X, 1);
+        Assert.Equal(200f, PosedAt(editor, "car.Body", 2.0).X, 1);
+
+        // hop(복원): 1.5~1.7초에 뛰고 돌아온다. 제 채널(Ground)은 그대로 돈다.
+        Assert.Equal(30f, PosedAt(editor, "car.Body", 1.6).Y, 1);
+        Assert.Equal(0f, PosedAt(editor, "car.Body", 1.9).Y, 1);
+        Assert.Equal(-100f, PosedAt(editor, "Ground", 1.0).Y, 1);
+
+        // 품은 애니메이션의 이벤트가 그 시각에 울린다(1.5 + 0.1).
+        MotionEventAsset thud = Assert.Single(ClipPreview.EventsBetween(motion, 0, 2));
+        Assert.Equal(("thud", 1.6f), (thud.Name, MathF.Round(thud.T, 3)));
+
+        // 산출물: 한 덩어리 모션으로 나간다 — 규칙을 지나고, 런타임은 재생 블록을 모른다.
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        string exported = MotionsJson.Write(MotionExport.ToClips(editor.Document));
+        Assert.Contains("car.Body", exported, StringComparison.Ordinal);
+        Assert.DoesNotContain("plays", exported, StringComparison.Ordinal);
+
+        // 참조다 — 품은 애니메이션을 고치면 구운 것이 따라온다.
+        editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 0f), Lin(0.4f, 10f) });
+        Assert.Equal(20f, PosedAt(editor, "car.Body", 1.4).X, 1);
+
+        // 되돌리면 구운 것도 돌아간다. 블록을 다 지우면 구운 것이 없다.
+        editor.Undo();
+        Assert.Equal(200f, PosedAt(editor, "car.Body", 1.4).X, 1);
+        editor.RemoveMotionPlay("city_in", 1);
+        editor.RemoveMotionPlay("city_in", 0);
+        Assert.Null(editor.Document.Find("city_in")!.Flattened);
+        Assert.Equal(0f, PosedAt(editor, "car.Body", 1.4).X, 1);
+    }
+
+    [Fact]
+    public void 재생_블록은_절대값_애니메이션도_바깥의_기준으로_옮겨_굽고_바깥의_제_키가_이긴다()
+    {
+        MotionEditor editor = PlayEditor();
+        // 바퀴의 가만히 선 회전을 20도로 — spin(절대값 0 → 90)은 "20도에서 −20 … +70 떨어진 것"으로 구워진다(바깥은 상대값).
+        editor.UpdateRigNode("car", "Wheel", new RigNodeAsset { X = 30f, Y = -40f, Width = 20f, Height = 20f, Rotation = 20f, Color = "#222222", Alpha = true });
+        editor.AddMotionPlay("city_in", "car", "spin", 1f);
+        ChannelAsset baked = editor.Document.Find("city_in")!.Flattened!.FindChannel("car.Wheel", MotionChannelKind.Euler)!;
+        float At(float t) => (float)Mt.Authoring.Graph.CurveSampler.Sample(baked.Z!.Keys, t, t + 0.0001, 1)[0].V;
+        Assert.Equal(0f, At(0.5f), 1);    // 블록 전: 제자리(20도 그대로 = 떨어진 것 0)
+        Assert.Equal(25f, At(1.25f), 1);  // 절대값 45도 = 20 + 25
+        Assert.Equal(70f, At(1.8f), 1);   // 유지 — 90도에 남는다
+
+        // 바깥이 같은 경로에 제 키를 놓으면 그 성분은 제 키가 이긴다(여기서만 덮어쓴다).
+        editor.AddChannel("city_in", "car.Wheel", MotionChannelKind.Euler);
+        editor.SetKeys("city_in", "car.Wheel", MotionChannelKind.Euler, Axis.Z, new[] { Lin(0f, 0f), Lin(2f, 5f) });
+        Assert.Equal(2, editor.Document.Find("city_in")!.Flattened!.FindChannel("car.Wheel", MotionChannelKind.Euler)!.Z!.Keys.Count);
+    }
+
+    [Fact]
+    public void 재생_블록은_품은_세트의_것만_길이_안에서_겹치지_않게_놓인다()
+    {
+        MotionEditor editor = PlayEditor();
+        editor.AddMotionPlay("city_in", "car", "roll", 0.5f);
+        long revision = editor.Revision;
+
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotionPlay("city_in", "Ground", "roll", 0f));       // 품은 오브젝트가 아니다
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotionPlay("city_in", "car", "city_in", 0f));       // 그 세트의 애니메이션이 아니다
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotionPlay("city_in", "car", "roll", 1.8f));        // 길이를 넘는다
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotionPlay("city_in", "car", "hop", 0.6f));         // 같은 인스턴스의 블록과 겹친다
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotionPlay("city_in", "car", "roll", 1f, repeat: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => editor.RemoveMotionPlay("city_in", 5));
+        Assert.Equal(revision, editor.Revision);
+
+        // 고치기 — 같은 값은 무기록, 시각이 바뀌면 자리가 옮겨진다.
+        editor.AddMotionPlay("city_in", "car", "hop", 1.5f);
+        revision = editor.Revision;
+        Assert.Equal(0, editor.UpdateMotionPlay("city_in", 0, "car", "roll", 0.5f, 1));
+        Assert.Equal(revision, editor.Revision);
+        Assert.Equal(0, editor.UpdateMotionPlay("city_in", 1, "car", "hop", 0.1f, 1)); // roll 앞으로
+        Assert.Equal(new[] { "hop", "roll" }, editor.Document.Find("city_in")!.Plays.Select(p => p.Motion));
+    }
 }

@@ -1519,4 +1519,94 @@ public class SkinShellTests
             }
         });
     }
+
+    [Fact]
+    public void 재생_블록_칸에서_품은_세트의_애니메이션을_지금_시각에_놓으면_뷰포트가_그것을_튼다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+
+                // 세트 둘: set(색 사각형 + 애니메이션 slide: 0.4초 유지, x 0 → 100) · set_2(set을 품는다 + 애니메이션 city_in: 2초).
+                window.NewSetFromForm();
+                window.SelectSetNode("Body");
+                window.AddColorNodeFromForm();
+                editor.AddMotion("slide", "set", 0.4f, MotionEnd.Commit);
+                editor.AddChannel("slide", "Color1", MotionChannelKind.Position);
+                editor.SetKeys("slide", "Color1", MotionChannelKind.Position, Axis.X, new[]
+                {
+                    new KeyAsset { T = 0f, V = 0f, Tangent = TangentMode.Linear },
+                    new KeyAsset { T = 0.4f, V = 100f, Tangent = TangentMode.Linear },
+                });
+                window.NewSetFromForm();
+                window.SelectSetNode(null);
+                window.AddSetInstanceFromMenu("set");
+                editor.AddMotion("city_in", "set_2", 2f, MotionEnd.Commit);
+                window.InspectorTab = 2; // 모션 탭
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // 품은 세트가 있는 세트의 애니메이션을 고르면 재생 블록 칸이 보인다.
+                window.SelectMotion("city_in");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.True(window.PlayPanelShown);
+                Assert.Equal(0, window.PlayRowCount);
+
+                // "재생 블록 추가 (지금 시각)" — 한 칸. 지금 시각에 들어가는 첫 (인스턴스, 애니메이션)이 놓인다.
+                window.Graph.CurrentTime = 0.5;
+                long revision = editor.Revision;
+                Assert.Equal(0, window.AddMotionPlayFromForm());
+                Assert.Equal(revision + 1, editor.Revision);
+                MotionPlayAsset play = Assert.Single(editor.Document.Find("city_in")!.Plays);
+                Assert.Equal(("set", "slide", 0.5f, 1), (play.Node, play.Motion, play.At, play.Repeat));
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(1, window.PlayRowCount);
+                Assert.Equal(("0.5", "set", "slide", "1"), (window.PlayRow(0).Time.Text, window.PlayRow(0).Node.SelectedItem, window.PlayRow(0).Motion.SelectedItem, window.PlayRow(0).Repeat.Text));
+
+                // 뷰포트가 품은 애니메이션을 튼다 — 블록 전에는 제자리, 가운데서 반, 끝난 뒤에는 남는다(유지).
+                float X(double t)
+                {
+                    window.Graph.CurrentTime = t;
+                    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                    return view.CurrentPose()!.TransformPoint("set/set.Color1", Vec3.Zero).X;
+                }
+
+                float rest = X(0.2);
+                Assert.Equal(50f, X(0.7) - rest, 0);
+                Assert.Equal(100f, X(1.5) - rest, 0);
+
+                // 반복 칸을 2로(Enter) — 한 칸. 둘째 바퀴가 쌓인다.
+                TextBox repeat = window.PlayRow(0).Repeat;
+                repeat.Focus();
+                repeat.Text = "2";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal(2, editor.Document.Find("city_in")!.Plays[0].Repeat);
+                Assert.Equal(200f, X(1.5) - rest, 0);
+
+                // 길이를 넘는 시각은 막히고 문서는 그대로다.
+                revision = editor.Revision;
+                TextBox time = window.PlayRow(0).Time;
+                time.Focus();
+                time.Text = "1.9";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal(revision, editor.Revision);
+
+                // 품은 세트가 없는 세트의 애니메이션에서는 칸이 숨는다.
+                window.SelectSet("set");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.SelectMotion("slide");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.False(window.PlayPanelShown);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }
