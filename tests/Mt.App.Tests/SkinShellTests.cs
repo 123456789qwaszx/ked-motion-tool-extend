@@ -678,12 +678,14 @@ public class SkinShellTests
                 window.Viewport.ScrubTo(0.5);
                 Assert.Equal(100f, window.Viewport.CurrentPose()!.GetState("set/Part1").AnchoredPosition.X, 2);
 
-                // 다른 리그의 모션을 고르면 세트를 떠나 씬으로 돌아간다.
+                // 세트를 연 동안 목록에는 그 세트의 애니메이션만 있다 — 다른 리그의 모션은 세트를 닫아야 고른다. 닫으면 씬으로 돌아간다.
                 editor.AddMotion("nod", "character", 0.6f);
-                window.SelectMotion("nod");
-                Assert.Null(window.SelectedSet);
+                Assert.DoesNotContain("nod", window.MotionListState.Names);
+                window.SelectSet(null);
                 Assert.Null(window.Viewport.SetView);
                 Assert.NotNull(window.Viewport.Scene!.Find("s1"));
+                window.SelectMotion("nod");
+                Assert.Equal("nod", window.SelectedMotion);
 
                 // 다시 열었다가, 세트를 만든 것까지 되돌리면 목록에서 사라지고 씬으로 돌아간다.
                 window.SelectSet("set");
@@ -1183,6 +1185,81 @@ public class SkinShellTests
                 window.SelectMotion("in");
                 Assert.False(view.IsLayoutMode);
                 Assert.Equal("set", window.SelectedSet);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 세트를_열면_그_세트의_애니메이션만_보이고_오브젝트를_따로_본다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                editor.AddMotion("nod", "character", 0.6f);
+                window.NewSetFromForm();
+                string a = window.AddSetNodeFromForm(image: true)!;   // Part1 — Body 밑
+                window.SelectSetNode("Body");
+                string b = window.AddSetNodeFromForm(image: true)!;   // Part2 — Body 밑
+                window.SelectSetNode(b);
+                string c = window.AddSetNodeFromForm(image: true)!;   // Part3 — Part2 밑
+                editor.AddSkin("skin", "set");
+                foreach (string part in new[] { a, b, c })
+                {
+                    editor.SetSkinPart("skin", part, $"art/{part}.png");
+                }
+
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                IReadOnlyList<string> Drawn() => view.DrawnParts(view.SelectedObject!);
+                Assert.Equal(new[] { a, b, c }, Drawn());
+
+                // 목록은 이 세트의 애니메이션만 — 캐릭터의 nod는 안 보인다. "모션 추가"는 이 세트의 것을 만든다.
+                Assert.Equal(("애니메이션 — 세트 set", 0), (window.MotionListState.Header, window.MotionListState.Names.Count));
+                window.AddMotionFromButton();
+                Assert.Equal("set", editor.Document.Find("motion")!.Rig);
+                Assert.Equal(new[] { "motion" }, window.MotionListState.Names);
+                Assert.Equal("motion", window.SelectedMotion);
+                Assert.Equal("set", window.SelectedSet);  // 세트는 열린 채다
+                Assert.False(view.IsLayoutMode);          // 애니메이션 모드
+
+                // 이것만 보기 — 그 오브젝트와 그 밑의 것만 그려진다. 문서는 안 바뀐다.
+                long revision = editor.Revision;
+                window.SetSetNodeViewFromMenu(b, solo: true, hidden: null);
+                Assert.Equal(new[] { b, c }, Drawn());
+                Assert.False(view.IsSetNodeShown(a));
+
+                // 솔로 안에서 숨기기 — 밑의 것만 숨긴다.
+                window.SetSetNodeViewFromMenu(c, solo: null, hidden: true);
+                Assert.Equal(new[] { b }, Drawn());
+
+                // 솔로를 풀면 숨긴 것만 빠진다. 부모를 숨기면 밑의 것도 안 보인다.
+                window.SetSetNodeViewFromMenu(b, solo: false, hidden: null);
+                Assert.Equal(new[] { a, b }, Drawn());
+                window.SetSetNodeViewFromMenu("Body", solo: null, hidden: true);
+                Assert.Empty(Drawn());
+
+                // 전부 보이기.
+                window.SetSetNodeViewFromMenu(null, null, null);
+                Assert.Equal(new[] { a, b, c }, Drawn());
+                Assert.Equal(revision, editor.Revision);
+
+                // 세트를 닫으면 따로 보기가 풀리고 목록이 전부로 돌아온다.
+                window.SetSetNodeViewFromMenu(a, solo: null, hidden: true);
+                window.SelectSet(null);
+                Assert.Equal("모션", window.MotionListState.Header);
+                Assert.Equal(new[] { "nod", "motion" }, window.MotionListState.Names);
+                window.SelectSet("set");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(new[] { a, b, c }, Drawn());
             }
             finally
             {

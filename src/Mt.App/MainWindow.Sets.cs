@@ -238,6 +238,7 @@ public partial class MainWindow
         RefreshAssets();
         RefreshObjects();
         RefreshSetNodePanel();
+        RefreshMotionList(); // 세트의 애니메이션만 / 전부
 
         if (SelectedSet is not null)
         {
@@ -497,6 +498,14 @@ public partial class MainWindow
             then();
         }
 
+        // 따로 보기 — 이 오브젝트만 보거나 숨긴다(보기 상태: 문서를 안 바꾼다).
+        _hierarchyMenu.Items.Add(new Separator());
+        bool solo = _viewport.SoloSetNode == nodeId;
+        bool hidden = _viewport.IsSetNodeHidden(nodeId);
+        Item(_hierarchyMenu, solo ? "이것만 보기 풀기" : "이것만 보기 (솔로)", () => SetSetNodeView(nodeId, solo: !solo, hidden: null));
+        Item(_hierarchyMenu, hidden ? "보이기" : "숨기기", () => SetSetNodeView(nodeId, solo: null, hidden: !hidden));
+        Item(_hierarchyMenu, "전부 보이기", () => SetSetNodeView(null, null, null), enabled: _viewport.SoloSetNode is not null || rig.Nodes.Any(n => _viewport.IsSetNodeHidden(n.Id)));
+
         _hierarchyMenu.Items.Add(new Separator());
         Item(_hierarchyMenu, "앞으로 (아래에 그려진다)", () => Pick(() => MoveSelectedSetNode(-1)));
         Item(_hierarchyMenu, "뒤로 (위에 그려진다)", () => Pick(() => MoveSelectedSetNode(+1)));
@@ -512,6 +521,31 @@ public partial class MainWindow
         _hierarchyMenu.Items.Add(parents);
         _hierarchyMenu.Items.Add(new Separator());
         Item(_hierarchyMenu, "지우기 (밑의 오브젝트도)", () => Pick(RemoveSelectedSetNode));
+    }
+
+    /// <summary>테스트 손잡이 — 따로 보기(솔로 · 숨김). 셋 다 null이면 전부 보이기.</summary>
+    internal void SetSetNodeViewFromMenu(string? node, bool? solo, bool? hidden) => SetSetNodeView(node, solo, hidden);
+
+    private void SetSetNodeView(string? node, bool? solo, bool? hidden)
+    {
+        if (node is null)
+        {
+            _viewport.ShowAllSetNodes();
+        }
+        else
+        {
+            if (solo is { } s)
+            {
+                _viewport.SoloSetNode = s ? node : null;
+            }
+
+            if (hidden is { } h)
+            {
+                _viewport.SetSetNodeHidden(node, h);
+            }
+        }
+
+        RebuildHierarchy(); // 표시(◉ · 숨김)가 따라온다
     }
 
     /// <summary>부모로 고를 수 있는 것 — 제 식구(밑의 오브젝트)가 아닌 것.</summary>

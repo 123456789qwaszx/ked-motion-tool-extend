@@ -270,6 +270,8 @@ public sealed class ViewportView : Control
             DiscardPending();
             _setView = value;
             _setScene = null;
+            _hiddenSetNodes.Clear();
+            _soloSetNode = null;
             RebuildTemplate();
 
             if (value is not null)
@@ -283,6 +285,63 @@ public sealed class ViewportView : Control
 
             InvalidateVisual();
         }
+    }
+
+    // 세트 안에서 오브젝트를 하나씩 따로 본다(PLAN-set.md S3) — 보기 상태다: 문서·되돌리기·산출물에 없고 세트를 닫으면 풀린다.
+    private readonly HashSet<string> _hiddenSetNodes = new(StringComparer.Ordinal);
+    private string? _soloSetNode;
+
+    /// <summary>이것만 본다 — 그 오브젝트와 그 밑의 것만 그려진다. null이면 솔로가 없다.</summary>
+    public string? SoloSetNode
+    {
+        get => _soloSetNode;
+        set
+        {
+            _soloSetNode = value;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>그 오브젝트를 숨겼는가(제 것만 — 부모가 숨겨져 안 보이는 것은 <see cref="IsSetNodeShown"/>).</summary>
+    public bool IsSetNodeHidden(string node) => _hiddenSetNodes.Contains(node);
+
+    public void SetSetNodeHidden(string node, bool hidden)
+    {
+        if (hidden ? _hiddenSetNodes.Add(node) : _hiddenSetNodes.Remove(node))
+        {
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>숨김·솔로를 다 푼다.</summary>
+    public void ShowAllSetNodes()
+    {
+        _hiddenSetNodes.Clear();
+        _soloSetNode = null;
+        InvalidateVisual();
+    }
+
+    /// <summary>세트 보기에서 그 오브젝트가 그려지는가 — 저나 조상이 숨겨지지 않았고, 솔로가 있으면 저나 조상이 그 솔로다. 세트 보기가 아니면 늘 참.</summary>
+    public bool IsSetNodeShown(string node)
+    {
+        if (_setView is null || _editor?.Document.FindRig(_setView) is not { } rig || (_hiddenSetNodes.Count == 0 && _soloSetNode is null))
+        {
+            return true;
+        }
+
+        bool underSolo = _soloSetNode is null;
+
+        for (RigNodeAsset? at = rig.Find(node); at is not null; at = at.Parent.Length > 0 ? rig.Find(at.Parent) : null)
+        {
+            if (_hiddenSetNodes.Contains(at.Id))
+            {
+                return false;
+            }
+
+            underSolo |= at.Id == _soloSetNode;
+        }
+
+        return underSolo;
     }
 
     /// <summary>세트 보기의 씬 — 그 세트 하나. 그 리그의 첫 스킨을 입는다(그림이 보이게 — 스킨을 고르는 것은 배치 모드에서).</summary>
@@ -1550,7 +1609,7 @@ public sealed class ViewportView : Control
     }
 
     private IReadOnlyList<string> DrawnParts(RectNodeTree? pose, SceneObject o)
-        => WornBy(pose, o) is { } worn ? RigParts.Of(_rig, o.Rig).Where(worn.Skin.Parts.ContainsKey).ToList() : Array.Empty<string>();
+        => WornBy(pose, o) is { } worn ? RigParts.Of(_rig, o.Rig).Where(worn.Skin.Parts.ContainsKey).Where(IsSetNodeShown).ToList() : Array.Empty<string>();
 
     /// <summary>조각이 지금 그려지는 사각형(루트 공간) — 노드의 rect 안에 그림의 종횡비로 맞추고 스킨의 놓임(자리·크기·회전)을 입힌 것. 없으면 null.</summary>
     public Quad? PartQuad(string objectId, string node)
@@ -2888,7 +2947,7 @@ public sealed class ViewportView : Control
         {
             string key = o.KeyOf(node.Id);
 
-            if (!pose.Contains(key) || node.Width <= 0f || node.Height <= 0f)
+            if (!pose.Contains(key) || node.Width <= 0f || node.Height <= 0f || !IsSetNodeShown(node.Id))
             {
                 continue;
             }

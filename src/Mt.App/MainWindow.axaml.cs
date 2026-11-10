@@ -126,6 +126,7 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _expandedHierarchy = new();
     private readonly Dictionary<TreeViewItem, TreeViewItem?> _hierarchyParents = new();
     private readonly ContextMenu _hierarchyMenu = new();
+    private readonly TextBlock _motionHeader = Header("모션");
     private StackPanel? _sceneTabPanel;
     private object? _menuTarget;
     private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
@@ -702,6 +703,12 @@ public partial class MainWindow : Window
     }
 
     internal string? SelectedMotion => _motionList.SelectedItem as string;
+
+    /// <summary>테스트 손잡이 — 모션 목록에 보이는 이름들과 그 머리글.</summary>
+    internal (string Header, IReadOnlyList<string> Names) MotionListState => (_motionHeader.Text ?? "", (_motionList.ItemsSource as IEnumerable<string> ?? Array.Empty<string>()).ToList());
+
+    /// <summary>테스트 손잡이 — "모션 추가" 버튼(이름·리그는 툴이 정한다).</summary>
+    internal void AddMotionFromButton() => AddMotion();
 
     /// <summary>테스트 손잡이 — 목록에서 모션을 고른 것과 같다.</summary>
     internal void SelectMotion(string name) => _motionList.SelectedItem = name;
@@ -1785,7 +1792,7 @@ public partial class MainWindow : Window
         });
         ToolTip.SetTip(_hierarchy, "PresentataionUIRoot › … › Stage{NN}Depth_{Layer}_Content › 오브젝트 › 자리/깊이/연기 › 컨트롤러 › 자식 오브젝트. 클릭 = 선택, 컨트롤러 클릭 = 채널 박스·매니퓰레이터의 손잡이(값을 넣거나 끌면 그 노드에 키가 생긴다). 우클릭 = 이름/복제/삭제/숨기기/레이어/만들기 메뉴(층 위에서 만들면 그 층에). 오브젝트끼리 부모·자식은 없다. '리그 노드 보기'(보기 설정)면 덤프 노드 26단. Del · Ctrl+D · Ctrl+Shift+N · F2");
 
-        LeftPanel.Children.Add(Header("모션"));
+        LeftPanel.Children.Add(_motionHeader);
         _motionList.SelectionChanged += (_, _) => OnMotionSelected();
         LeftPanel.Children.Add(_motionList);
 
@@ -2574,7 +2581,11 @@ public partial class MainWindow : Window
                     ? objectItem
                     : found;
                 bool forbidden = PlacementNodes.IsForbidden(node.id);
-                TreeViewItem nodeItem = Folder(node.id, $"node:{o.Id}/{node.id}");
+                // 세트 보기 — 따로 보기(숨김 · 솔로)의 표시.
+                bool shown = _viewport.IsSetNodeShown(node.id);
+                string mark = _viewport.SetView is null ? "" : _viewport.SoloSetNode == node.id ? "   ◉ 이것만" : _viewport.IsSetNodeHidden(node.id) ? "   (숨김)" : "";
+                TreeViewItem nodeItem = Folder(node.id + mark, $"node:{o.Id}/{node.id}");
+                nodeItem.Opacity = shown ? 1 : 0.45;
                 nodeItem.Tag = new HierarchyNode(o.Id, node.id);
                 nodeItem.FontWeight = FontWeight.Normal;
                 nodeItem.Foreground = forbidden ? ForbiddenNodeBrush : PlacementNodes.IsPlacementAxis(node.id) ? PlacementNodeBrush : ActingNodeBrush;
@@ -3086,7 +3097,11 @@ public partial class MainWindow : Window
             // 클립 안에서 블록의 모션을 고치는 중이면 그래프의 모션은 "고른 모션"이 아니다 — 목록에서 골라 주지 않는다(고르면 클립이 풀린다).
             string? selected = SelectedMotion ?? (EditingInPlace ? null : _graph.MotionName);
             // rigKind로 묶어 보인다(모션의 주인은 rigKind) — 같은 리그끼리 이름순.
+            // 세트를 열었으면 그 세트의 애니메이션만 — 다른 리그의 모션은 이 세트가 연기할 수 없다.
+            string? openSet = SelectedSet;
+            _motionHeader.Text = openSet is null ? "모션" : $"애니메이션 — 세트 {openSet}";
             List<string> names = _session.Editor.Document.Motions
+                .Where(m => openSet is null || m.Rig == openSet)
                 .OrderBy(m => m.Rig, StringComparer.Ordinal).ThenBy(m => m.Name, StringComparer.Ordinal)
                 .Select(m => m.Name).ToList();
             _motionList.ItemsSource = names;
