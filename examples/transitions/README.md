@@ -4,6 +4,9 @@
 
 - `station/station.motion-authoring.json` — 앱에서 **열기…** 로 연다. 그림은 `station/art/`(층 PNG 열 장 + 층 표 `layers.tsv`).
 - `pillar/pillar.motion-authoring.json` — 기둥과 노을. 층들을 같은 타이밍으로 놓고 **시차**로 밀어 지은 것(지평선의 층들이 차례로 솟고, 해가 떠오르고, 기둥이 넘어지듯 들어온다).
+  **조립**으로 지었다: 해는 따로 세트 `sun`(빛 + 해, 애니메이션 `sun_rise` · `sun_pulse` · `sun_set`)이고, `pillar`가 그것을 품어 제 애니메이션에서 **재생 블록**으로 튼다
+  (`pillar_in`의 0.6초에 뜬다 · `pillar_hold`에서 두 번 숨쉰다 · `pillar_out`의 처음에 진다). 해의 키는 `pillar`에 없다 — `sun`을 열어 `sun_rise`를 고치면 `pillar`가 따라온다.
+  해는 제 차례 전까지 인스턴스째로 숨는다("제 차례 전까지 숨기기"가 재생 블록의 시작을 차례로 친다).
 - 문서는 편집기 명령으로 지었다: `tests/Mt.Authoring.Tests/TransitionExamples.cs`. 고쳤으면
   `MT_WRITE_EXAMPLES=1 dotnet test tests/Mt.Authoring.Tests --filter EmojiExampleTests`로 다시 쓴다.
 - 그림은 `tools/make-transition-art.py`가 도형으로 그린다(다섯 장면 — 저장소에는 station과 pillar만 넣었다).

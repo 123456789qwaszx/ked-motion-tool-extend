@@ -138,17 +138,61 @@ internal static class TransitionExamples
 
     public const string Pillar = "pillar";
 
+    public const string Sun = "sun";
+
     /// <summary>
     /// 기울어진 기둥과 노을 — station과 다른 결로 짓는다: 층들을 **같은 타이밍으로 놓은 뒤 시차(<see cref="MotionEditor.StaggerNodes"/>)로 민다**.
     /// 지평선의 것들(노을 · 도시 둘 · 언덕)이 아래에서 차례로 솟고, 해가 떠오르고, 기둥이 넘어지듯 들어와 선다.
+    ///
+    /// **조립으로 짓는다**(<c>PLAN-set.md</c> S9·S10): 해는 따로 세트(<see cref="Sun"/>)이고 제 애니메이션(뜬다 · 숨쉰다 · 진다)을 가진다.
+    /// pillar는 그 세트를 품고, 제 애니메이션에서 **재생 블록**으로 그것들을 튼다 — 해의 키는 pillar에 하나도 없다.
     /// </summary>
     public static MotionEditor BuildPillar(string layersPath)
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddRig(new RigAsset { Kind = Pillar });
-        editor.ImportLayers(Pillar, LayerSheet.Load(layersPath), "art", Pillar, Stage);
-
         const MotionChannelMode Rel = MotionChannelMode.Relative;
+
+        // 층 표를 둘로 가른다 — 해의 층 둘은 해 세트로, 나머지는 pillar로.
+        string[] lines = File.ReadAllLines(layersPath);
+        LayerSheet sunSheet = LayerSheet.Parse(string.Join('\n', lines.Where(l => !l.StartsWith('#') && l.Contains("_sun", StringComparison.Ordinal))));
+        LayerSheet rest = LayerSheet.Parse(string.Join('\n', lines.Where(l => l.StartsWith('#') || !l.Contains("_sun", StringComparison.Ordinal))));
+
+        // ── 해 세트 — 해의 가운데가 세트의 가운데가 되게 들인다(어디에 품겨도 그 자리가 해의 자리다).
+        LayerEntry disc = sunSheet.Layers.Single(l => l.File.EndsWith("_sun.png", StringComparison.Ordinal));
+        var center = new Vec2(disc.Left + disc.Width / 2f, disc.Top + disc.Height / 2f);
+        editor.AddRig(new RigAsset { Kind = Sun });
+        editor.ImportLayers(Sun, sunSheet, "art", Sun, new Vec2(center.X * 2f, center.Y * 2f));
+        editor.RenameRigNode(Sun, "sun_glow", "glow");
+        editor.RenameRigNode(Sun, "sun", "disc");
+
+        // 뜬다(0.8초, 유지) — 지평선 아래에서 떠오르고 빛이 번진다.
+        editor.AddMotion("sun_rise", Sun, 0.8f, MotionEnd.Commit, Rel);
+        Curve(editor, "sun_rise", "disc", MotionChannelKind.Position, Axis.Y, Ramp(0.8f, 0f, 0.7f, -300f, 0f));
+        Curve(editor, "sun_rise", "glow", MotionChannelKind.Alpha, Axis.X, Ramp(0.8f, 0.1f, 0.8f, 0f, 1f));
+        Scale(editor, "sun_rise", "glow", Ramp(0.8f, 0.1f, 0.8f, 0.5f, 1f));
+
+        // 숨쉰다(1.5초, 복원) — 빛이 커졌다 돌아온다. 되풀이해서 튼다.
+        editor.AddMotion("sun_pulse", Sun, 1.5f, MotionEnd.Restore, Rel);
+        Scale(editor, "sun_pulse", "glow", K(0f, 1f), K(0.75f, 1.08f), K(1.5f, 1f));
+
+        // 진다(0.5초, 유지) — 빛이 꺼지고 해가 가라앉으며 사라진다.
+        editor.AddMotion("sun_set", Sun, 0.5f, MotionEnd.Commit, Rel);
+        Curve(editor, "sun_set", "disc", MotionChannelKind.Position, Axis.Y, Ramp(0.5f, 0f, 0.5f, 0f, -300f));
+        Curve(editor, "sun_set", "disc", MotionChannelKind.Alpha, Axis.X, Ramp(0.5f, 0.3f, 0.5f, 1f, 0f));
+        Curve(editor, "sun_set", "glow", MotionChannelKind.Alpha, Axis.X, Ramp(0.5f, 0f, 0.4f, 1f, 0f));
+
+        // ── pillar 세트 — 나머지 층 + 해 세트를 품는다(노을 바로 앞 = 도시 뒤, 원래 층의 자리).
+        editor.AddRig(new RigAsset { Kind = Pillar });
+        editor.ImportLayers(Pillar, rest, "art", Pillar, Stage);
+        editor.AddRigInstance(Pillar, Sun, Sun);
+        editor.UpdateRigNode(Pillar, Sun, new RigNodeAsset { X = center.X - Stage.X / 2f, Y = Stage.Y / 2f - center.Y, Alpha = true });
+        RigAsset pillarRig = editor.Document.FindRig(Pillar)!;
+
+        while (pillarRig.Nodes.FindIndex(n => n.Id == Sun) > pillarRig.Nodes.FindIndex(n => n.Id == "haze") + 1)
+        {
+            editor.MoveRigNode(Pillar, Sun, -1);
+        }
+
         string[] horizon = { "haze", "city_far", "city_near", "hill" };
         string[] petals = { "petal_1", "petal_2", "petal_3" };
 
@@ -172,12 +216,9 @@ internal static class TransitionExamples
         Curve(editor, In, "clouds_near", MotionChannelKind.Position, Axis.X, Ramp(D, 0.25f, 1.1f, -640f, 0f));
         Curve(editor, In, "clouds_near", MotionChannelKind.Alpha, Axis.X, Ramp(D, 0.25f, 0.6f, 0f, 1f));
 
-        // 해가 지평선 아래에서 떠오르고 빛이 번진다.
-        Curve(editor, In, "sun", MotionChannelKind.Position, Axis.Y, Ramp(D, 0.6f, 1.3f, -300f, 0f));
-        // 가만히 선 자세는 "다 보이는" 것이라, 제 차례 전에는 숨겨 둬야 한다 — 지평선에 가려지지 않는 층은 불투명도로.
-        Curve(editor, In, "sun", MotionChannelKind.Alpha, Axis.X, Ramp(D, 0.6f, 0.75f, 0f, 1f));
-        Curve(editor, In, "sun_glow", MotionChannelKind.Alpha, Axis.X, Ramp(D, 0.7f, 1.4f, 0f, 1f));
-        Scale(editor, In, "sun_glow", Ramp(D, 0.7f, 1.4f, 0.5f, 1f));
+        // 해 — 품은 세트의 "뜬다"를 0.6초에 튼다. 제 차례 전에는 인스턴스를 통째로 숨긴다(가만히 선 자세는 "다 보이는" 것이라).
+        editor.AddMotionPlay(In, Sun, "sun_rise", 0.6f);
+        editor.HideUntilTurn(In, Sun);
 
         // 기둥 — 왼쪽 밖에서 넘어지듯 들어와 살짝 넘쳤다가 선다.
         Curve(editor, In, "pillar", MotionChannelKind.Position, Axis.X, Ramp(D, 0.55f, 1.05f, -640f, 0f));
@@ -205,7 +246,7 @@ internal static class TransitionExamples
         }
 
         Curve(editor, Hold, "clouds_near", MotionChannelKind.Position, Axis.X, K(0f, 0f), K(1.5f, 24f), K(3f, 0f));
-        Scale(editor, Hold, "sun_glow", K(0f, 1f), K(1.5f, 1.08f), K(3f, 1f));
+        editor.AddMotionPlay(Hold, Sun, "sun_pulse", 0f, repeat: 2); // 해가 두 번 숨쉰다
 
         // ── 퇴장(1초) — 해가 지고, 지평선이 가라앉고(시차 — 앞의 것부터), 기둥이 기울어 나가고, 바탕색이 걷힌다.
         const string Out = "pillar_out";
@@ -217,9 +258,7 @@ internal static class TransitionExamples
             Curve(editor, Out, petal, MotionChannelKind.Alpha, Axis.X, Ramp(E, 0f, 0.2f, 1f, 0f));
         }
 
-        Curve(editor, Out, "sun", MotionChannelKind.Position, Axis.Y, Ramp(E, 0f, 0.5f, 0f, -300f));
-        Curve(editor, Out, "sun", MotionChannelKind.Alpha, Axis.X, Ramp(E, 0.3f, 0.5f, 1f, 0f));
-        Curve(editor, Out, "sun_glow", MotionChannelKind.Alpha, Axis.X, Ramp(E, 0f, 0.4f, 1f, 0f));
+        editor.AddMotionPlay(Out, Sun, "sun_set", 0f);
         Curve(editor, Out, "pillar", MotionChannelKind.Position, Axis.X, Ramp(E, 0.1f, 0.6f, 0f, -640f));
         Curve(editor, Out, "pillar", MotionChannelKind.Euler, Axis.Z, Ramp(E, 0.1f, 0.6f, 0f, 28f));
         string[] sinking = { "hill", "city_near", "city_far", "haze" };

@@ -134,7 +134,12 @@ public class EmojiExampleTests
         MotionDocument document = editor.Document;
         RigSchemaFile rig = RigAssets.Compose(Dump, document);
 
-        Assert.Equal(13, document.FindRig(TransitionExamples.Pillar)!.Nodes.Count); // 바탕색 + 층 열둘
+        // 조립: pillar = 바탕색 + 층 열 + 해 세트(인스턴스) / 해 세트 = 빛 + 해. 해의 키는 pillar에 없고 재생 블록만 있다.
+        Assert.Equal(12, document.FindRig(TransitionExamples.Pillar)!.Nodes.Count);
+        Assert.Equal(new[] { "glow", "disc" }, document.FindRig(TransitionExamples.Sun)!.Nodes.Where(n => n.Image).Select(n => n.Id));
+        Assert.Equal(new[] { ("sun_rise", 0.6f, 1) }, document.Find("pillar_in")!.Plays.Select(p => (p.Motion, p.At, p.Repeat)));
+        Assert.Equal(new[] { ("sun_pulse", 0f, 2) }, document.Find("pillar_hold")!.Plays.Select(p => (p.Motion, p.At, p.Repeat)));
+        Assert.DoesNotContain(document.Find("pillar_in")!.Channels, c => c.Node.StartsWith("sun.", StringComparison.Ordinal));
         string Problems<T>(IEnumerable<T> problems, Func<T, string> text) => string.Join("\n", problems.Select(text));
         Assert.True(!MotionValidator.Validate(document, rig.NodeIds, null, rig.AlphaNodeIds).Any(), Problems(MotionValidator.Validate(document, rig.NodeIds, null, rig.AlphaNodeIds), p => $"{p.MotionName}: {p.Message}"));
         Assert.True(!EmojiValidator.Validate(document, rig.NodeIds).Any(), Problems(EmojiValidator.Validate(document, rig.NodeIds), p => $"{p.EmojiName}: {p.Message}"));
@@ -162,5 +167,19 @@ public class EmojiExampleTests
         Assert.True(Offset("haze", 0.7) > -1f);
         Assert.True(Offset("hill", 0.7) < -300f);
         Assert.Equal(0f, Offset("hill", 1.5), 1);
+
+        // 해: 제 차례(0.6초) 전에는 인스턴스가 숨어 있고, 재생 블록이 "뜬다"를 틀어 떠오르고(0.6 + 0.7초에 제자리), 퇴장에서 진다.
+        float SunAlpha(double t)
+        {
+            var alphas = new Dictionary<string, float>(StringComparer.Ordinal);
+            EmojiPreview.Pose(template, document, cue, scene.Objects[0], t, alphas);
+            return alphas.TryGetValue("t/sun", out float a) ? a : 1f;
+        }
+
+        Assert.Equal(0f, SunAlpha(0.3), 2);
+        Assert.Equal(1f, SunAlpha(1.0), 2);
+        Assert.True(Offset("sun.disc", 0.9) < -100f);
+        Assert.Equal(0f, Offset("sun.disc", 1.4), 1);
+        Assert.True(Offset("sun.disc", 1.5 + 1.5 + 0.4) < -200f);
     }
 }
