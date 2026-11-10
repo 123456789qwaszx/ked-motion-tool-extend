@@ -21,6 +21,25 @@ public static class EmojiEvents
     /// <summary>머무는 이모지를 끄는 이벤트 키의 이름(값은 안 본다 — 그 캐릭터의 지금 이모지를 끈다).</summary>
     public const string Hide = "emoji_off";
 
+    /// <summary>연출을 띄우는 이벤트 키(<c>PLAN-set.md</c> S5) — <see cref="Show"/>와 같은 뜻의 넓은 이름. 값이 연출 키다(캐릭터에 붙는 것도, 화면에 서는 것도).</summary>
+    public const string ShowCue = "cue";
+
+    /// <summary>연출을 끄는 이벤트 키 — 값이 비면 울린 캐릭터의 것을, 값이 화면 연출의 키면 화면의 것을 끈다.</summary>
+    public const string HideCue = "cue_off";
+
+    /// <summary>화면에 서는 연출의 자리 — 캐릭터가 아니라 화면이 임자다(화면에 하나).</summary>
+    private const string ScreenSlot = "@screen";
+
+    public static bool IsShow(string name) => name is Show or ShowCue;
+
+    public static bool IsHide(string name) => name is Hide or HideCue;
+
+    /// <summary>그 연출이 설 오브젝트 — 캐릭터에 붙는 것이면 그 캐릭터에 붙은 같은 리그, 화면에 서는 것이면 어디에도 안 붙은 같은 리그의 첫 오브젝트.</summary>
+    private static SceneObject? TargetOf(SceneAsset scene, EmojiAsset emoji, string slot)
+        => emoji.Screen
+            ? scene.Objects.FirstOrDefault(o => o.Rig == emoji.Rig && scene.ParentOf(o) is null)
+            : scene.AttachedTo(slot).FirstOrDefault(o => o.Rig == emoji.Rig);
+
     /// <summary>
     /// 그 시각에 돌고 있는 이모지들. <paramref name="fired"/>는 처음부터 그 시각까지 울린 이벤트(시각 순) —
     /// 모션 하나면 그 모션의 것을 연기하는 캐릭터의 id와 함께, 클립이면 <see cref="ClipPreview.EventsBetween(MotionDocument, ClipAsset, double, double, Func{ClipTrack, bool}?)"/>.
@@ -45,20 +64,26 @@ public static class EmojiEvents
                 continue;
             }
 
-            if (name == Show)
+            if (IsShow(name))
             {
                 if (document.FindEmoji(value) is { } emoji)
                 {
-                    current[objectId] = (emoji, time, null); // 앞의 것을 갈아 치운다
+                    current[emoji.Screen ? ScreenSlot : objectId] = (emoji, time, null); // 앞의 것을 갈아 치운다(캐릭터마다 하나, 화면에 하나)
                 }
                 else
                 {
                     current.Remove(objectId);
                 }
             }
-            else if (name == Hide && current.TryGetValue(objectId, out (EmojiAsset Emoji, double At, double? Off) playing) && playing.Off is null)
+            else if (IsHide(name))
             {
-                current[objectId] = (playing.Emoji, playing.At, time);
+                // 값이 화면 연출의 키면 화면의 것을, 아니면 울린 캐릭터의 것을 끈다.
+                string slot = document.FindEmoji(value) is { Screen: true } ? ScreenSlot : objectId;
+
+                if (current.TryGetValue(slot, out (EmojiAsset Emoji, double At, double? Off) playing) && playing.Off is null)
+                {
+                    current[slot] = (playing.Emoji, playing.At, time);
+                }
             }
         }
 
@@ -66,9 +91,9 @@ public static class EmojiEvents
 
         foreach ((string characterId, (EmojiAsset emoji, double at, double? off)) in current)
         {
-            if (scene.AttachedTo(characterId).FirstOrDefault(o => o.Rig == emoji.Rig) is not { } target)
+            if (TargetOf(scene, emoji, characterId) is not { } target)
             {
-                continue; // 붙은 이모지 리그가 없다
+                continue; // 설 오브젝트가 없다(붙은 리그가 없거나, 화면 연출의 세트가 씬에 안 놓였다)
             }
 
             EmojiPhases phases = EmojiPreview.PlayPhases(document, emoji, off - at);
@@ -111,8 +136,7 @@ public static class EmojiEvents
 
         foreach ((_, string? objectId, string name, string? value) in all)
         {
-            if (objectId is not null && name == Show && document.FindEmoji(value) is { } emoji
-                && scene.AttachedTo(objectId).FirstOrDefault(o => o.Rig == emoji.Rig) is { } target)
+            if (objectId is not null && IsShow(name) && document.FindEmoji(value) is { } emoji && TargetOf(scene, emoji, objectId) is { } target)
             {
                 targets.Add(target.Id);
             }

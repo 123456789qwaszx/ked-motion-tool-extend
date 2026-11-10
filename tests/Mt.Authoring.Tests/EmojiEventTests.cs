@@ -281,4 +281,49 @@ public class EmojiEventTests
         string json = Mt.Authoring.Serialization.MotionDocumentJson.Write(editor.Document);
         Assert.Equal("bandi", Mt.Authoring.Serialization.MotionDocumentJson.Read(json).ActiveSceneAsset!.Find("s1")!.Character);
     }
+
+    // ── 연출 — 화면에 서는 것과 cue 이벤트(PLAN-set.md S5) ─────────────
+
+    [Fact]
+    public void 화면에_서는_연출은_어디에도_안_붙은_세트가_연기하고_cue_이벤트가_띄우고_끈다()
+    {
+        MotionEditor editor = NewEditor(); // e1(이모지 리그)은 s1에 붙어 있다 — 이모지 sweat · stay
+        editor.AddRig(new RigAsset { Kind = "wipe", Nodes = { new RigNodeAsset { Id = "Panel", Width = 1920f, Height = 1080f, Color = "#223355", Alpha = true } } });
+        editor.AddMotion("wipe_in", "wipe", 0.4f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.AddChannel("wipe_in", "Panel", MotionChannelKind.Position);
+        editor.SetKeys("wipe_in", "Panel", MotionChannelKind.Position, Axis.X, new[] { Linear(0f, -1920f), Linear(0.4f, 0f) });
+        editor.AddEmoji("to_night", "wipe");
+        editor.UpdateEmoji("to_night", new EmojiAsset { Enter = "wipe_in", HoldSeconds = null, Screen = true });
+        Assert.DoesNotContain(EmojiValidator.Validate(editor.Document, RigAssets.Compose(RigFile, editor.Document).NodeIds), p => p.EmojiName == "to_night"); // 색 오브젝트가 있어 스킨 없이도 된다
+
+        // 씬에 그 세트가 안 놓였으면 설 데가 없다.
+        editor.AddMotionEvent("nod", 0.1f, "cue", "to_night");
+        Assert.Empty(Plays(editor, 0.3));
+
+        // 장면에 놓으면(캐릭터에 안 붙인다) 그것이 연기한다 — 울린 캐릭터와 상관없이 화면의 것이다.
+        editor.AddSceneObject(null, "w1", "wipe");
+        EmojiPlay play = Assert.Single(Plays(editor, 0.3));
+        Assert.Equal(("w1", "to_night"), (play.Target.Id, play.Emoji.Name));
+        Assert.Equal(0.2, play.Local, 4);
+        Assert.Equal(new[] { "w1" }, EmojiEvents.Targets(editor.Document, Scene(editor), Fired(editor, double.PositiveInfinity)));
+
+        // 캐릭터에 붙는 연출과 함께 뜬다 — 캐릭터마다 하나, 화면에 하나. cue는 emoji와 같은 뜻의 넓은 이름이다.
+        editor.AddMotionEvent("nod", 0.2f, "cue", "stay");
+        Assert.Equal(new[] { "stay", "to_night" }, Plays(editor, 0.3).Select(p => p.Emoji.Name).OrderBy(n => n));
+
+        // cue_off — 값이 비면 울린 캐릭터의 것만, 값이 화면 연출의 키면 화면의 것을 끈다.
+        editor.AddMotionEvent("nod", 0.3f, "cue_off");
+        Assert.True(Plays(editor, 0.35).Single(p => p.Emoji.Name == "stay").Phases.Total < 10f); // 퇴장이 시작했다
+        Assert.True(Plays(editor, 0.35).Single(p => p.Emoji.Name == "to_night").Phases.Staying);  // 화면의 것은 그대로
+        editor.AddMotionEvent("nod", 0.4f, "cue_off", "to_night");
+        Assert.False(Plays(editor, 0.45).Single(p => p.Emoji.Name == "to_night").Phases.Staying);
+
+        // 산출물: 화면에 서는 연출은 "stand": "screen".
+        string json = EmojisJson.Write(editor.Document);
+        Assert.Equal(1, json.Split("\"stand\": \"screen\"").Length - 1);
+
+        // 모르는 연출 키는 cue에서도 알린다.
+        editor.AddMotionEvent("nod", 0.5f, "cue", "ghost");
+        Assert.Contains(MotionValidator.Validate(editor.Document, RigFile.NodeIds), p => p.Message.Contains("이벤트 cue", StringComparison.Ordinal) && p.Message.Contains("ghost", StringComparison.Ordinal));
+    }
 }

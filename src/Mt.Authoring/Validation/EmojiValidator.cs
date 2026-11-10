@@ -51,7 +51,11 @@ public static class EmojiValidator
 
             if (emoji.Skin is null)
             {
-                Notice("그림(스킨)이 없다 — 아무것도 안 보인다");
+                // 색 오브젝트가 있는 세트는 스킨 없이도 보인다.
+                if (document.FindRig(emoji.Rig)?.Nodes.Any(n => n.Color is not null) != true)
+                {
+                    Notice("그림(스킨)이 없다 — 아무것도 안 보인다");
+                }
             }
             else if (document.FindSkin(emoji.Skin) is not { } skin)
             {
@@ -100,7 +104,8 @@ public static class EmojiValidator
                 Block($"머무는 시간은 0 이상의 수다 ({hold})");
             }
 
-            if (nodes is not null && !nodes.Contains(emoji.AnchorNode))
+            // 자리 노드를 따로 적었는데 그 리그에 없을 때만 알린다 — 기본값(Emoji_Anchor)이 없는 세트는 루트에 오프셋이 들어가는 것이 뜻이다.
+            if (nodes is not null && !nodes.Contains(emoji.AnchorNode) && emoji.AnchorNode != EmojiAsset.DefaultAnchorNode)
             {
                 Notice($"자리 노드 '{emoji.AnchorNode}'가 리그에 없다 — 오프셋이 루트에 들어간다");
             }
@@ -228,6 +233,12 @@ public static class EmojisJson
             else
             {
                 entry["stay"] = true;
+            }
+
+            // 화면에 서는 연출 — 캐릭터에 붙지 않는다.
+            if (e.Screen)
+            {
+                entry["stand"] = "screen";
             }
 
             entry["anchorNode"] = e.AnchorNode;

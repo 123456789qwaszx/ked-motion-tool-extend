@@ -61,6 +61,7 @@ public sealed partial class MotionEditor
         {
             emoji.Skin = Blank(value.Skin);
             emoji.SkinFlipped = Blank(value.SkinFlipped);
+            emoji.Screen = value.Screen;
             emoji.Enter = Blank(value.Enter);
             emoji.Hold = Blank(value.Hold);
             emoji.Exit = Blank(value.Exit);

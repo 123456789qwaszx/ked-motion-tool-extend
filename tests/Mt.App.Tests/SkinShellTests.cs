@@ -1328,4 +1328,62 @@ public class SkinShellTests
             }
         });
     }
+
+    [Fact]
+    public void 세트를_연_채_연출을_만들면_화면에_서는_연출이_되고_씬에_놓지_않아도_미리본다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                window.NewSetFromForm();
+                window.SelectSetNode("Body");
+                window.AddColorNodeFromForm();
+                editor.AddMotion("in", "set", 0.4f, MotionEnd.Commit, MotionChannelMode.Absolute);
+                editor.AddChannel("in", "Color1", MotionChannelKind.Position);
+                editor.SetKeys("in", "Color1", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, -500f), TestDocuments.Key(0.4f, 0f) });
+                window.InspectorTab = 4; // 연출 탭
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // 세트를 연 채 "연출 추가" — 그 세트의 연출이, 화면에 서는 것으로, 세트의 이름으로 선다(한 칸). 연출을 고르면 세트 보기를 떠난다.
+                long revision = editor.Revision;
+                Assert.Equal("set", window.AddEmojiFromForm());
+                Assert.Equal(revision + 1, editor.Revision);
+                EmojiAsset cue = editor.Document.FindEmoji("set")!;
+                Assert.Equal(("set", true), (cue.Rig, cue.Screen));
+                Assert.Null(window.SelectedSet);
+                Assert.Equal("set", window.SelectedEmoji);
+                window.UpdateSelectedEmoji(e => { e.Enter = "in"; e.HoldSeconds = 1f; });
+                Assert.Equal(0, window.ProblemRowsShown); // 색 오브젝트가 있어 스킨이 없어도 된다
+
+                // 씬에 그 세트가 없다 — 보기 전용 오브젝트가 대신 서서 연기한다. 문서의 씬은 그대로다.
+                Assert.Equal(ViewportView.CueObjectId, view.EmojiActor?.Id);
+                Assert.Null(editor.Document.ActiveSceneAsset!.Find(ViewportView.CueObjectId));
+                Assert.NotNull(view.Scene!.Find("s1")); // 캐릭터도 같이 보인다
+                view.ScrubTo(0.2);
+                Assert.Equal(-250f, view.CurrentPose()!.GetState($"{ViewportView.CueObjectId}/Color1").AnchoredPosition.X, 1);
+
+                // 장면에 세트를 놓으면 그것이 연기한다(보기 전용 오브젝트는 물러난다).
+                string placed = window.PlaceSetFromMenu("set");
+                Assert.Null(editor.Document.ActiveSceneAsset!.ParentOf(editor.Document.ActiveSceneAsset!.Find(placed)!));
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.SelectEmoji("set");
+                Assert.Equal(placed, view.EmojiActor?.Id);
+                Assert.Null(view.Scene!.Find(ViewportView.CueObjectId));
+
+                // 캐릭터에 붙는 쪽으로 바꾸면 보통의 이모지처럼 그 리그의 오브젝트가 연기한다.
+                window.UpdateSelectedEmoji(e => e.Screen = false);
+                Assert.False(editor.Document.FindEmoji("set")!.Screen);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

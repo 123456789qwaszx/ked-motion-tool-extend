@@ -24,6 +24,12 @@ public sealed class EmojiAsset
     /// </summary>
     public string? SkinFlipped { get; set; }
 
+    /// <summary>
+    /// 화면에 선다(<c>PLAN-set.md</c> S5) — 캐릭터에 붙지 않는 연출이다: 화면 전환·날짜 소개처럼 무대 위에 제 자리로 선다. 붙는 자리(로케이터)·반전 판은 뜻이 없다.
+    /// 거짓이면 캐릭터에 붙는 연출(이모지)이다.
+    /// </summary>
+    public bool Screen { get; set; }
+
     /// <summary>등장 모션(한 번). null이면 바로 선다.</summary>
     public string? Enter { get; set; }
 

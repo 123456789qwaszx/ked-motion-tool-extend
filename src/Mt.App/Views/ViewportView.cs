@@ -225,7 +225,38 @@ public sealed class ViewportView : Control
     public SceneAsset? Scene => _editor is null
         ? null
         : SetScene() is { } set ? set
+        : CueScene() is { } cue ? cue
         : ShownClip is { } clip ? ClipPreview.SceneOf(_editor.Document, clip) ?? _editor.Document.ActiveSceneAsset : _editor.Document.ActiveSceneAsset;
+
+    // ── 화면에 서는 연출을 본다 (PLAN-set.md S5) ──────────────────────
+
+    /// <summary>화면 연출을 볼 때, 씬에 그 세트가 안 놓여 있으면 대신 서는 오브젝트의 id — 문서의 씬에는 없다(보기 전용).</summary>
+    public const string CueObjectId = "cue";
+
+    private SceneAsset? _cueScene;
+    private (SceneAsset Source, string Rig)? _cueSceneOf;
+
+    /// <summary>
+    /// 화면에 서는 연출을 보는 중이고 문서의 씬에 그 세트가 (어디에도 안 붙은 채) 놓여 있지 않으면 — 씬의 사본에 그 세트 하나를 맨 앞 층에 더한 보기 전용 씬.
+    /// 화면 연출을 만들자마자 오브젝트를 놓지 않고도 본다.
+    /// </summary>
+    private SceneAsset? CueScene()
+    {
+        if (_editor is null || _emojiName is null || _editor.Document.FindEmoji(_emojiName) is not { Screen: true } emoji || _editor.Document.ActiveSceneAsset is not { } scene
+            || scene.Objects.Any(o => o.Rig == emoji.Rig && scene.ParentOf(o) is null))
+        {
+            return null;
+        }
+
+        if (_cueScene is null || _cueSceneOf is not { } of || !ReferenceEquals(of.Source, scene) || of.Rig != emoji.Rig || _cueScene.Objects.Count != scene.Objects.Count + 1)
+        {
+            _cueScene = scene.Clone();
+            _cueScene.Objects.Add(new SceneObject { Id = CueObjectId, Rig = emoji.Rig, Layer = SceneLayers.Close });
+            _cueSceneOf = (scene, emoji.Rig);
+        }
+
+        return _cueScene;
+    }
 
     // ── 세트 보기 (PLAN-set.md S1) ────────────────────────────────────
 
@@ -1251,6 +1282,12 @@ public sealed class ViewportView : Control
                 return null;
             }
 
+            // 화면에 서는 연출은 어디에도 안 붙은 그 세트가, 캐릭터에 붙는 연출은 (고른 것이 그 리그면 그것, 아니면) 그 리그의 첫 오브젝트가 연기한다.
+            if (emoji.Screen)
+            {
+                return scene.Objects.FirstOrDefault(o => o.Rig == emoji.Rig && scene.ParentOf(o) is null);
+            }
+
             return SelectedObject is { } selected && selected.Rig == emoji.Rig ? selected : scene.Objects.FirstOrDefault(o => o.Rig == emoji.Rig);
         }
     }
@@ -2134,7 +2171,7 @@ public sealed class ViewportView : Control
                 }
             }
 
-            DrawLabel(context, $"이모지 {previewed.Name} · {where} · 등장 {phases.Enter:0.##}s › 머묾 {phases.Hold:0.##}s{(phases.Staying ? "(끌 때까지 — 미리보기 길이)" : "")} › 퇴장 {phases.Exit:0.##}s · 지금 {phase}{editing}", new Point(stage.X + 8, stage.Y + 6));
+            DrawLabel(context, $"연출 {previewed.Name}{(previewed.Screen ? " · 화면" : "")} · {where} · 등장 {phases.Enter:0.##}s › 머묾 {phases.Hold:0.##}s{(phases.Staying ? "(끌 때까지 — 미리보기 길이)" : "")} › 퇴장 {phases.Exit:0.##}s · 지금 {phase}{editing}", new Point(stage.X + 8, stage.Y + 6));
             return;
         }
 

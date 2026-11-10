@@ -1842,7 +1842,7 @@ public partial class MainWindow : Window
             new TabItem { Header = "씬", Content = BuildSceneTab(), FontSize = 12 },
             new TabItem { Header = "모션", Content = BuildMotionTab(), FontSize = 12 },
             new TabItem { Header = "클립", Content = BuildClipTab(), FontSize = 12 },
-            new TabItem { Header = "이모지", Content = BuildEmojiTab(), FontSize = 12 },
+            new TabItem { Header = "연출", Content = BuildEmojiTab(), FontSize = 12 },
         };
         _inspectorTabs.SelectionChanged += (_, _) =>
         {
@@ -2749,6 +2749,22 @@ public partial class MainWindow : Window
             _ => "",
         };
         Item("캐릭터 리그 만들기" + where, () => CreateObject(SceneObject.DefaultRig, target), new KeyGesture(Key.N, KeyModifiers.Control | KeyModifiers.Shift), enabled: target is not SkeletonNode);
+
+        // 세트를 장면에 놓는다 — 캐릭터에 붙이지 않고 그 층에 제 자리로(화면 전환·소개 같은 연출이 설 오브젝트, 클립의 출연자).
+        if (_session.Editor.Document.Rigs.Count > 0 && target is not SkeletonNode)
+        {
+            var place = new MenuItem { Header = "세트 놓기" + where, FontSize = 11 };
+
+            foreach (string kind in _session.Editor.Document.Rigs.Select(r => r.Kind).OrderBy(k => k, StringComparer.Ordinal))
+            {
+                string captured = kind;
+                var pick = new MenuItem { Header = kind, FontSize = 11 };
+                pick.Click += (_, _) => Guard("세트 놓기", () => CreateObject(captured, target));
+                place.Items.Add(pick);
+            }
+
+            _hierarchyMenu.Items.Add(place);
+        }
 
         if (o is not null)
         {

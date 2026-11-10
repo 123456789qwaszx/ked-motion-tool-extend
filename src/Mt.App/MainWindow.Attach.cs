@@ -12,6 +12,9 @@ public partial class MainWindow
     /// <summary>테스트 손잡이 — "붙는 리그 만들기 ▸ rigKind". 만든 오브젝트의 id.</summary>
     internal string CreateAttachedFromMenu(string rig, string parentId) => CreateAttached(rig, parentId);
 
+    /// <summary>테스트 손잡이 — 하이어아키의 "세트 놓기 ▸ (세트)": 캐릭터에 붙이지 않고 장면에 놓는다.</summary>
+    internal string PlaceSetFromMenu(string kind) => CreateObject(kind, null);
+
     /// <summary>테스트 손잡이 — 붙여 만들 수 있는 rigKind들(메뉴에 나오는 것).</summary>
     internal IReadOnlyList<string> AttachableRigs => AttachableRigKinds();
 

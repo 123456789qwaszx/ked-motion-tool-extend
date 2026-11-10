@@ -23,6 +23,7 @@ public partial class MainWindow
     private readonly TextBox _emojiName = new() { FontSize = 11 };
     private readonly ComboBox _emojiSkin = new() { FontSize = 11 };
     private readonly ComboBox _emojiSkinFlipped = new() { FontSize = 11 };
+    private readonly ComboBox _emojiStand = new() { FontSize = 11, ItemsSource = new[] { "캐릭터에 붙는다", "화면에 선다" } };
     private readonly ComboBox _emojiEnter = new() { FontSize = 11 };
     private readonly ComboBox _emojiHold = new() { FontSize = 11 };
     private readonly ComboBox _emojiExit = new() { FontSize = 11 };
@@ -55,19 +56,28 @@ public partial class MainWindow
     {
         var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
         _emojiList.SelectionChanged += (_, _) => OnEmojiSelected();
-        ToolTip.SetTip(_emojiList, "이모지 정의 — 그림(스킨) + 등장·머묾·퇴장 모션 + 머무는 시간 + 자리. 고르면 뷰포트가 수명 한 번을 재생한다(모션·클립 선택은 풀린다)");
+        ToolTip.SetTip(_emojiList, "연출 — \"이 세트를, 이 스킨으로, 등장·머묾·퇴장은 이 애니메이션으로, 여기에 세운다\"에 붙인 이름(이모지 · 화면 전환 · 소개…). 대본이 이 이름으로 부른다. 고르면 뷰포트가 수명 한 번을 재생한다(모션·클립 선택은 풀린다)");
         panel.Children.Add(_emojiList);
 
-        Button add = SmallButton("이모지 추가", (_, _) => Guard("이모지 추가", () => AddEmoji()));
-        ToolTip.SetTip(add, "고른 오브젝트의 리그(조각이 있는 리그 — 이모지 리그)로 새 정의를 만든다. 그 오브젝트가 입은 스킨이 있으면 그것이 그림이 된다");
+        Button add = SmallButton("연출 추가", (_, _) => Guard("연출 추가", () => AddEmoji()));
+        ToolTip.SetTip(add, "새 연출 — 세트를 열어 두었으면 그 세트의 것(화면에 서는 연출)으로, 아니면 고른 오브젝트의 리그(없으면 이모지 리그)로 캐릭터에 붙는 연출을 만든다");
         panel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 4,
-            Children = { add, SmallButton("이모지 삭제", (_, _) => Guard("이모지 삭제", RemoveEmoji)), SmallButton("emojis.json…", OnExportEmojisClick) },
+            Children = { add, SmallButton("연출 삭제", (_, _) => Guard("연출 삭제", RemoveEmoji)), SmallButton("emojis.json…", OnExportEmojisClick) },
         });
 
         _emojiFields.Children.Add(Labeled("키", _emojiName));
+        _emojiFields.Children.Add(Labeled("서는 곳", _emojiStand));
+        ToolTip.SetTip(_emojiStand, "캐릭터에 붙는다 — 그 캐릭터의 기준점 옆에 따라다닌다(이모지). 화면에 선다 — 캐릭터와 상관없이 무대 위 제 자리에 선다(화면 전환 · 날짜 소개). 화면에 서는 연출은 씬에 그 세트가 놓여 있지 않아도 미리본다");
+        _emojiStand.SelectionChanged += (_, _) =>
+        {
+            if (!_refreshing && _emojiStand.SelectedIndex >= 0)
+            {
+                WithEmoji(e => e.Screen = _emojiStand.SelectedIndex == 1);
+            }
+        };
         _emojiFields.Children.Add(Labeled("그림(스킨)", _emojiSkin));
         _emojiFields.Children.Add(Labeled("반전 판", _emojiSkinFlipped));
         Button newSkin = SmallButton("새 스킨", (_, _) => Guard("새 스킨", () => NewEmojiSkin(flipped: false)));
@@ -498,6 +508,10 @@ public partial class MainWindow
             Write(_emojiOffsetX, emoji is null ? "" : emoji.OffsetX.ToString("0.###", CultureInfo.InvariantCulture));
             Write(_emojiOffsetY, emoji is null ? "" : emoji.OffsetY.ToString("0.###", CultureInfo.InvariantCulture));
             Write(_emojiLocator, emoji?.Locator ?? "");
+            _emojiStand.SelectedIndex = emoji is null ? -1 : emoji.Screen ? 1 : 0;
+            // 화면에 서는 연출에는 붙는 자리·반전 판이 뜻이 없다.
+            _emojiLocator.IsEnabled = emoji is { Screen: false };
+            _emojiSkinFlipped.IsEnabled = emoji is { Screen: false };
         }
         finally
         {
@@ -525,28 +539,34 @@ public partial class MainWindow
     {
         MotionEditor editor = _session.Editor;
         SceneObject? selected = _viewport.SelectedObject;
-        // 리그: 고른 오브젝트의 것(조각이 있으면), 아니면 조각이 있는 첫 리그, 그것도 없으면 이모지 리그를 툴이 정의한다.
-        string rig = selected is not null && RigParts.Of(_session.Rig, selected.Rig).Count > 0
-            ? selected.Rig
-            : _session.Rig?.RigKinds.FirstOrDefault(k => RigParts.Of(_session.Rig, k).Count > 0) ?? RigTemplates.EmojiKind;
+        // 세트를 열어 두었으면 그 세트의 연출이다 — 씬에서 캐릭터에 붙어 있는 세트가 아니면 화면에 서는 것으로 만든다.
+        string? openSet = SelectedSet;
+        bool screen = openSet is not null && editor.Document.Scenes.All(s => s.Objects.All(o => o.Rig != openSet || s.ParentOf(o) is null));
+        // 리그: 연 세트, 아니면 고른 오브젝트의 것(조각이 있으면), 아니면 조각이 있는 첫 리그, 그것도 없으면 이모지 리그를 툴이 정의한다.
+        string rig = openSet
+            ?? (selected is not null && RigParts.Of(_session.Rig, selected.Rig).Count > 0
+                ? selected.Rig
+                : _session.Rig?.RigKinds.FirstOrDefault(k => RigParts.Of(_session.Rig, k).Count > 0) ?? RigTemplates.EmojiKind);
 
-        string name = "emoji";
+        // 이름: 이모지 리그면 emoji, 그 밖의 세트면 그 세트의 이름에서.
+        string stem = rig == RigTemplates.EmojiKind ? "emoji" : rig;
+        string name = stem;
 
         for (int n = 2; editor.Document.FindEmoji(name) is not null; n++)
         {
-            name = $"emoji_{n}";
+            name = $"{stem}_{n}";
         }
 
-        string? skin = selected is not null && selected.Rig == rig ? selected.Skin : null;
+        string? skin = openSet is not null ? _viewport.SetSkin : selected is not null && selected.Rig == rig ? selected.Skin : null;
 
         editor.Batch(MotionChangeKind.Document, () =>
         {
             EnsureRigDefined(rig);
             editor.AddEmoji(name, rig);
 
-            if (skin is not null)
+            if (skin is not null || screen)
             {
-                editor.UpdateEmoji(name, new EmojiAsset { Skin = skin });
+                editor.UpdateEmoji(name, new EmojiAsset { Skin = skin, Screen = screen });
             }
         });
 
