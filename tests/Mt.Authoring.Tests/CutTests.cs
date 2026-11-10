@@ -343,4 +343,62 @@ public class CutTests
         Assert.Throws<InvalidOperationException>(() => editor.SetCutDepthKey("arrival", "actor", 0f, 50f));
         Assert.Throws<InvalidOperationException>(() => editor.AddRigNode("arrival", "sky__depth"));
     }
+
+    // ── 그림 키 — 계단 키(표정 바꾸기) ────────────────────────────────
+
+    [Fact]
+    public void 그림_키는_그_프레임부터_그림을_바꾸고_다음_키까지_이어진다()
+    {
+        (MotionEditor editor, CutAsset _) = StageCut();
+        MotionAsset Timeline() => editor.Document.Find("arrival")!;
+
+        // 2초에 smile, 5초에 calm — 각각 한 칸. 시각 순으로 선다.
+        long revision = editor.Revision;
+        Assert.Equal(0, editor.AddImageKey("arrival", "hero", 5f, "art/hero_calm.png"));
+        Assert.Equal(0, editor.AddImageKey("arrival", "hero", 2f, "art/hero_smile.png"));
+        Assert.Equal(revision + 2, editor.Revision);
+        Assert.Equal(new[] { (2f, "art/hero_smile.png"), (5f, "art/hero_calm.png") }, Timeline().Swaps.Select(s => (s.T, s.Image)));
+
+        // 계단 — 첫 키 앞은 원래 그림(null = 스킨의 것), 키부터 다음 키 직전까지 그 그림. 사이값이 없다.
+        Assert.Null(MotionSwaps.ImageAt(Timeline(), "hero", 1.99));
+        Assert.Equal("art/hero_smile.png", MotionSwaps.ImageAt(Timeline(), "hero", 2.0));
+        Assert.Equal("art/hero_smile.png", MotionSwaps.ImageAt(Timeline(), "hero", 4.99));
+        Assert.Equal("art/hero_calm.png", MotionSwaps.ImageAt(Timeline(), "hero", 9.0));
+        Assert.Null(MotionSwaps.ImageAt(Timeline(), "sky", 9.0)); // 다른 오브젝트는 그대로
+
+        // 같은 오브젝트의 같은 시각에 다시 놓으면 그 키를 대신한다.
+        editor.AddImageKey("arrival", "hero", 2f, "art/hero_angry.png");
+        Assert.Equal(2, Timeline().Swaps.Count);
+        Assert.Equal("art/hero_angry.png", MotionSwaps.ImageAt(Timeline(), "hero", 3.0));
+
+        // 저작본 왕복 · 검증.
+        string json = MotionDocumentJson.Write(editor.Document);
+        Assert.Contains("\"swaps\"", json, StringComparison.Ordinal);
+        Assert.Equal(json, MotionDocumentJson.Write(MotionDocumentJson.Read(json)));
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+
+        // 막는 것: 그림 없는 키 · 길이 밖 · 그림을 그리지 않는 오브젝트.
+        revision = editor.Revision;
+        editor.AddRigNode("arrival", "group");
+        revision = editor.Revision;
+        Assert.Throws<InvalidOperationException>(() => editor.AddImageKey("arrival", "hero", 1f, " "));
+        Assert.Throws<InvalidOperationException>(() => editor.AddImageKey("arrival", "hero", 11f, "art/x.png"));
+        Assert.Throws<InvalidOperationException>(() => editor.AddImageKey("arrival", "group", 1f, "art/x.png"));
+        Assert.Equal(revision, editor.Revision);
+
+        // 오브젝트의 이름을 바꾸면 그림 키가 따라오고, 새 세트로 빼면 그 세트의 애니메이션으로 가서 재생 블록으로 돌아온다(재생은 그대로).
+        editor.RenameRigNode("arrival", "hero", "actor");
+        Assert.Equal("art/hero_angry.png", MotionSwaps.ImageAt(Timeline(), "actor", 3.0));
+        editor.ExtractRigNodes("arrival", new[] { "actor" }, "cast");
+        Assert.Empty(Timeline().Swaps);
+        Assert.Equal(2, editor.Document.Find("cast_arrival")!.Swaps.Count);
+        Assert.Equal("art/hero_angry.png", MotionSwaps.ImageAt(Timeline(), "cast.actor", 3.0));
+        Assert.Equal("art/hero_calm.png", MotionSwaps.ImageAt(Timeline(), "cast.actor", 9.0));
+
+        // 지우기 — 한 칸.
+        editor.RemoveImageKey("cast_arrival", 0);
+        Assert.Null(MotionSwaps.ImageAt(Timeline(), "cast.actor", 3.0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => editor.RemoveImageKey("cast_arrival", 5));
+    }
 }

@@ -2004,6 +2004,7 @@ public partial class MainWindow : Window
         panel.Children.Add(BuildAlphaPanel());
         panel.Children.Add(BuildEventPanel());
         panel.Children.Add(BuildPlayPanel());
+        panel.Children.Add(BuildSwapPanel());
 
         OnCommit(_motionName, text => WithMotion(m =>
         {
@@ -3735,6 +3736,7 @@ public partial class MainWindow : Window
             RefreshCameraPanel();
             RefreshEventPanel();
             RefreshPlayPanel();
+            RefreshSwapPanel();
         }
     }
 

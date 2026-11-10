@@ -240,6 +240,12 @@ public sealed partial class MotionEditor
                 {
                     play.Node = name;
                 }
+
+                // 그림 키도 따라온다(그 오브젝트의 것 · 인스턴스 안쪽의 것).
+                foreach (MotionSwapAsset swap in motion.Swaps.Where(s => s.Node == id || s.Node.StartsWith(prefix, StringComparison.Ordinal)))
+                {
+                    swap.Node = name + swap.Node[id.Length..];
+                }
             }
 
             foreach (SkinAsset skin in Document.Skins.Where(s => s.Rig == kind))

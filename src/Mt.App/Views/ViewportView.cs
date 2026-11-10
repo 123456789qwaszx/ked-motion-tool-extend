@@ -1453,11 +1453,16 @@ public sealed class ViewportView : Control
     }
 
     private Bitmap? ImageOf(Worn worn, string node)
-        => worn.Skin.ImageAt(node, worn.Seconds) is { } image && _images.TryGetValue(image, out Bitmap? bitmap) ? bitmap : null;
+        => ImagePathOf(worn, node) is { } image && _images.TryGetValue(image, out Bitmap? bitmap) ? bitmap : null;
+
+    /// <summary>그 조각이 지금 그릴 그림 — 묶인 애니메이션(컷의 타임라인)에 그림 키가 걸려 있으면 그것, 아니면 스킨의 그림.</summary>
+    private string? ImagePathOf(Worn worn, string node)
+        => (_setView is not null && Motion is { } motion && motion.Rig == _setView ? MotionSwaps.ImageAt(motion, node, _clock.Time) : null)
+           ?? worn.Skin.ImageAt(node, worn.Seconds);
 
     /// <summary>테스트 손잡이 — 그 조각에 지금 그려지는 그림(문서 기준 경로). 안 그려지면 null.</summary>
     public string? PartImage(string objectId, string node)
-        => Scene?.Find(objectId) is { } o && WornBy(CurrentPose(), o) is { } worn ? worn.Skin.ImageAt(node, worn.Seconds) : null;
+        => Scene?.Find(objectId) is { } o && WornBy(CurrentPose(), o) is { } worn ? ImagePathOf(worn, node) : null;
 
     /// <summary>
     /// 그 오브젝트에서 그려지는 조각 노드들(그리는 순서) — 리그의 조각 가운데 입은 스킨이 그림을 준 것. 조각이 없는 리그나 스킨을 안 입었으면 빈 목록.

@@ -70,6 +70,7 @@ public static class MotionFlatten
             PreviewMode = motion.PreviewMode,
             Channels = motion.Channels.Select(CloneChannel).ToList(),
             Events = motion.Events.Select(e => new MotionEventAsset { T = e.T, Name = e.Name, Value = e.Value }).ToList(),
+            Swaps = motion.Swaps.Select(s => new MotionSwapAsset { T = s.T, Node = s.Node, Image = s.Image }).ToList(),
         };
 
         RigAsset? rig = document.FindRig(motion.Rig);
@@ -111,6 +112,15 @@ public static class MotionFlatten
                     }
                 }
 
+                // 품은 애니메이션의 그림 키 — 경로 이름으로, 그 바퀴의 시각으로.
+                foreach (MotionSwapAsset swap in child.Swaps)
+                {
+                    if (start + swap.T <= motion.Duration + MotionRules.Tolerance)
+                    {
+                        result.Swaps.Add(new MotionSwapAsset { T = Math.Min(start + swap.T, motion.Duration), Node = path + swap.Node, Image = swap.Image });
+                    }
+                }
+
                 foreach (MotionEventAsset e in child.Events)
                 {
                     if (start + e.T <= motion.Duration + MotionRules.Tolerance)
@@ -140,6 +150,7 @@ public static class MotionFlatten
         }
 
         result.Events = result.Events.OrderBy(e => e.T).ToList();
+        result.Swaps = result.Swaps.OrderBy(s => s.T).ToList();
         open.Remove(motion.Name);
         done[motion.Name] = result;
         return result;

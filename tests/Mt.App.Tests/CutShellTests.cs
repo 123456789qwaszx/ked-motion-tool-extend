@@ -253,4 +253,70 @@ public class CutShellTests
             }
         });
     }
+
+    [Fact]
+    public void 그림_키를_놓으면_그_프레임부터_오브젝트의_그림이_바뀐다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                DirectoryInfo? root = new(AppContext.BaseDirectory);
+
+                while (root is not null && !File.Exists(Path.Combine(root.FullName, "KedMotionTool.sln")))
+                {
+                    root = root.Parent;
+                }
+
+                string art = Path.Combine(root!.FullName, "examples", "transitions", "station", "art");
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                window.NewCutFromForm();
+                window.ImportLayerSheetFromForm(Path.Combine(art, "layers.tsv"));
+                window.InspectorTab = 2; // 모션 탭
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.True(window.SwapPanelShown);
+                string original = view.PartImage(ViewportView.SetObjectId, "sign")!;
+                Assert.EndsWith("06_sign.png", original, StringComparison.Ordinal);
+
+                // 오브젝트를 안 골랐으면 놓이지 않는다.
+                window.SelectSetNode(null);
+                Assert.Null(window.AddImageKeyFromFile(Path.Combine(art, "08_microbe_sun.png")));
+
+                // sign을 고르고 48프레임(2초)에 그림 키 — 한 칸, 줄이 선다.
+                window.SelectSetNode("sign");
+                window.Graph.CurrentTime = 2.0;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                long revision = editor.Revision;
+                Assert.Equal(0, window.AddImageKeyFromFile(Path.Combine(art, "08_microbe_sun.png")));
+                Assert.Equal(revision + 1, editor.Revision);
+                MotionSwapAsset swap = Assert.Single(editor.Document.Find("cut")!.Swaps);
+                Assert.Equal(("sign", 2f), (swap.Node, swap.T));
+                Assert.EndsWith("08_microbe_sun.png", swap.Image, StringComparison.Ordinal);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(1, window.SwapRowCount);
+
+                // 뷰포트 — 키 앞에서는 원래 그림, 키부터는 바뀐 그림(사이값이 없다). 그 그림이 실려 있다.
+                string At(double t)
+                {
+                    window.Graph.CurrentTime = t;
+                    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                    return view.PartImage(ViewportView.SetObjectId, "sign")!;
+                }
+
+                Assert.Equal(original, At(1.9));
+                Assert.EndsWith("08_microbe_sun.png", At(2.0), StringComparison.Ordinal);
+                Assert.EndsWith("08_microbe_sun.png", At(9.0), StringComparison.Ordinal);
+                Assert.All(window.Session.SkinImages(), image => Assert.NotNull(image.Path));
+                Assert.Equal(0, window.ProblemRowsShown);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

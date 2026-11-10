@@ -202,7 +202,7 @@ public sealed class DocumentSession
 
     /// <summary>문서의 스킨들이 쓰는 그림 전부 — 문서 기준 경로 → 파일 경로(파일이 없으면 null: 자리표시로 그린다).</summary>
     public IReadOnlyList<(string Image, string? Path)> SkinImages()
-        => Editor.Document.Skins.SelectMany(s => s.AllImages()).Distinct(StringComparer.Ordinal).Select(image =>
+        => Editor.Document.Skins.SelectMany(s => s.AllImages()).Concat(Editor.Document.Motions.SelectMany(Mt.Authoring.Preview.MotionSwaps.ImagesOf)).Distinct(StringComparer.Ordinal).Select(image => // 그림 키의 그림까지
         {
             string resolved = ResolveFromDocument(image);
             return (image, File.Exists(resolved) ? resolved : (string?)null);
@@ -584,7 +584,7 @@ public sealed class DocumentSession
         }
     }
 
-    private string RelativeToDocument(string path)
+    public string RelativeToDocument(string path)
     {
         string full = Path.GetFullPath(path);
 

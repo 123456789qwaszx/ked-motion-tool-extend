@@ -202,6 +202,20 @@ public sealed class MotionAsset
     }
 
     /// <summary>
+    /// 그림 키(<c>PLAN-standalone.md</c> C4) — "이 프레임부터 이 오브젝트는 이 그림이다". 사이값이 없는 **계단 키**다(표정 바꾸기).
+    /// 시각 오름차순. 저작본에는 <see cref="SwapsOrNull"/>로 실린다(없으면 안 적는다).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<MotionSwapAsset> Swaps { get; set; } = new();
+
+    [System.Text.Json.Serialization.JsonPropertyName("swaps")]
+    public List<MotionSwapAsset>? SwapsOrNull
+    {
+        get => Swaps.Count == 0 ? null : Swaps;
+        set => Swaps = value ?? new List<MotionSwapAsset>();
+    }
+
+    /// <summary>
     /// 재생 블록을 다 펼쳐 구운 것(<see cref="Preview.MotionFlatten"/>) — 품은 세트의 애니메이션이 경로 이름의 채널(<c>차.Body</c>)로 들어와 한 덩어리가 된 모션.
     /// 재생 블록이 없으면 null. 미리보기와 산출물은 이것을 쓴다(<see cref="MotionAssetCodec.ToClip"/>) — 저작본에는 안 적힌다. 편집기가 문서가 바뀔 때마다 다시 굽는다.
     /// </summary>
@@ -226,6 +240,16 @@ public sealed class MotionPlayAsset
 
     /// <summary>되풀이 횟수(1 이상) — 같은 블록을 끝에 이어 그만큼 놓은 것.</summary>
     public int Repeat { get; set; } = 1;
+}
+
+/// <summary>그림 키 하나 — 그 시각(초)부터 그 오브젝트가 그 그림(문서 기준 경로)을 그린다. 다음 그림 키까지 이어진다.</summary>
+public sealed class MotionSwapAsset
+{
+    public float T { get; set; }
+
+    public string Node { get; set; } = "";
+
+    public string Image { get; set; } = "";
 }
 
 /// <summary>이벤트 키 하나 — 시각(초) · 이름(<c>[a-z0-9_]+</c>) · 딸린 값(자유 글, 없어도 된다).</summary>

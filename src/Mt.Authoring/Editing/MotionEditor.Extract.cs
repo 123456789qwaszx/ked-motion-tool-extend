@@ -119,7 +119,9 @@ public sealed partial class MotionEditor
                 List<ChannelAsset> channels = motion.Channels.Where(c => Moves(c.Node)).ToList();
                 List<MotionPlayAsset> plays = motion.Plays.Where(p => moved.Contains(p.Node)).ToList();
 
-                if (channels.Count == 0 && plays.Count == 0)
+                List<MotionSwapAsset> swaps = motion.Swaps.Where(s => Moves(s.Node)).ToList();
+
+                if (channels.Count == 0 && plays.Count == 0 && swaps.Count == 0)
                 {
                     continue;
                 }
@@ -134,9 +136,11 @@ public sealed partial class MotionEditor
                     PreviewMode = motion.PreviewMode,
                     Channels = channels,
                     Plays = plays,
+                    Swaps = swaps,
                 };
                 motion.Channels.RemoveAll(channels.Contains);
                 motion.Plays.RemoveAll(plays.Contains);
+                motion.Swaps.RemoveAll(swaps.Contains);
 
                 // 절대값 애니메이션의 자리 키는 "세트 안의 자리"다 — 맨 위 오브젝트는 가운데만큼 옮겨졌다.
                 if (motion.PreviewMode == MotionChannelMode.Absolute)
