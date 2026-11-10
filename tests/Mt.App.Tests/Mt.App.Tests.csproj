@@ -24,6 +24,8 @@
   <ItemGroup>
     <!-- 견본은 Mt.Authoring.Tests의 것을 그대로 쓴다 — 사본을 두 벌 두지 않는다. -->
     <None Include="..\Mt.Authoring.Tests\Fixtures\**" Link="Fixtures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 화면 시험만 쓰는 그림 견본(층 표 + PNG 넷). -->
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

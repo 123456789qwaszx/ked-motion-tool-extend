@@ -8,6 +8,9 @@ internal static class TestDocuments
 {
     public static string FixturePath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
 
+    /// <summary>그림 견본(<c>Fixtures/art</c>) — 층 표 <c>layers.tsv</c>와 그 표의 PNG 넷(sign · microbe_sun · microbe_leaf · microbe_cell).</summary>
+    public static string ArtPath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "art", name);
+
     /// <summary>재생 저장소의 nod(끄덕임): Track_Move_Y 위치 relative, y 0 → -18 → 0, restore 0.6s.</summary>
     public static MotionEditor Nod()
     {

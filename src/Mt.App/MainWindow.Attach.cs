@@ -6,7 +6,7 @@ using Mt.Authoring.Preview;
 namespace Mt.App;
 
 // 붙는 리그(PLAN-parts.md P2·P3) — 하이어아키의 오브젝트 우클릭 메뉴에서 만든다.
-// 캐릭터가 아닌 리그(이모지 등)를 고른 오브젝트의 노드에 붙여 세운다: 부모가 움직이면 따라가고, 하이어아키에서는 부모 밑에 보인다.
+// 캐릭터가 아닌 리그(세트)를 고른 오브젝트의 노드에 붙여 세운다: 부모가 움직이면 따라가고, 하이어아키에서는 부모 밑에 보인다.
 public partial class MainWindow
 {
     /// <summary>테스트 손잡이 — "붙는 리그 만들기 ▸ rigKind". 만든 오브젝트의 id.</summary>
@@ -25,22 +25,7 @@ public partial class MainWindow
             .Where(k => k != SceneObject.DefaultRig && k != CameraRig.RigKind)
             .ToList();
 
-        // 이모지 리그는 언제나 고를 수 있다 — 아직 없으면 만들 때 툴이 정의한다(PLAN-parts.md §9, Spine처럼 툴이 원본).
-        if (!kinds.Contains(RigTemplates.EmojiKind))
-        {
-            kinds.Add(RigTemplates.EmojiKind);
-        }
-
         return kinds.OrderBy(k => k, StringComparer.Ordinal).ToList();
-    }
-
-    /// <summary>이모지 리그가 덤프에도 문서에도 없으면 문서에 정의한다(본 그대로: 자리 › 묶음 › 조각 넷). 묶음 안에서 부르면 같은 되돌리기 칸이다.</summary>
-    private void EnsureRigDefined(string rig)
-    {
-        if (rig == RigTemplates.EmojiKind && _session.Rig?.RigKinds.Contains(rig) != true)
-        {
-            _session.Editor.AddRig(RigTemplates.Emoji());
-        }
     }
 
     private void AddAttachMenu(SceneAsset scene, SceneObject o)
@@ -61,7 +46,7 @@ public partial class MainWindow
 
         List<string> rigs = AttachableRigKinds();
         var create = new MenuItem { Header = $"붙는 리그 만들기 — {o.Id}에", FontSize = 11, IsEnabled = rigs.Count > 0 };
-        ToolTip.SetTip(create, "이 오브젝트를 따라가는 리그(이모지 등)를 만들어 붙인다 — 슬롯 계층의 끝(CharSlot_Scale)에. 덤프에 캐릭터가 아닌 리그가 있어야 한다");
+        ToolTip.SetTip(create, "이 오브젝트를 따라가는 리그(세트)를 만들어 붙인다 — 슬롯 계층의 끝(CharSlot_Scale)에. 덤프에 캐릭터가 아닌 리그가 있어야 한다");
 
         foreach (string rig in rigs)
         {
@@ -88,7 +73,6 @@ public partial class MainWindow
 
         editor.Batch(MotionChangeKind.Document, () =>
         {
-            EnsureRigDefined(rig);
             editor.AddSceneObject(null, id, rig, parent.Layer, parent.Stage);
             editor.AttachObject(null, id, parentId, node);
         });

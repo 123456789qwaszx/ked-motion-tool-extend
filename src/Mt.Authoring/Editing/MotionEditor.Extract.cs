@@ -13,7 +13,7 @@ public sealed partial class MotionEditor
     /// <item>자리: 고른 것들의 가운데가 새 세트의 가운데가 되고, 인스턴스가 그 자리에 선다 — 화면에서 보이는 자리는 그대로다.</item>
     /// <item>그림: 그 오브젝트들의 스킨 칸이 새 세트의 스킨으로 옮겨진다.</item>
     /// <item>키: 그 오브젝트들의 채널(과 재생 블록)이 새 세트의 애니메이션(<c>새세트_이름</c>)으로 옮겨지고, 원래 애니메이션에는 그것을 처음부터 트는 재생 블록이 선다 — 재생은 그대로다.</item>
-    /// <item>가리키던 것: 이 세트를 품은 다른 세트의 경로 채널, 연출의 붙는 자리, 씬 오브젝트의 붙는 노드가 새 경로(<c>인스턴스.이름</c>)를 따라온다.</item>
+    /// <item>가리키던 것: 이 세트를 품은 다른 세트의 경로 채널, 씬 오브젝트의 붙는 노드가 새 경로(<c>인스턴스.이름</c>)를 따라온다.</item>
     /// </list>
     /// 고른 것들의 맨 위는 같은 부모 밑이어야 한다(자리를 한 기준으로 옮긴다).
     /// </summary>
@@ -165,11 +165,6 @@ public sealed partial class MotionEditor
                 }
             }
 
-            foreach (EmojiAsset emoji in Document.Emojis.Where(e => e.Rig == kind && Moves(e.AnchorNode)))
-            {
-                emoji.AnchorNode = instance + RigAssetCodec.PathSeparator + emoji.AnchorNode;
-            }
-
             foreach (SceneAsset scene in Document.Scenes)
             {
                 foreach (SceneObject o in scene.Objects.Where(o => o.AttachNode is { } attach && Moves(attach) && scene.ParentOf(o)?.Rig == kind))
@@ -183,7 +178,7 @@ public sealed partial class MotionEditor
     }
 
     /// <summary>
-    /// 세트의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 그 세트의 애니메이션·스킨·연출, 그것을 품은 인스턴스, 씬의 오브젝트.
+    /// 세트의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 그 세트의 애니메이션·스킨, 그것을 품은 인스턴스, 씬의 오브젝트.
     /// **세트의 이름을 딴 이름들도 따라온다**(빼낼 때 붙은 이름을 한 번에 고치게): 애니메이션 <c>옛이름_x</c> → <c>새이름_x</c>, 스킨 <c>옛이름</c>, 인스턴스 오브젝트 <c>옛이름</c> — 새 이름이 비어 있을 때만.
     /// </summary>
     public void RenameRig(string kind, string newKind)
@@ -242,11 +237,6 @@ public sealed partial class MotionEditor
                 skin.Rig = name;
             }
 
-            foreach (EmojiAsset emoji in Document.Emojis.Where(e => e.Rig == kind))
-            {
-                emoji.Rig = name;
-            }
-
             foreach (RigNodeAsset node in Document.AllRigs.SelectMany(r => r.Nodes).Where(n => n.Set == kind))
             {
                 node.Set = name;
@@ -260,8 +250,8 @@ public sealed partial class MotionEditor
     }
 
     /// <summary>
-    /// 다른 문서의 세트를 들인다 — 세트(와 그것이 품은 세트들), 그 애니메이션·스킨·연출이 통째로 온다. 통째로 되돌리기 한 칸. 들인 세트의 이름들을 돌려준다.
-    /// 같은 이름의 세트·애니메이션·스킨·연출이 이미 있으면 막는다(어느 쪽을 가리키는지 흐려진다 — 한쪽의 이름을 먼저 바꾼다).
+    /// 다른 문서의 세트를 들인다 — 세트(와 그것이 품은 세트들), 그 애니메이션·스킨이 통째로 온다. 통째로 되돌리기 한 칸. 들인 세트의 이름들을 돌려준다.
+    /// 같은 이름의 세트·애니메이션·스킨이 이미 있으면 막는다(어느 쪽을 가리키는지 흐려진다 — 한쪽의 이름을 먼저 바꾼다).
     /// </summary>
     /// <param name="source">들일 문서 — 이 호출이 가져간다(읽은 것을 그대로 넘긴다).</param>
     /// <param name="kinds">들일 세트들. null이면 그 문서의 세트 전부.</param>
@@ -297,12 +287,10 @@ public sealed partial class MotionEditor
         List<RigAsset> rigs = source.Rigs.Where(r => wanted.Contains(r.Kind)).ToList();
         List<MotionAsset> motions = source.Motions.Where(m => wanted.Contains(m.Rig)).ToList();
         List<SkinAsset> skins = source.Skins.Where(k => wanted.Contains(k.Rig)).ToList();
-        List<EmojiAsset> emojis = source.Emojis.Where(e => wanted.Contains(e.Rig)).ToList();
 
         List<string> clashes = rigs.Where(r => Document.FindRig(r.Kind) is not null || ReservedRigKinds.Contains(r.Kind)).Select(r => $"세트 {r.Kind}")
             .Concat(motions.Where(m => Document.Find(m.Name) is not null).Select(m => $"애니메이션 {m.Name}"))
             .Concat(skins.Where(k => Document.FindSkin(k.Name) is not null).Select(k => $"스킨 {k.Name}"))
-            .Concat(emojis.Where(e => Document.FindEmoji(e.Name) is not null).Select(e => $"연출 {e.Name}"))
             .ToList();
 
         if (clashes.Count > 0)
@@ -328,7 +316,6 @@ public sealed partial class MotionEditor
             Document.Rigs.AddRange(rigs);
             Document.Motions.AddRange(motions);
             Document.Skins.AddRange(skins);
-            Document.Emojis.AddRange(emojis);
         });
 
         return rigs.Select(r => r.Kind).ToList();

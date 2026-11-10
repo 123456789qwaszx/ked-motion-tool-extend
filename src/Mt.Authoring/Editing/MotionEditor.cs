@@ -581,11 +581,9 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException($"모션 '{newName}'이 이미 있다.");
         }
 
-        // 이 모션을 쓰는 연출의 참조도 같은 칸에서 따라온다.
         Mutate(MotionChangeKind.Metadata, () =>
         {
             motion.Name = newName;
-            RetargetEmojiMotions(name, newName);
 
             // 이 애니메이션을 트는 재생 블록도 따라온다.
             foreach (MotionPlayAsset play in Document.Motions.SelectMany(m => m.Plays).Where(p => p.Motion == name))

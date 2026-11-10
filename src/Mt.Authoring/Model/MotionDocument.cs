@@ -70,24 +70,7 @@ public sealed class MotionDocument
         => name is null ? null : Skins.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.Ordinal));
 
     /// <summary>
-    /// 이모지 정의들(<c>PLAN-parts.md</c> §8) — 붙는 리그 + 스킨 + 등장·머묾·퇴장 모션의 묶음. <c>emojis.json</c>(초안)으로 따로 나간다.
-    /// 저작본에는 <see cref="EmojisOrNull"/>로 실린다(없으면 안 적는다).
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public List<EmojiAsset> Emojis { get; set; } = new();
-
-    [System.Text.Json.Serialization.JsonPropertyName("emojis")]
-    public List<EmojiAsset>? EmojisOrNull
-    {
-        get => Emojis.Count == 0 ? null : Emojis;
-        set => Emojis = value ?? new List<EmojiAsset>();
-    }
-
-    public EmojiAsset? FindEmoji(string? name)
-        => name is null ? null : Emojis.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
-
-    /// <summary>
-    /// 툴에서 정의한 리그들(<c>PLAN-parts.md</c> §9) — 캐릭터에 붙는 리그(이모지 등). 덤프의 리그와 한 벌로 쓰이고, 같은 이름이면 이쪽이 이긴다.
+    /// 툴에서 정의한 리그들(<c>PLAN-parts.md</c> §9) — 세트의 뼈대. 덤프의 리그와 한 벌로 쓰이고, 같은 이름이면 이쪽이 이긴다.
     /// 저작본에는 <see cref="RigsOrNull"/>로 실린다(없으면 안 적는다). 런타임에는 리그 스키마 모양으로 따로 나간다.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -174,7 +157,7 @@ public sealed class MotionAsset
     public List<ChannelAsset> Channels { get; set; } = new();
 
     /// <summary>
-    /// 이벤트 키(<c>PLAN-parts.md</c> §2.5, <c>motions/3</c>) — 재생이 그 시각을 지나는 순간 런타임이 이름과 값으로 알린다("이 프레임에 이모지·소리").
+    /// 이벤트 키(<c>PLAN-parts.md</c> §2.5, <c>motions/3</c>) — 재생이 그 시각을 지나는 순간 런타임이 이름과 값으로 알린다("이 프레임에 소리").
     /// 시각 오름차순을 편집기가 지킨다. 저작본에는 <see cref="EventsOrNull"/>로 실린다(없으면 안 적는다).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]

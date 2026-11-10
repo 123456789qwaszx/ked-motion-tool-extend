@@ -264,18 +264,10 @@ public class CutShellTests
 
             try
             {
-                DirectoryInfo? root = new(AppContext.BaseDirectory);
-
-                while (root is not null && !File.Exists(Path.Combine(root.FullName, "KedMotionTool.sln")))
-                {
-                    root = root.Parent;
-                }
-
-                string art = Path.Combine(root!.FullName, "examples", "transitions", "station", "art");
                 MotionEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
                 window.NewCutFromForm();
-                window.ImportLayerSheetFromForm(Path.Combine(art, "layers.tsv"));
+                window.ImportLayerSheetFromForm(TestDocuments.ArtPath("layers.tsv"));
                 window.InspectorTab = 2; // 모션 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.True(window.SwapPanelShown);
@@ -284,14 +276,14 @@ public class CutShellTests
 
                 // 오브젝트를 안 골랐으면 놓이지 않는다.
                 window.SelectSetNode(null);
-                Assert.Null(window.AddImageKeyFromFile(Path.Combine(art, "08_microbe_sun.png")));
+                Assert.Null(window.AddImageKeyFromFile(TestDocuments.ArtPath("08_microbe_sun.png")));
 
                 // sign을 고르고 48프레임(2초)에 그림 키 — 한 칸, 줄이 선다.
                 window.SelectSetNode("sign");
                 window.Graph.CurrentTime = 2.0;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 long revision = editor.Revision;
-                Assert.Equal(0, window.AddImageKeyFromFile(Path.Combine(art, "08_microbe_sun.png")));
+                Assert.Equal(0, window.AddImageKeyFromFile(TestDocuments.ArtPath("08_microbe_sun.png")));
                 Assert.Equal(revision + 1, editor.Revision);
                 MotionSwapAsset swap = Assert.Single(editor.Document.Find("cut")!.Swaps);
                 Assert.Equal(("sign", 2f), (swap.Node, swap.T));

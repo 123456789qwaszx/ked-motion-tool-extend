@@ -8,7 +8,7 @@ using Mt.Authoring.Validation;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>이벤트 키(<c>PLAN-parts.md</c> §2.5, <c>motions/3</c>) — "이 프레임에 이모지·소리".</summary>
+/// <summary>이벤트 키(<c>PLAN-parts.md</c> §2.5, <c>motions/3</c>) — "이 프레임에 소리".</summary>
 public class MotionEventTests
 {
     private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
@@ -21,12 +21,12 @@ public class MotionEventTests
         MotionEditor editor = NewEditor();
         Assert.DoesNotContain("events", MotionDocumentJson.Write(editor.Document), StringComparison.Ordinal);
 
-        Assert.Equal(0, editor.AddMotionEvent("nod", 0.3f, "emoji", "땀"));
+        Assert.Equal(0, editor.AddMotionEvent("nod", 0.3f, "flash", "땀"));
         Assert.Equal(0, editor.AddMotionEvent("nod", 0.1f, " sfx ", "pop")); // 앞에 끼어든다, 이름의 빈칸은 버린다
-        Assert.Equal(2, editor.AddMotionEvent("nod", 0.3f, "emoji_off"));     // 같은 시각이면 먼저 있던 것 뒤
+        Assert.Equal(2, editor.AddMotionEvent("nod", 0.3f, "flash_off"));     // 같은 시각이면 먼저 있던 것 뒤
         Assert.Equal(0, editor.AddMotionEvent("nod", -5f, "start"));          // 0 아래로 못 간다
         List<MotionEventAsset> events = editor.Document.Find("nod")!.Events;
-        Assert.Equal(new[] { ("start", 0f), ("sfx", 0.1f), ("emoji", 0.3f), ("emoji_off", 0.3f) }, events.Select(e => (e.Name, e.T)));
+        Assert.Equal(new[] { ("start", 0f), ("sfx", 0.1f), ("flash", 0.3f), ("flash_off", 0.3f) }, events.Select(e => (e.Name, e.T)));
         Assert.Null(events[3].Value);
 
         // 고치기: 시각이 바뀌면 자리가 옮겨지고 새 번호가 온다.
@@ -55,30 +55,30 @@ public class MotionEventTests
         string plain = MotionsJson.Write(MotionExport.ToClips(editor.Document));
         Assert.Equal(Fixtures.TextOf("motions.nod-bow.json"), plain); // 이벤트가 없으면 전과 같은 글자
 
-        editor.AddMotionEvent("nod", 0.3f, "emoji", "땀 \"큰\"");
+        editor.AddMotionEvent("nod", 0.3f, "flash", "땀 \"큰\"");
         editor.AddMotionEvent("nod", 0.6f, "done");
         string json = MotionsJson.Write(MotionExport.ToClips(editor.Document));
         Assert.Contains("\"schema\": \"motions/3\"", json, StringComparison.Ordinal);
-        Assert.Contains("{ \"t\": 0.3, \"name\": \"emoji\", \"value\": \"땀 \\\"큰\\\"\" }", json, StringComparison.Ordinal);
+        Assert.Contains("{ \"t\": 0.3, \"name\": \"flash\", \"value\": \"땀 \\\"큰\\\"\" }", json, StringComparison.Ordinal);
         Assert.Contains("{ \"t\": 0.6, \"name\": \"done\" }", json, StringComparison.Ordinal);
 
         Assert.True(MotionsJson.TryRead(json, out List<MotionClip> clips, out List<string> problems), string.Join("\n", problems));
         Assert.Empty(problems);
         MotionClip nod = clips.Single(c => c.Name == "nod");
-        Assert.Equal(new[] { ("emoji", "땀 \"큰\""), ("done", (string?)null) }, nod.Events.Select(e => (e.Name, (string?)e.Value)));
+        Assert.Equal(new[] { ("flash", "땀 \"큰\""), ("done", (string?)null) }, nod.Events.Select(e => (e.Name, (string?)e.Value)));
         Assert.Null(clips.Single(c => c.Name == "bow").Events);
         Assert.Equal(json, MotionsJson.Write(clips));
 
         // 가져오면 저작본의 이벤트가 된다.
         MotionAsset back = MotionAssetCodec.FromClip(nod);
-        Assert.Equal(new[] { (0.3f, "emoji"), (0.6f, "done") }, back.Events.Select(e => (e.T, e.Name)));
+        Assert.Equal(new[] { (0.3f, "flash"), (0.6f, "done") }, back.Events.Select(e => (e.T, e.Name)));
     }
 
     [Fact]
     public void 규칙은_이름과_시각을_본다()
     {
         MotionEditor editor = NewEditor();
-        editor.AddMotionEvent("nod", 0.3f, "emoji", "땀");
+        editor.AddMotionEvent("nod", 0.3f, "flash", "땀");
         Assert.Empty(MotionValidator.Validate(editor.Document, RigFile.NodeIds));
 
         editor.AddMotionEvent("nod", 0.9f, "late"); // 길이(0.6) 밖
@@ -94,12 +94,12 @@ public class MotionEventTests
     public void 울리는_구간은_after_초과_until_이하라_같은_이벤트가_두_번_잡히지_않는다()
     {
         MotionEditor editor = NewEditor();
-        editor.AddMotionEvent("nod", 0.3f, "emoji", "땀");
+        editor.AddMotionEvent("nod", 0.3f, "flash", "땀");
         editor.AddMotionEvent("nod", 0.6f, "done");
         MotionAsset nod = editor.Document.Find("nod")!;
 
-        Assert.Equal(new[] { "emoji", "done" }, MotionEvents.Between(nod, -1, 99).Select(e => e.Name));
-        Assert.Equal("emoji", Assert.Single(MotionEvents.Between(nod, 0.0, 0.3)).Name);
+        Assert.Equal(new[] { "flash", "done" }, MotionEvents.Between(nod, -1, 99).Select(e => e.Name));
+        Assert.Equal("flash", Assert.Single(MotionEvents.Between(nod, 0.0, 0.3)).Name);
         Assert.Empty(MotionEvents.Between(nod, 0.3, 0.5));
         Assert.Equal("done", Assert.Single(MotionEvents.Between(nod, 0.3, 0.6)).Name);
         Assert.Empty(MotionEvents.Between(nod, 0.6, 99));

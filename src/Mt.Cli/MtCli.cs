@@ -24,13 +24,11 @@ public static class MtCli
     public const string Usage = """
         mt — ked-motion-tool 명령줄 (결과는 stdout의 JSON, 종료 코드 0 됨 · 1 막는 문제 · 2 쓰는 법)
 
-          mt info     <문서>                                   모션·연출·스킨·씬의 목록
-          mt validate <문서> [--rig <덤프>]                    문제 목록(모션·연출). 막는 문제가 있으면 종료 코드 1
+          mt info     <문서>                                   모션·스킨·씬의 목록
+          mt validate <문서> [--rig <덤프>]                    문제 목록. 막는 문제가 있으면 종료 코드 1
           mt export   <문서> <motions.json> [--rig <덤프>]     motions.json 내보내기(검증을 지나야 나간다)
           mt pose     <문서> --motion <이름> --time <초> [--object <id>] [--mode relative|absolute] [--rig <덤프>]
                                                                그 시각의 포즈 — 모션이 건드리는 노드의 값, 불투명도, 방금 울린 이벤트
-
-          mt emojis   <문서> <emojis.json> [--rig <덤프>]      이모지 정의 내보내기(emojis/1-draft — 스킨은 풀어서, 모션은 이름으로)
 
           mt rigs     <문서> <rigs.json>                       문서가 정의한 리그 내보내기(rig-schemas.json과 같은 모양)
 
@@ -65,7 +63,6 @@ public static class MtCli
                 "validate" => Validate(options, stdout),
                 "export" => Export(options, stdout),
                 "pose" => Pose(options, stdout),
-                "emojis" => Emojis(options, stdout),
                 "rigs" => Rigs(options, stdout),
                 _ => throw new UsageException($"모르는 명령 '{args[0]}'"),
             };
@@ -110,10 +107,6 @@ public static class MtCli
             ["ok"] = true,
             ["schema"] = document.Schema,
             ["motions"] = motions,
-            ["emojis"] = new JsonArray(document.Emojis.Select(e => (JsonNode)new JsonObject
-            {
-                ["name"] = e.Name, ["rig"] = e.Rig, ["skin"] = e.Skin, ["enter"] = e.Enter, ["hold"] = e.Hold, ["exit"] = e.Exit, ["holdSeconds"] = e.HoldSeconds,
-            }).ToArray()),
             ["skins"] = new JsonArray(document.Skins.Select(s => (JsonNode)new JsonObject { ["name"] = s.Name, ["rig"] = s.Rig, ["parts"] = s.Parts.Count }).ToArray()),
             ["scenes"] = new JsonArray(document.Scenes.Select(s => (JsonNode)new JsonObject
             {
@@ -154,28 +147,6 @@ public static class MtCli
             ["path"] = Path.GetFullPath(target),
             ["schema"] = json.Contains(AuthoringFormat.ExportSchemaV3, StringComparison.Ordinal) ? AuthoringFormat.ExportSchemaV3 : AuthoringFormat.ExportSchema,
             ["motions"] = new JsonArray(MotionExport.ToClips(document).Select(c => (JsonNode)c.Name).ToArray()),
-        });
-        return 0;
-    }
-
-    private static int Emojis(Options options, TextWriter stdout)
-    {
-        string target = options.Positional(1, "내보낼 emojis.json 경로");
-        MotionDocument document = Load(options, out RigSchemaFile rig);
-
-        if (!EmojisJson.TryExport(document, CameraRig.WithCamera(rig.NodeIds), out string json, out IReadOnlyList<string> problems, rig.AlphaNodeIds))
-        {
-            Write(stdout, new JsonObject { ["ok"] = false, ["problems"] = new JsonArray(problems.Select(p => (JsonNode)p).ToArray()) });
-            return 1;
-        }
-
-        File.WriteAllBytes(target, System.Text.Encoding.UTF8.GetBytes(json));
-        Write(stdout, new JsonObject
-        {
-            ["ok"] = true,
-            ["path"] = Path.GetFullPath(target),
-            ["schema"] = EmojisJson.Schema,
-            ["emojis"] = new JsonArray(document.Emojis.Select(e => (JsonNode)e.Name).OrderBy(n => n.GetValue<string>(), StringComparer.Ordinal).ToArray()),
         });
         return 0;
     }
@@ -268,12 +239,6 @@ public static class MtCli
             blocking |= p.Blocking;
         }
 
-        foreach (EmojiProblem p in EmojiValidator.Validate(document, nodeIds))
-        {
-            problems.Add(new JsonObject { ["kind"] = "emoji", ["name"] = p.EmojiName, ["message"] = p.Message, ["blocking"] = p.Blocking });
-            blocking |= p.Blocking;
-        }
-
         return (problems, blocking);
     }
 
@@ -329,7 +294,7 @@ public static class MtCli
         }
 
         rig = dump is null ? BuiltinTuning.RigSchemas : RigSchemaFile.Load(dump);
-        rig = RigAssets.Compose(rig, document); // 문서가 정의한 리그(이모지 등)도 한 벌로
+        rig = RigAssets.Compose(rig, document); // 문서가 정의한 리그(세트)도 한 벌로
 
         // 손으로(또는 AI가) 쓴 문서는 탄젠트 값을 모른다 — 키의 탄젠트 종류(auto·flat·linear…)대로 값을 세운다. 앱이 편집할 때마다 하는 그 계산이고,
         // 앱이 저장한 문서에는 아무것도 안 바꾼다(이미 그 값이다). free는 적힌 값 그대로 둔다.

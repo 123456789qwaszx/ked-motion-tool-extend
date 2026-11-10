@@ -11,25 +11,25 @@ namespace Mt.Authoring.Tests;
 /// <summary>불투명도 채널(<c>PLAN-parts.md</c> P4, <c>motions/3</c>) — 알파를 키와 커브로.</summary>
 public class AlphaChannelTests
 {
-    private const string Part = "Emoji_Part1";
-    private const string Body = "Emoji_Body";
+    private const string Part = "Badge_Part1";
+    private const string Body = "Badge_Body";
     private const string SpriteRoot = "CharacterPortraitSprite_Root";
 
-    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(EmojiRigFixture.WriteDump(Fixtures.PathOf("rig-schemas.json")));
+    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(PartsRigFixture.WriteDump(Fixtures.PathOf("rig-schemas.json")));
 
     private static KeyAsset Linear(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
 
-    /// <summary>e1(이모지). fade(1초 commit): Part1 알파 1 → 0. dim(1초 commit): Body 알파 1 → 0.5.</summary>
+    /// <summary>e1(조각 리그). fade(1초 commit): Part1 알파 1 → 0. dim(1초 commit): Body 알파 1 → 0.5.</summary>
     private static MotionEditor NewEditor()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddSceneObject(null, "e1", EmojiRigFixture.RigKind);
+        editor.AddSceneObject(null, "e1", PartsRigFixture.RigKind);
 
-        editor.AddMotion("fade", EmojiRigFixture.RigKind, 1f, MotionEnd.Commit);
+        editor.AddMotion("fade", PartsRigFixture.RigKind, 1f, MotionEnd.Commit);
         editor.AddChannel("fade", Part, MotionChannelKind.Alpha);
         editor.SetKeys("fade", Part, MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0f) });
 
-        editor.AddMotion("dim", EmojiRigFixture.RigKind, 1f, MotionEnd.Commit);
+        editor.AddMotion("dim", PartsRigFixture.RigKind, 1f, MotionEnd.Commit);
         editor.AddChannel("dim", Body, MotionChannelKind.Alpha);
         editor.SetKeys("dim", Body, MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0.5f) });
         return editor;
@@ -113,14 +113,14 @@ public class AlphaChannelTests
         editor.Undo();
 
         // 툴 규칙: CanvasGroup이 없는 노드에는 못 놓는다 — 내보내기도 막는다.
-        editor.AddChannel("fade", "Emoji_Anchor", MotionChannelKind.Alpha);
-        editor.SetKeys("fade", "Emoji_Anchor", MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0f) });
+        editor.AddChannel("fade", "Badge_Anchor", MotionChannelKind.Alpha);
+        editor.SetKeys("fade", "Badge_Anchor", MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0f) });
         MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document, RigFile.NodeIds, null, RigFile.AlphaNodeIds));
         Assert.True(problem.Blocking);
         Assert.Contains("불투명도를 받을 수 없는 노드", problem.Message, StringComparison.Ordinal);
         Assert.False(MotionExport.TryExport(editor.Document, RigFile.NodeIds, out _, out _, null, RigFile.AlphaNodeIds));
 
-        Assert.Equal(new[] { "Emoji_Body", "Emoji_Part1", "Emoji_Part2", "Emoji_Part3", "Emoji_Part4" }, RigFile.AlphaNodeIds[EmojiRigFixture.RigKind].OrderBy(n => n, StringComparer.Ordinal));
+        Assert.Equal(new[] { "Badge_Body", "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, RigFile.AlphaNodeIds[PartsRigFixture.RigKind].OrderBy(n => n, StringComparer.Ordinal));
         Assert.Contains(SpriteRoot, RigFile.AlphaNodeIds["character"]);
     }
 

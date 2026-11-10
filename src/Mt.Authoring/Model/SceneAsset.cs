@@ -47,17 +47,6 @@ public sealed class SceneAsset
         return o.AttachTo is { } id && !string.Equals(id, o.Id, StringComparison.Ordinal) && Find(id) is { AttachTo: null } parent ? parent : null;
     }
 
-    /// <summary>그 오브젝트에 붙은 것들(목록 순).</summary>
-    public IEnumerable<SceneObject> AttachedTo(string id) => Objects.Where(o => ParentOf(o) is { } p && string.Equals(p.Id, id, StringComparison.Ordinal));
-
-    /// <summary>값이 같은 사본 — 원본을 건드리지 않고 보기 전용 씬을 만든다(화면 연출 미리보기).</summary>
-    public SceneAsset Clone() => new()
-    {
-        Name = Name,
-        Camera = new CameraSettings { Zoom = Camera.Zoom, PanX = Camera.PanX, PanY = Camera.PanY },
-        Objects = Objects.Select(o => o.Clone()).ToList(),
-    };
-
     /// <summary>캐릭터 리그 하나(s1, stage00/mid)를 세운 기본 씬 — 씬이 없던 문서(예전 판)와 새 문서가 이것으로 시작한다.</summary>
     public static SceneAsset Default(string? portrait = null) => new()
     {
@@ -136,7 +125,7 @@ public sealed class SceneObject
 
     /// <summary>
     /// 붙은 곳 — 다른 오브젝트의 id(<c>PLAN-parts.md</c> P2). 그 오브젝트의 <see cref="AttachNode"/> 밑에 이 리그가 서서 부모가 움직이면 따라간다
-    /// (이모지가 캐릭터를 따라가듯). 한 단계만 — 붙은 것에 또 붙이지 않는다. 붙으면 무대·층·자리(place)는 부모의 것이고,
+    /// (소품이 캐릭터를 따라가듯). 한 단계만 — 붙은 것에 또 붙이지 않는다. 붙으면 무대·층·자리(place)는 부모의 것이고,
     /// 오프셋·회전·배율은 붙는 자리에 대한 값이다(배율 x = −1이 좌우 반전의 미리보기다).
     /// </summary>
     public string? AttachTo { get; set; }
@@ -148,11 +137,9 @@ public sealed class SceneObject
     public const string DefaultAttachNode = "CharSlot_Scale";
 
     /// <summary>
-    /// 입은 스킨의 이름(<see cref="SkinAsset"/>) — 조각 노드가 있는 리그(이모지 등)에서 조각마다 어떤 그림을 그릴지. null이면 조각을 안 그린다.
+    /// 입은 스킨의 이름(<see cref="SkinAsset"/>) — 조각 노드가 있는 리그에서 조각마다 어떤 그림을 그릴지. null이면 조각을 안 그린다.
     /// </summary>
     public string? Skin { get; set; }
-
-    public SceneObject Clone() => (SceneObject)MemberwiseClone();
 
     /// <summary>노드 키 접두사 — 코어 <c>StageState.NodeKeyOf</c>와 같은 꼴.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

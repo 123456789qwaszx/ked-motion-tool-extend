@@ -68,7 +68,7 @@ public sealed class ViewportView : Control
     private readonly Dictionary<string, Bitmap?> _portraits = new();
 
     /// <summary>조각 그림 — (오브젝트 id, 조각 노드 id) → 비트맵. 스킨이 그림을 준 조각만 든다(파일을 못 읽었으면 null — 자리표시).</summary>
-    // 스킨의 그림 — 문서 기준 경로 → 비트맵. 어느 스킨의 어느 장을 그릴지는 그릴 때 고른다(입은 스킨 · 이모지 정의의 스킨 · 반전 판 · 그림 넘기기).
+    // 스킨의 그림 — 문서 기준 경로 → 비트맵. 어느 스킨의 어느 장을 그릴지는 그릴 때 고른다(입은 스킨 · 그림 넘기기).
     private readonly Dictionary<string, Bitmap?> _images = new(StringComparer.Ordinal);
     private string? _selectedObjectId;
     public bool ShowGrid { get; set; } = true;
@@ -235,42 +235,11 @@ public sealed class ViewportView : Control
 
     // ── 씬·오브젝트 ───────────────────────────────────────────────────
 
-    /// <summary>뷰포트가 보여 주는 씬 — 문서의 활성 씬(세트 보기·화면 연출 보기에서는 그 보기 전용 씬).</summary>
+    /// <summary>뷰포트가 보여 주는 씬 — 문서의 활성 씬(세트 보기에서는 그 보기 전용 씬).</summary>
     public SceneAsset? Scene => _editor is null
         ? null
         : SetScene() is { } set ? set
-        : CueScene() is { } cue ? cue
         : _editor.Document.ActiveSceneAsset;
-
-    // ── 화면에 서는 연출을 본다 (PLAN-set.md S5) ──────────────────────
-
-    /// <summary>화면 연출을 볼 때, 씬에 그 세트가 안 놓여 있으면 대신 서는 오브젝트의 id — 문서의 씬에는 없다(보기 전용).</summary>
-    public const string CueObjectId = "cue";
-
-    private SceneAsset? _cueScene;
-    private (SceneAsset Source, string Rig)? _cueSceneOf;
-
-    /// <summary>
-    /// 화면에 서는 연출을 보는 중이고 문서의 씬에 그 세트가 (어디에도 안 붙은 채) 놓여 있지 않으면 — 씬의 사본에 그 세트 하나를 맨 앞 층에 더한 보기 전용 씬.
-    /// 화면 연출을 만들자마자 오브젝트를 놓지 않고도 본다.
-    /// </summary>
-    private SceneAsset? CueScene()
-    {
-        if (_editor is null || _emojiName is null || _editor.Document.FindEmoji(_emojiName) is not { Screen: true } emoji || _editor.Document.ActiveSceneAsset is not { } scene
-            || scene.Objects.Any(o => o.Rig == emoji.Rig && scene.ParentOf(o) is null))
-        {
-            return null;
-        }
-
-        if (_cueScene is null || _cueSceneOf is not { } of || !ReferenceEquals(of.Source, scene) || of.Rig != emoji.Rig || _cueScene.Objects.Count != scene.Objects.Count + 1)
-        {
-            _cueScene = scene.Clone();
-            _cueScene.Objects.Add(new SceneObject { Id = CueObjectId, Rig = emoji.Rig, Layer = SceneLayers.Close });
-            _cueSceneOf = (scene, emoji.Rig);
-        }
-
-        return _cueScene;
-    }
 
     // ── 세트 보기 (PLAN-set.md S1) ────────────────────────────────────
 
@@ -296,7 +265,7 @@ public sealed class ViewportView : Control
     /// 배치 모드인가(스파인의 Setup) — 세트를 열었고 고른 애니메이션이 없다. 뷰포트의 끌기가 오브젝트의 **가만히 선 자세**를 바꾼다.
     /// 그 세트의 모션을 고르면 애니메이션 모드다(끌기 = 키).
     /// </summary>
-    public bool IsLayoutMode => _setView is not null && Motion is null && ShownEmoji is null;
+    public bool IsLayoutMode => _setView is not null && Motion is null;
 
     /// <summary>
     /// 연 세트(rigKind) — 뷰포트와 하이어아키가 **그 세트만** 보인다: 문서의 씬 대신 그 세트 하나가 무대 가운데에 선 보기 전용 씬.
@@ -435,152 +404,6 @@ public sealed class ViewportView : Control
 
     /// <summary>포즈를 잡는 오브젝트(선택 오브젝트)의 노드 키 접두사("c1/"). 오브젝트가 없으면 빈 문자열.</summary>
     private string Prefix => SelectedObject?.Prefix ?? "";
-
-    private EmojiPhase? _emojiPhase;
-
-    /// <summary>
-    /// 이모지 정의를 보는 중에 고칠 구간(등장·머묾·퇴장) — 끌기·채널 박스·S가 **그 구간의 모션**에 키를 놓는다(<c>PLAN-parts.md</c> §15).
-    /// 시각은 수명의 시각 − 구간의 시작(머묾은 지금 바퀴의 처음), 시작값은 그 구간이 얹히기 전의 자세다. null이면 포즈를 잡지 않고 조각을 끌어 놓는다(§14).
-    /// </summary>
-    public EmojiPhase? EmojiPhaseContext
-    {
-        get => _emojiPhase;
-        set
-        {
-            if (_emojiPhase == value)
-            {
-                return;
-            }
-
-            DiscardPending();
-            _emojiPhase = value;
-
-            if (value is not null && EmojiActor is { } actor)
-            {
-                SelectedObjectId = actor.Id;
-            }
-
-            PendingChanged?.Invoke(this, EventArgs.Empty);
-            InvalidateVisual();
-        }
-    }
-
-    /// <summary>고치는 구간의 모션과 그 0초가 수명의 몇 초인가 — 지금 시각이 그 구간 안일 때만(밖에서는 그 모션이 안 보인다).</summary>
-    private (MotionAsset Motion, double Offset)? EmojiEdit
-    {
-        get
-        {
-            if (_editor is null || _emojiPhase is not { } phase || ShownEmoji is not { } emoji || EmojiActor is null
-                || _editor.Document.Find(EmojiPreview.MotionNameOf(emoji, phase) ?? "") is not { } motion)
-            {
-                return null;
-            }
-
-            (bool inRange, double offset) = EmojiPreview.PhaseWindow(_editor.Document, emoji, phase, _clock.Time);
-            return inRange ? (motion, offset) : null;
-        }
-    }
-
-    /// <summary>고치는 구간의 모션의 0초가 수명의 몇 초인가 — 그래프·도프 시트의 시각이 이만큼 어긋난다. 구간 밖이어도 낸다.</summary>
-    public double EmojiPhaseTimeOffset
-        => _editor is not null && _emojiPhase is { } phase && ShownEmoji is { } emoji ? EmojiPreview.PhaseWindow(_editor.Document, emoji, phase, _clock.Time).Offset : 0;
-
-    /// <summary>
-    /// 이모지 안에서 고치는 모션의 키가 **시계의** 어디에 놓였는가 — 타임 슬라이더가 틱으로 보인다. 되풀이되는 것(머묾)은 바퀴마다 다시 나온다.
-    /// 고치는 것이 없으면 빈 목록.
-    /// </summary>
-    public IReadOnlyList<double> ContextKeyTimes()
-    {
-        var times = new List<double>();
-
-        if (_editor is null)
-        {
-            return times;
-        }
-
-        if (_emojiPhase is { } phase && ShownEmoji is { } emoji)
-        {
-            times.AddRange(PhaseKeyTimes(emoji, phase));
-        }
-
-        return times;
-    }
-
-    /// <summary>그 구간의 모션의 키가 수명의 어디에 놓였는가 — 머묾은 바퀴마다.</summary>
-    private List<double> PhaseKeyTimes(EmojiAsset emoji, EmojiPhase phase)
-    {
-        var times = new List<double>();
-
-        if (_editor?.Document.Find(EmojiPreview.MotionNameOf(emoji, phase) ?? "") is not { } motion)
-        {
-            return times;
-        }
-
-        EmojiPhases phases = EmojiPreview.PhasesOf(_editor.Document, emoji);
-        List<float> keys = KeyTimes.All(motion);
-
-        switch (phase)
-        {
-            case EmojiPhase.Enter:
-                times.AddRange(keys.Select(k => (double)k));
-                break;
-
-            case EmojiPhase.Exit:
-                times.AddRange(keys.Select(k => phases.ExitStart + (double)k));
-                break;
-
-            default:
-                for (double from = phases.HoldStart; motion.Duration > 0f && from < phases.ExitStart - 1e-6; from += motion.Duration)
-                {
-                    times.AddRange(keys.Select(k => from + k).Where(t => t <= phases.ExitStart + 1e-6));
-                }
-
-                break;
-        }
-
-        return times;
-    }
-
-    /// <summary>
-    /// 이모지 정의를 보되 고치는 구간이 없을 때 — 세 구간의 모션의 키 전부(구간과 함께). 타임 슬라이더가 구간마다 다른 색으로 보인다.
-    /// 구간을 고르면 비고 <see cref="ContextKeyTimes"/>가 그 구간만 낸다.
-    /// </summary>
-    public IReadOnlyList<(EmojiPhase Phase, double Time)> EmojiKeyTimes()
-        => ShownEmoji is { } emoji && _emojiPhase is null
-            ? new[] { EmojiPhase.Enter, EmojiPhase.Hold, EmojiPhase.Exit }.SelectMany(p => PhaseKeyTimes(emoji, p).Select(t => (p, t))).ToList()
-            : Array.Empty<(EmojiPhase, double)>();
-
-    /// <summary>
-    /// 포즈를 키로 바꿀 모션 — 묶인 모션, 또는 이모지 안에서 고치는 구간의 모션. 구간은 **지금 시각이 그 구간 안일 때만** 고친다:
-    /// 구간 밖에서는 그 모션이 보이지 않아, 잡은 포즈가 어디로 가는지 알 수 없다.
-    /// </summary>
-    public MotionAsset? EditMotion
-    {
-        get
-        {
-            if (Motion is { } bound)
-            {
-                return bound;
-            }
-
-            return ShownEmoji is not null ? EmojiEdit?.Motion : null;
-        }
-    }
-
-    /// <summary>키를 놓는 시각(모션 기준) — 이모지 안에서는 시계에서 구간의 시작을 뺀다.</summary>
-    private double EditTime => EmojiEdit is { } emojiEdit ? _clock.Time - emojiEdit.Offset : _clock.Time;
-
-    /// <summary>키 값의 시작값 — 보통은 씬으로 세운 트리.</summary>
-    private RectNodeState StartStateOf(string key)
-    {
-        // 이모지 안에서는 그 구간이 얹히기 전의 자세(자리 · 앞 구간이 남긴 것).
-        if (_editor is not null && _template is not null && _emojiPhase is { } phase && ShownEmoji is { } emoji && EmojiActor is { } actor)
-        {
-            return EmojiPreview.PoseBefore(_template, _editor.Document, emoji, actor, phase, null, EmojiOrigin(emoji, actor)).GetState(key);
-        }
-
-        return _template!.GetState(key);
-    }
 
     /// <summary>선택 노드의 트리 키(접두사 포함).</summary>
     private string? SelectedKey => SelectedNode is null ? null : Prefix + SelectedNode;
@@ -836,7 +659,7 @@ public sealed class ViewportView : Control
     /// </summary>
     public void SetKey()
     {
-        MotionAsset? motion = EditMotion;
+        MotionAsset? motion = Motion;
 
         // 카메라 모션에는 캐릭터의 포즈를 키하지 않는다 — 카메라 값은 SetCameraValue로.
         if (_editor is null || motion is null || CameraRig.IsCamera(motion))
@@ -913,7 +736,7 @@ public sealed class ViewportView : Control
                 continue;
             }
 
-            RectNodeState start = StartStateOf(key);
+            RectNodeState start = _template!.GetState(key);
             RectNodeState posed = pose.GetState(key);
             var values = new List<(Axis, float)>();
 
@@ -928,7 +751,7 @@ public sealed class ViewportView : Control
             items.Add((channel.Node, channel.Kind, values));
         }
 
-        float time = (float)Math.Max(0, SnapTime(EditTime));
+        float time = (float)Math.Max(0, SnapTime(_clock.Time));
         ClearPending();
         _editor.KeyPose(motion.Name, time, items, DefaultTangent);
         PoseKeyed?.Invoke(this, EventArgs.Empty);
@@ -971,7 +794,7 @@ public sealed class ViewportView : Control
     /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 덤프(템플릿), 키 값은 모션의 재생 기준(relative/absolute)를 따른다.</summary>
     private void KeyNow(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
     {
-        MotionAsset? motion = EditMotion;
+        MotionAsset? motion = Motion;
         RectNodeTree? pose = CurrentPose();
 
         string key = Prefix + node;
@@ -982,7 +805,7 @@ public sealed class ViewportView : Control
         }
 
         MotionChannelMode mode = motion.PreviewMode;
-        RectNodeState start = StartStateOf(key);
+        RectNodeState start = _template!.GetState(key);
         RectNodeState posed = pose.GetState(key);
         var values = new List<(Axis, float)>();
 
@@ -993,7 +816,7 @@ public sealed class ViewportView : Control
 
         _overrides.Remove(key);
         _pending.Remove((node, kind));
-        _editor.KeyComponents(motion.Name, node, kind, (float)Math.Max(0, SnapTime(EditTime)), values, DefaultTangent);
+        _editor.KeyComponents(motion.Name, node, kind, (float)Math.Max(0, SnapTime(_clock.Time)), values, DefaultTangent);
         PendingChanged?.Invoke(this, EventArgs.Empty);
         PoseKeyed?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
@@ -1070,12 +893,12 @@ public sealed class ViewportView : Control
     /// <summary>다음 키 시각으로(`.`). 없으면 그대로.</summary>
     public bool JumpToNextKey()
     {
-        if (EditMotion is not { } motion)
+        if (Motion is not { } motion)
         {
             return false;
         }
 
-        float? next = KeyTimes.Next(KeyTimes.All(motion), EditTime);
+        float? next = KeyTimes.Next(KeyTimes.All(motion), _clock.Time);
 
         if (next is null)
         {
@@ -1083,19 +906,19 @@ public sealed class ViewportView : Control
         }
 
         Pause();
-        ScrubTo(next.Value + (_clock.Time - EditTime));
+        ScrubTo(next.Value);
         return true;
     }
 
     /// <summary>이전 키 시각으로(`,`). 없으면 그대로.</summary>
     public bool JumpToPreviousKey()
     {
-        if (EditMotion is not { } motion)
+        if (Motion is not { } motion)
         {
             return false;
         }
 
-        float? previous = KeyTimes.Previous(KeyTimes.All(motion), EditTime);
+        float? previous = KeyTimes.Previous(KeyTimes.All(motion), _clock.Time);
 
         if (previous is null)
         {
@@ -1103,7 +926,7 @@ public sealed class ViewportView : Control
         }
 
         Pause();
-        ScrubTo(previous.Value + (_clock.Time - EditTime));
+        ScrubTo(previous.Value);
         return true;
     }
 
@@ -1148,51 +971,6 @@ public sealed class ViewportView : Control
             .Select(p => (Start: (double)p.At, End: Math.Min(motion.Duration, p.At + (_editor.Document.Find(p.Motion)?.Duration ?? 0f) * Math.Max(1, p.Repeat)), Label: $"{p.Node} ▸ {p.Motion}{(p.Repeat > 1 ? $" ×{p.Repeat}" : "")}"))
             .Select(span => ((double)span.Start, (double)span.End, span.Label))
             .ToList();
-    }
-
-    // ── 이모지 정의의 미리보기(PLAN-parts.md §8) ─────────────────────────
-
-    private string? _emojiName;
-
-    /// <summary>보고 있는 이모지 정의의 이름(<see cref="BindEmoji"/>). 모션을 묶으면 비워진다 — 시간의 주인은 둘 중 하나다.</summary>
-    public string? EmojiName => _emojiName;
-
-    public EmojiAsset? ShownEmoji => _editor is not null && _emojiName is not null ? _editor.Document.FindEmoji(_emojiName) : null;
-
-    /// <summary>
-    /// 이모지를 연기할 오브젝트 — 고른 오브젝트가 그 리그면 그것, 아니면 씬에서 그 리그의 첫 오브젝트. 없으면 null(미리볼 데가 없다).
-    /// </summary>
-    public SceneObject? EmojiActor
-    {
-        get
-        {
-            if (ShownEmoji is not { } emoji || Scene is not { } scene)
-            {
-                return null;
-            }
-
-            // 화면에 서는 연출은 어디에도 안 붙은 그 세트가, 캐릭터에 붙는 연출은 (고른 것이 그 리그면 그것, 아니면) 그 리그의 첫 오브젝트가 연기한다.
-            if (emoji.Screen)
-            {
-                return scene.Objects.FirstOrDefault(o => o.Rig == emoji.Rig && scene.ParentOf(o) is null);
-            }
-
-            return SelectedObject is { } selected && selected.Rig == emoji.Rig ? selected : scene.Objects.FirstOrDefault(o => o.Rig == emoji.Rig);
-        }
-    }
-
-    /// <summary>
-    /// 이모지 정의를 본다 — 시계의 길이는 수명(등장 + 머묾 + 퇴장), 포즈는 <see cref="EmojiPreview.Pose"/>, 그림은 정의의 스킨.
-    /// 수명 밖에서는 그 오브젝트를 안 그린다. 포즈는 잡지 않는다(키는 모션에서).
-    /// </summary>
-    public void BindEmoji(MotionEditor? editor, string? emojiName)
-    {
-        Bind(editor, null);
-        _emojiName = emojiName;
-        SyncDuration();
-        RebuildTemplate();
-        TimeChanged?.Invoke(this, EventArgs.Empty);
-        InvalidateVisual();
     }
 
     /// <summary>카메라 모션을 보는 중일 때 지금 시각의 카메라 값(zoom·pan). 카메라 모션이 아니면 null.</summary>
@@ -1244,7 +1022,6 @@ public sealed class ViewportView : Control
 
         _editor = editor;
         _motionName = motionName;
-        _emojiName = null;
 
         if (_editor is not null)
         {
@@ -1324,85 +1101,8 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    // ── 이벤트 키로 뜨는 이모지 (PLAN-parts.md §10) ───────────────────
-
-    /// <summary>처음부터 그 시각까지 울린 이벤트 키(연기하는 오브젝트와 함께) — 묶인 모션의 것을 고른 오브젝트가 연기한다.</summary>
-    private List<(double Time, string? ObjectId, string Name, string? Value)> FiredUntil(double seconds)
-    {
-        if (_editor is null || ShownEmoji is not null)
-        {
-            return new();
-        }
-
-        return Motion is { Events.Count: > 0 } motion && SelectedObject is { } o && CanWear(o)
-            ? MotionEvents.Between(motion, double.NegativeInfinity, seconds).Select(e => (Time: (double)e.T, ObjectId: (string?)o.Id, e.Name, e.Value)).ToList()
-            : new();
-    }
-
-    /// <summary>그 시각에 이벤트 키(<c>emoji</c>)로 떠서 돌고 있는 이모지들 — 캐릭터에 붙은 이모지 리그가 정의의 수명을 돈다.</summary>
-    public IReadOnlyList<EmojiPlay> EmojiPlaysAt(double seconds)
-        => _editor is not null && Scene is { } scene && FiredUntil(seconds) is { Count: > 0 } fired
-            ? EmojiEvents.Resolve(_editor.Document, scene, fired, seconds)
-            : Array.Empty<EmojiPlay>();
-
-    /// <summary>붙는 자리(로케이터)가 푼 점 — 가만히 선 무대에서 잰다. 못 풀면 null(오프셋만).</summary>
-    private Vec2? EmojiOrigin(EmojiAsset emoji, SceneObject actor)
-        => _template is { } rest && Scene is { } scene
-            ? EmojiPreview.LocatorPoint(rest, scene, emoji, actor, _focus)
-            : null;
-
-    private EmojiPlay? EmojiPlayOn(string objectId)
-    {
-        foreach (EmojiPlay play in EmojiPlaysAt(_clock.Time))
-        {
-            if (play.Target.Id == objectId)
-            {
-                return play;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>이벤트가 부리는 이모지 오브젝트인데 지금은 안 떠 있다 — 안 그린다.</summary>
-    public bool IsDormantEmoji(string objectId)
-        => _editor is not null && Scene is { } scene && FiredUntil(double.PositiveInfinity) is { Count: > 0 } all
-            && EmojiEvents.Targets(_editor.Document, scene, all).Contains(objectId) && EmojiPlayOn(objectId) is null;
-
-    /// <summary>그 오브젝트가 지금 입은 것 — 스킨, 그림 넘기기의 시각(뜬 뒤 몇 초), 반전 판인가(그림을 뒤집지 않고 그린다).</summary>
-    private readonly record struct Worn(SkinAsset Skin, double Seconds, bool Upright);
-
-    /// <summary>
-    /// 지금 입은 스킨 — 이모지 정의를 보는 중이거나 이벤트로 떠 있으면 정의의 스킨(오브젝트가 입은 것 대신), 그 캐릭터가 좌우 반전이고 반전 판이 있으면 그 판.
-    /// 그림 넘기기의 시각은 이모지면 뜬 뒤의 시간, 아니면 시계의 시각.
-    /// </summary>
-    private Worn? WornBy(RectNodeTree? pose, SceneObject o)
-    {
-        if (_editor is null)
-        {
-            return null;
-        }
-
-        EmojiAsset? emoji = ShownEmoji is { } shown && EmojiActor is { } actor && actor.Id == o.Id ? shown : null;
-        double seconds = _clock.Time;
-
-        if (emoji is null && EmojiPlayOn(o.Id) is { } play)
-        {
-            emoji = play.Emoji;
-            seconds = play.Local;
-        }
-
-        bool upright = false;
-        string? name = emoji is null ? o.Skin : emoji.Skin;
-
-        if (emoji?.SkinFlipped is { } flipped && pose is not null && IsMirrored(pose, o))
-        {
-            name = flipped;
-            upright = true;
-        }
-
-        return EffectiveSkinOf(o.Rig, name) is { } skin ? new Worn(skin, seconds, upright) : null;
-    }
+    /// <summary>그 오브젝트가 지금 입은 스킨(품은 세트들의 스킨까지 합친 것). 없으면 null.</summary>
+    private SkinAsset? WornBy(SceneObject o) => EffectiveSkinOf(o.Rig, o.Skin);
 
     // 실제로 입는 스킨(제 스킨 + 품은 세트들의 스킨) — 그릴 때마다 여러 번 찾으니 문서가 바뀔 때까지 들고 있는다.
     private readonly Dictionary<(string Rig, string? Skin), SkinAsset?> _effectiveSkins = new();
@@ -1430,39 +1130,17 @@ public sealed class ViewportView : Control
         return skin;
     }
 
-    /// <summary>그 오브젝트가 좌우로 뒤집혀 서 있는가(부모 캐릭터의 배율 x가 음수 등) — 조각 사각형의 손잡이 방향으로 본다.</summary>
-    private bool IsMirrored(RectNodeTree pose, SceneObject o)
-    {
-        foreach (string node in RigParts.Of(_rig, o.Rig))
-        {
-            if (pose.Contains(o.KeyOf(node)))
-            {
-                Quad q = PortraitLayout.RectQuad(pose, o.KeyOf(node));
-                Vec2 a = q.BottomRight - q.BottomLeft;
-                Vec2 b = q.TopLeft - q.BottomLeft;
-                float cross = a.X * b.Y - a.Y * b.X;
-
-                if (MathF.Abs(cross) > 1e-6f)
-                {
-                    return cross < 0f;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private Bitmap? ImageOf(Worn worn, string node)
+    private Bitmap? ImageOf(SkinAsset worn, string node)
         => ImagePathOf(worn, node) is { } image && _images.TryGetValue(image, out Bitmap? bitmap) ? bitmap : null;
 
     /// <summary>그 조각이 지금 그릴 그림 — 묶인 애니메이션(컷의 타임라인)에 그림 키가 걸려 있으면 그것, 아니면 스킨의 그림.</summary>
-    private string? ImagePathOf(Worn worn, string node)
+    private string? ImagePathOf(SkinAsset worn, string node)
         => (_setView is not null && Motion is { } motion && motion.Rig == _setView ? MotionSwaps.ImageAt(motion, node, _clock.Time) : null)
-           ?? worn.Skin.ImageAt(node, worn.Seconds);
+           ?? worn.ImageAt(node, _clock.Time);
 
     /// <summary>테스트 손잡이 — 그 조각에 지금 그려지는 그림(문서 기준 경로). 안 그려지면 null.</summary>
     public string? PartImage(string objectId, string node)
-        => Scene?.Find(objectId) is { } o && WornBy(CurrentPose(), o) is { } worn ? ImagePathOf(worn, node) : null;
+        => Scene?.Find(objectId) is { } o && WornBy(o) is { } worn ? ImagePathOf(worn, node) : null;
 
     /// <summary>
     /// 그 오브젝트에서 그려지는 조각 노드들(그리는 순서) — 리그의 조각 가운데 입은 스킨이 그림을 준 것. 조각이 없는 리그나 스킨을 안 입었으면 빈 목록.
@@ -1470,11 +1148,8 @@ public sealed class ViewportView : Control
     public IReadOnlyList<string> DrawnParts(SceneObject o)
     {
         ArgumentNullException.ThrowIfNull(o);
-        return DrawnParts(CurrentPose(), o);
+        return WornBy(o) is { } worn ? RigParts.Of(_rig, o.Rig).Where(worn.Parts.ContainsKey).Where(IsSetNodeShown).ToList() : Array.Empty<string>();
     }
-
-    private IReadOnlyList<string> DrawnParts(RectNodeTree? pose, SceneObject o)
-        => WornBy(pose, o) is { } worn ? RigParts.Of(_rig, o.Rig).Where(worn.Skin.Parts.ContainsKey).Where(IsSetNodeShown).ToList() : Array.Empty<string>();
 
     /// <summary>조각이 지금 그려지는 사각형(루트 공간) — 노드의 rect 안에 그림의 종횡비로 맞추고 스킨의 놓임(자리·크기·회전)을 입힌 것. 없으면 null.</summary>
     public Quad? PartQuad(string objectId, string node)
@@ -1490,8 +1165,8 @@ public sealed class ViewportView : Control
         }
 
         Quad rect = PortraitLayout.RectQuad(pose, key);
-        Worn? worn = WornBy(pose, o);
-        Bitmap? image = worn is { } w0 ? ImageOf(w0, node) : null;
+        SkinAsset? worn = WornBy(o);
+        Bitmap? image = worn is not null ? ImageOf(worn, node) : null;
 
         float w = Norm(rect.BottomRight - rect.BottomLeft);
         float h = Norm(rect.TopLeft - rect.BottomLeft);
@@ -1520,7 +1195,7 @@ public sealed class ViewportView : Control
         float turn = 0f;
 
         // 스킨의 놓임 — 조각 노드 안에서의 자리(노드의 px), 크기, 회전. 노드의 값(모션) 위에 따로 얹힌다.
-        if (worn is { } w1 && PlacementOf(w1.Skin, node) is { IsPlaced: true } setup && pose.GetState(key) is var state)
+        if (worn?.SetupOf(node) is { IsPlaced: true } setup && pose.GetState(key) is var state)
         {
             Vec2 size = state.SizeDelta;
             float sx = size.X > 1e-6f ? w / size.X : 1f; // 노드의 px → 루트 공간(부모들의 배율까지)
@@ -1529,12 +1204,6 @@ public sealed class ViewportView : Control
             fitW *= setup.Scale;
             fitH *= setup.Scale;
             turn = setup.Rotation * MathF.PI / 180f;
-        }
-
-        // 반전 판은 뒤집지 않고 그린다 — 뒤집힌 축(ux)을 되돌린다.
-        if (worn is { Upright: true })
-        {
-            ux = ux * -1f;
         }
 
         if (turn != 0f)
@@ -1598,11 +1267,6 @@ public sealed class ViewportView : Control
             _clock.SetDuration(motion.Duration);
             RangeChanged?.Invoke(this, EventArgs.Empty);
         }
-        else if (_editor is not null && ShownEmoji is { } emoji)
-        {
-            _clock.SetDuration(EmojiPreview.PhasesOf(_editor.Document, emoji).Total);
-            RangeChanged?.Invoke(this, EventArgs.Empty);
-        }
     }
 
     private void RebuildTemplate()
@@ -1624,7 +1288,7 @@ public sealed class ViewportView : Control
     /// <summary>
     /// 오브젝트를 끌어 가만히 선 자세를 잡을 수 있는가 — 배치 모드이거나, 컷을 열고 그 타임라인이 붙어 있을 때(컷은 타임라인이 늘 붙어 있다 — 키 없는 값은 끌어서 고친다).
     /// </summary>
-    private bool CanLayout => IsLayoutMode || (ShownCut is { } cut && ShownEmoji is null && Motion is { } timeline && timeline.Name == cut.Name);
+    private bool CanLayout => IsLayoutMode || (ShownCut is { } cut && Motion is { } timeline && timeline.Name == cut.Name);
 
     private bool TryStartCutDrag(Point position, KeyModifiers modifiers)
     {
@@ -1768,15 +1432,6 @@ public sealed class ViewportView : Control
     public RectNodeTree? PoseAt(double seconds) => PoseAt(seconds, null);
 
     private RectNodeTree? PoseAt(double seconds, IDictionary<string, float>? alphas)
-    {
-        // 캐릭터들의 포즈 위에, 이벤트 키로 뜬 이모지를 얹는다.
-        RectNodeTree? tree = BasePoseAt(seconds, alphas);
-        return tree is not null && _editor is not null && EmojiPlaysAt(seconds) is { Count: > 0 } plays
-            ? EmojiEvents.Pose(tree, _editor.Document, plays, alphas, play => EmojiOrigin(play.Emoji, play.Target))
-            : tree;
-    }
-
-    private RectNodeTree? BasePoseAt(double seconds, IDictionary<string, float>? alphas)
         => UnstagedPoseAt(seconds, alphas) is { } tree ? StageCut(tree) : null;
 
     private RectNodeTree? UnstagedPoseAt(double seconds, IDictionary<string, float>? alphas)
@@ -1785,12 +1440,6 @@ public sealed class ViewportView : Control
         if (_template is null)
         {
             return null;
-        }
-
-        // 이모지 정의 — 수명 한 번(등장 → 머묾 → 퇴장)을 그 리그의 오브젝트에 얹는다.
-        if (_editor is not null && ShownEmoji is { } emoji)
-        {
-            return EmojiActor is { } actor ? EmojiPreview.Pose(_template, _editor.Document, emoji, actor, seconds, alphas, EmojiOrigin(emoji, actor)) : _template.Clone();
         }
 
         // 카메라 모션 — 씬의 카메라 값에 모션을 얹어 무대의 카메라 노드를 다시 세운다. 캐릭터는 시작 상태로 선다.
@@ -1878,7 +1527,7 @@ public sealed class ViewportView : Control
     /// </summary>
     public float? AlphaValue(string? node)
     {
-        if (!CanTakeAlpha(node) || EditMotion is not { } motion || CameraRig.IsCamera(motion))
+        if (!CanTakeAlpha(node) || Motion is not { } motion || CameraRig.IsCamera(motion))
         {
             return null;
         }
@@ -1889,26 +1538,16 @@ public sealed class ViewportView : Control
 
     /// <summary>
     /// 불투명도를 지금 시각에 키한다(값 칸) — 알파 채널의 키 하나, 되돌리기 한 칸. 없던 채널이면 생긴다.
-    /// 이모지 안에서는 구간의 규칙을 따른다: 시각 = 시계 − 구간의 시작, 시작값 = 그 구간이 얹히기 전의 불투명도.
     /// </summary>
     public void SetAlphaValue(string node, float value)
     {
-        if (_editor is null || !CanTakeAlpha(node) || EditMotion is not { } motion || CameraRig.IsCamera(motion) || _template is null)
+        if (_editor is null || !CanTakeAlpha(node) || Motion is not { } motion || CameraRig.IsCamera(motion) || _template is null)
         {
             return;
         }
 
-        float start = 1f;
-
-        if (_emojiPhase is { } phase && ShownEmoji is { } emoji && EmojiActor is { } actor)
-        {
-            var before = new Dictionary<string, float>(StringComparer.Ordinal);
-            EmojiPreview.PoseBefore(_template, _editor.Document, emoji, actor, phase, before);
-            start = before.TryGetValue(Prefix + node, out float alpha) ? alpha : 1f;
-        }
-
-        float key = PoseEdit.KeyValueFor(MotionChannelKind.Alpha, motion.PreviewMode, start, Math.Clamp(value, 0f, 1f));
-        _editor.KeyComponents(motion.Name, node, MotionChannelKind.Alpha, (float)Math.Max(0, SnapTime(EditTime)), new[] { (Axis.X, Math.Clamp(key, 0f, 1f)) }, DefaultTangent);
+        float key = PoseEdit.KeyValueFor(MotionChannelKind.Alpha, motion.PreviewMode, 1f, Math.Clamp(value, 0f, 1f));
+        _editor.KeyComponents(motion.Name, node, MotionChannelKind.Alpha, (float)Math.Max(0, SnapTime(_clock.Time)), new[] { (Axis.X, Math.Clamp(key, 0f, 1f)) }, DefaultTangent);
     }
 
     /// <summary>지금 시각의 초상 사각형(루트 공간). 리그가 없으면 null.</summary>
@@ -1988,34 +1627,6 @@ public sealed class ViewportView : Control
         DrawOutside(context, stage);
         context.DrawRectangle(StagePen, stage);
         DrawRecentEvents(context, stage);
-
-        if (_editor is not null && ShownEmoji is { } previewed)
-        {
-            EmojiPhases phases = EmojiPreview.PhasesOf(_editor.Document, previewed);
-            string where = EmojiActor is { } on ? on.Id : "이 리그의 오브젝트가 씬에 없다 — 캐릭터를 우클릭해 붙는 리그를 만든다";
-            string phase = _clock.Time <= phases.HoldStart ? "등장" : _clock.Time <= phases.ExitStart ? "머묾" : "퇴장";
-            string editing = "";
-
-            if (_emojiPhase is { } editPhase)
-            {
-                string name = editPhase switch { EmojiPhase.Enter => "등장", EmojiPhase.Hold => "머묾", _ => "퇴장" };
-
-                // 그 구간 안이면 손잡이가 선다 — 이모지를 보면서 그 구간의 모션에 키를 놓는다.
-                if (EmojiEdit is { } edit)
-                {
-                    DrawAxes(context, pose);
-                    DrawGizmo(context, pose);
-                    editing = $" — {name}의 모션 {edit.Motion.Name}에 키가 놓인다";
-                }
-                else
-                {
-                    editing = $" — {name} 구간 밖이다(그 구간으로 가면 고칠 수 있다)";
-                }
-            }
-
-            DrawLabel(context, $"연출 {previewed.Name}{(previewed.Screen ? " · 화면" : "")} · {where} · 등장 {phases.Enter:0.##}s › 머묾 {phases.Hold:0.##}s{(phases.Staying ? "(끌 때까지 — 미리보기 길이)" : "")} › 퇴장 {phases.Exit:0.##}s · 지금 {phase}{editing}", new Point(stage.X + 8, stage.Y + 6));
-            return;
-        }
 
         if (CameraRig.IsCamera(motion) && CameraValue() is { } shot)
         {
@@ -2110,12 +1721,9 @@ public sealed class ViewportView : Control
             return;
         }
 
-        // 이모지 정의를 보는 중이면 그 오브젝트는 수명 안에서만 보인다(뜨기 전·사라진 뒤에는 없다).
-        string? emojiActor = _editor is not null && ShownEmoji is { } shownEmoji && !EmojiPreview.IsAlive(_editor.Document, shownEmoji, _clock.Time) ? EmojiActor?.Id : null;
-
         foreach (SceneObject o in scene.DrawOrder())
         {
-            if (!o.Visible || o.Id == emojiActor || IsDormantEmoji(o.Id))
+            if (!o.Visible)
             {
                 continue;
             }
@@ -2158,8 +1766,8 @@ public sealed class ViewportView : Control
         // 조각·색이 있는 리그(세트) — 리그의 노드 순서로(뒤의 것이 위): 색 오브젝트는 사각형을 채우고, 조각은 스킨이 준 그림을 그린다.
         // 그릴 것이 하나도 없으면(스킨을 안 입었고 색도 없다) 아래의 윤곽으로 떨어진다.
         IReadOnlyDictionary<string, string> colors = RigParts.ColorsOf(_rig, o.Rig);
-        IReadOnlyList<string> parts = DrawnParts(pose, o);
-        Worn? wornNow = WornBy(pose, o);
+        IReadOnlyList<string> parts = DrawnParts(o);
+        SkinAsset? wornNow = WornBy(o);
 
         if (_rig is not null && _rig.TryGetRig(o.Rig, out RigSchemaRigDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
         {
@@ -2201,17 +1809,12 @@ public sealed class ViewportView : Control
                 }
             }
 
-            if (wornNow is not { } worn || parts.Count == 0)
+            if (wornNow is null || parts.Count == 0)
             {
                 return;
             }
 
-            if (PlacedPart is { } picked && picked.Skin == worn.Skin.Name && PartQuadOf(pose, o, picked.Node) is { } held)
-            {
-                context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(
-                    new[] { ToControl(held.TopLeft), ToControl(held.TopRight), ToControl(held.BottomRight), ToControl(held.BottomLeft), ToControl(held.TopLeft) }, true));
-            }
-            else if (selected && _setView is null && PartQuadOf(pose, o, parts[0]) is { } outline) // 세트 보기에서는 고른 오브젝트만 윤곽이 선다(DrawLayout)
+            if (selected && _setView is null && PartQuadOf(pose, o, parts[0]) is { } outline) // 세트 보기에서는 고른 오브젝트만 윤곽이 선다(DrawLayout)
             {
                 context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(
                     new[] { ToControl(outline.TopLeft), ToControl(outline.TopRight), ToControl(outline.BottomRight), ToControl(outline.BottomLeft), ToControl(outline.TopLeft) }, true));
@@ -2455,23 +2058,8 @@ public sealed class ViewportView : Control
             }
         }
 
-        // 이모지 정의를 보는 중: 구간을 고치는 중이 아니면 조각을 끌어 스킨의 놓임을 잡는다(모션의 키가 아니다).
-        if (ShownEmoji is not null && _emojiPhase is null)
-        {
-            if (TryStartPartPlacement(position, e.KeyModifiers))
-            {
-                Pause();
-                e.Pointer.Capture(this);
-                e.Handled = true;
-            }
-
-            return;
-        }
-
-        // 이모지 안에서는 고친 구간 안에서만 포즈를 잡는다. 카메라 모션에는 캐릭터의 포즈를 키하지 않는다.
-        bool canPose = ShownEmoji is not null ? EmojiEdit is not null : !CameraRig.IsCamera(Motion);
-
-        if (canPose && TryStartManipulation(position))
+        // 카메라 모션에는 캐릭터의 포즈를 키하지 않는다.
+        if (!CameraRig.IsCamera(Motion) && TryStartManipulation(position))
         {
             Pause();
             e.Pointer.Capture(this);
@@ -2635,7 +2223,7 @@ public sealed class ViewportView : Control
     /// <summary>놓는 순간: Auto Key거나 그 시각에 이미 키가 있으면 키로, 아니면 키 없는 포즈로 남긴다.</summary>
     private void EndManipulation()
     {
-        MotionAsset? motion = EditMotion;
+        MotionAsset? motion = Motion;
         string? node = SelectedNode;
 
         if (motion is null || node is null || !_overrides.TryGetValue(Prefix + node, out RectNodeState posed))
@@ -2659,7 +2247,7 @@ public sealed class ViewportView : Control
     private void CommitPose(MotionAsset motion, string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
     {
         ChannelAsset? channel = motion.FindChannel(node, kind);
-        float time = (float)SnapTime(EditTime);
+        float time = (float)SnapTime(_clock.Time);
         bool keyExists = channel is not null && axes.Any(a => channel.Get(a)?.Keys.Any(k => Math.Abs(k.T - time) <= MotionRules.Tolerance) == true);
 
         if (AutoKey || keyExists)
@@ -2710,7 +2298,7 @@ public sealed class ViewportView : Control
     public void SetComponents(string node, MotionChannelKind kind, IReadOnlyList<(Axis Axis, float Value)> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        MotionAsset? motion = EditMotion;
+        MotionAsset? motion = Motion;
         RectNodeTree? pose = CurrentPose();
         string key = Prefix + node;
 
@@ -2805,13 +2393,6 @@ public sealed class ViewportView : Control
             return;
         }
 
-        if (_place is not null)
-        {
-            DragPartPlacement(e.GetPosition(this));
-            e.Handled = true;
-            return;
-        }
-
         switch (_drag)
         {
             case Drag.MoveFree:
@@ -2828,6 +2409,8 @@ public sealed class ViewportView : Control
     }
 
     // ── 배치 모드 (PLAN-set.md S2) — 세트의 오브젝트를 끌어 가만히 선 자세(자리 · 배율 · 회전)를 잡는다 ──
+
+    private enum PlaceMode { Move, Scale, Rotate }
 
     /// <param name="Node">연 세트에서 본 경로 이름(안쪽이면 <c>인스턴스.이름</c>).</param>
     /// <param name="Kind">실제로 바뀌는 세트 — 안쪽을 고치는 중이면 품은 세트.</param>
@@ -3197,148 +2780,6 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    // ── 조각 놓기 (PLAN-parts.md §14) — 이모지 정의를 보며 조각을 끌어 스킨의 놓임을 잡는다 ──
-
-    private enum PlaceMode { Move, Scale, Rotate }
-
-    private sealed record PartPlacement(string Skin, string Node, PlaceMode Mode, Vec2 StartRoot, Vec2 CenterRoot, SkinPartSetup Start, Vec2 AxisX, Vec2 AxisY)
-    {
-        public SkinPartSetup Now { get; set; } = Start;
-    }
-
-    private PartPlacement? _place;
-
-    /// <summary>마지막으로 집은 조각(스킨, 노드) — 윤곽으로 보인다.</summary>
-    public (string Skin, string Node)? PlacedPart { get; private set; }
-
-    /// <summary>끄는 중이면 끌고 있는 값, 아니면 스킨의 값.</summary>
-    private SkinPartSetup PlacementOf(SkinAsset skin, string node)
-        => _place is { } place && place.Skin == skin.Name && place.Node == node ? place.Now : skin.SetupOf(node);
-
-    /// <summary>
-    /// 그 자리의 조각을 집는다 — 끌면 자리, Shift+끌기는 크기(가운데에서의 거리 비), Ctrl+끌기는 회전(가운데 둘레). 위에 그려진 조각이 먼저 집힌다.
-    /// </summary>
-    private bool TryStartPartPlacement(Point position, KeyModifiers modifiers)
-    {
-        if (_editor is null || EmojiActor is not { } actor || CurrentPose() is not { } pose || WornBy(pose, actor) is not { } worn)
-        {
-            return false;
-        }
-
-        var at = new Pixel(position.X, position.Y);
-
-        foreach (string node in DrawnParts(pose, actor).Reverse())
-        {
-            if (PartQuadOf(pose, actor, node) is not { } quad)
-            {
-                continue;
-            }
-
-            var polygon = new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft }.Select(c => ToControl(c)).Select(p => new Pixel(p.X, p.Y)).ToList();
-
-            if (!GraphHitTest.Contains(polygon, at))
-            {
-                continue;
-            }
-
-            // 노드의 px 한 칸이 루트 공간에서 얼마인가 — 놓임은 노드의 px이다(PartQuadOf와 같은 축).
-            Quad rect = PortraitLayout.RectQuad(pose, actor.KeyOf(node));
-            Vec2 size = pose.GetState(actor.KeyOf(node)).SizeDelta;
-            Vec2 axisX = size.X > 1e-6f ? (rect.BottomRight - rect.BottomLeft) * (1f / size.X) : new Vec2(1f, 0f);
-            Vec2 axisY = size.Y > 1e-6f ? (rect.TopLeft - rect.BottomLeft) * (1f / size.Y) : new Vec2(0f, 1f);
-            PlaceMode mode = modifiers.HasFlag(KeyModifiers.Shift) ? PlaceMode.Scale : modifiers.HasFlag(KeyModifiers.Control) ? PlaceMode.Rotate : PlaceMode.Move;
-            _place = new PartPlacement(worn.Skin.Name, node, mode, ToRoot(position), quad.Center, worn.Skin.SetupOf(node).Clone(), axisX, axisY);
-            PlacedPart = (worn.Skin.Name, node);
-            InvalidateVisual();
-            return true;
-        }
-
-        PlacedPart = null;
-        InvalidateVisual();
-        return false;
-    }
-
-    private void DragPartPlacement(Point position)
-    {
-        if (_place is not { } place)
-        {
-            return;
-        }
-
-        Vec2 now = ToRoot(position);
-        SkinPartSetup next = place.Start.Clone();
-
-        static float Dot(Vec2 a, Vec2 b) => a.X * b.X + a.Y * b.Y;
-        static float Length(Vec2 v) => MathF.Sqrt(Dot(v, v));
-
-        switch (place.Mode)
-        {
-            case PlaceMode.Move:
-            {
-                // 루트 공간의 이동을 노드의 px로 — 축이 직교한다고 본다(리그의 노드는 기울지 않는다).
-                Vec2 delta = now - place.StartRoot;
-                float lx = Dot(place.AxisX, place.AxisX);
-                float ly = Dot(place.AxisY, place.AxisY);
-                next.X = MathF.Round(place.Start.X + (lx > 1e-9f ? Dot(delta, place.AxisX) / lx : 0f));
-                next.Y = MathF.Round(place.Start.Y + (ly > 1e-9f ? Dot(delta, place.AxisY) / ly : 0f));
-                break;
-            }
-
-            case PlaceMode.Scale:
-            {
-                float from = Length(place.StartRoot - place.CenterRoot);
-                float to = Length(now - place.CenterRoot);
-
-                if (from > 1e-3f)
-                {
-                    next.Scale = MathF.Max(0.05f, MathF.Round(place.Start.Scale * to / from, 2));
-                }
-
-                break;
-            }
-
-            case PlaceMode.Rotate:
-            {
-                Vec2 a = place.StartRoot - place.CenterRoot;
-                Vec2 b = now - place.CenterRoot;
-
-                if (Length(a) > 1e-3f && Length(b) > 1e-3f)
-                {
-                    // 뒤집힌 계층에서는 화면의 돌림이 거꾸로다 — 축의 손잡이 방향을 따른다.
-                    float handed = place.AxisX.X * place.AxisY.Y - place.AxisX.Y * place.AxisY.X < 0f ? -1f : 1f;
-                    float turn = (MathF.Atan2(b.Y, b.X) - MathF.Atan2(a.Y, a.X)) * 180f / MathF.PI;
-                    turn = (turn - 360f * MathF.Round(turn / 360f)) * handed; // 가까운 쪽으로(−180~180) — 반 바퀴 경계에서 튀지 않게
-                    next.Rotation = MathF.Round(place.Start.Rotation + turn);
-                }
-
-                break;
-            }
-        }
-
-        place.Now = next;
-        InvalidateVisual();
-    }
-
-    /// <summary>놓는다 — 끈 하나가 되돌리기 한 칸. 안 움직였으면 기록이 없다.</summary>
-    private void EndPartPlacement()
-    {
-        if (_place is not { } place)
-        {
-            return;
-        }
-
-        _place = null;
-
-        try
-        {
-            _editor?.SetSkinPartSetup(place.Skin, place.Node, place.Now);
-        }
-        finally
-        {
-            InvalidateVisual();
-        }
-    }
-
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
@@ -3354,14 +2795,6 @@ public sealed class ViewportView : Control
         if (_layout is not null)
         {
             EndLayoutDrag();
-            e.Pointer.Capture(null);
-            e.Handled = true;
-            return;
-        }
-
-        if (_place is not null)
-        {
-            EndPartPlacement();
             e.Pointer.Capture(null);
             e.Handled = true;
             return;

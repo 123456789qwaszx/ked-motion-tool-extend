@@ -118,7 +118,7 @@ public static class ScenePreview
 
     /// <summary>
     /// 깊이·자리 폴드가 설 수 있는 리그인가 — 코어의 그 폴드들은 캐릭터 리그의 축(깊이 노드와 초상까지의 사슬)을 전제하고, 없으면 던진다.
-    /// 이모지 같은 다른 리그는 깊이·자리 없이 선다(층은 그리는 순서만).
+    /// 세트 같은 다른 리그는 깊이·자리 없이 선다(층은 그리는 순서만).
     /// </summary>
     private static bool IsCharacterShaped(StageState state, SceneObject o)
         => state.Nodes.Contains(o.KeyOf(DepthYNode)) && state.Nodes.Contains(o.KeyOf(DepthScaleNode)) && state.Nodes.Contains(o.KeyOf(PortraitLayout.ImageNodeId));

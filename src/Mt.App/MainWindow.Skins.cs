@@ -111,7 +111,7 @@ public partial class MainWindow
 
             foreach (string node in OwnParts(parts))
             {
-                _skinParts.Children.Add(SkinPartRow(skin, node, _skinSetupBoxes));
+                _skinParts.Children.Add(SkinPartRow(skin, node));
             }
 
             _skinParts.Children.AddRange(NestedPartNotes(parts));
@@ -123,7 +123,7 @@ public partial class MainWindow
     }
 
     /// <summary>조각 한 줄 — 노드 이름 · 그림 경로(문서 기준, 비우면 그 조각을 안 그린다) · 파일 고르기.</summary>
-    private Control SkinPartRow(SkinAsset asset, string node, Dictionary<string, SkinSetupBoxSet> setupBoxes)
+    private Control SkinPartRow(SkinAsset asset, string node)
     {
         string skin = asset.Name;
         var box = new TextBox { FontSize = 11, Text = string.Join(FrameSeparator, asset.ImagesOf(node)), Tag = node, PlaceholderText = "(그림 없음)" };
@@ -158,7 +158,7 @@ public partial class MainWindow
         // 그림이 있는 조각에만: 그림 넘기기(장당 시간 · 되풀이)와 놓임(자리 · 크기 · 회전).
         if (asset.Parts.ContainsKey(node))
         {
-            Control setup = SkinSetupRow(asset, node, setupBoxes);
+            Control setup = SkinSetupRow(asset, node);
             DockPanel.SetDock(setup, Dock.Bottom);
             row.Children.Add(setup);
         }
@@ -183,7 +183,7 @@ public partial class MainWindow
 
     private readonly Dictionary<string, SkinSetupBoxSet> _skinSetupBoxes = new(StringComparer.Ordinal);
 
-    private Control SkinSetupRow(SkinAsset asset, string node, Dictionary<string, SkinSetupBoxSet> setupBoxes)
+    private Control SkinSetupRow(SkinAsset asset, string node)
     {
         string skin = asset.Name;
         SkinPartSetup now = asset.SetupOf(node);
@@ -202,7 +202,7 @@ public partial class MainWindow
         TextBox y = Box(F(now.Y), "Y", "놓임 — 자리 Y(px)");
         TextBox scale = Box(F(now.Scale), "크기", "놓임 — 크기(배). 1이 조각 사각형에 꼭 맞는 크기");
         TextBox rotation = Box(F(now.Rotation), "회전", "놓임 — 회전(도, 반시계가 +)");
-        setupBoxes[node] = new SkinSetupBoxSet(seconds, loop, x, y, scale, rotation);
+        _skinSetupBoxes[node] = new SkinSetupBoxSet(seconds, loop, x, y, scale, rotation);
 
         void Commit()
         {

@@ -239,20 +239,6 @@ public sealed class DocumentSession
             return (image, File.Exists(resolved) ? resolved : (string?)null);
         }).ToList();
 
-    /// <summary>이모지 정의를 <c>emojis.json</c>(초안)으로 내보낸다 — 막는 문제가 있으면 안 나간다.</summary>
-    public bool ExportEmojis(string path)
-    {
-        if (!EmojisJson.TryExport(Editor.Document, RigNodeIds, out string json, out IReadOnlyList<string> problems, Rig?.AlphaNodeIds))
-        {
-            SetStatus($"이모지 내보내기 막힘 — 문제 {problems.Count}건을 먼저 고친다: {problems[0]}");
-            return false;
-        }
-
-        File.WriteAllBytes(path, new System.Text.UTF8Encoding(false).GetBytes(json));
-        SetStatus($"내보냈다: {path} — 이모지 {Editor.Document.Emojis.Count}개 ({EmojisJson.Schema})");
-        return true;
-    }
-
     /// <summary>스킨의 조각 그림을 파일로 정한다 — 경로는 문서 기준 상대로 적힌다. null이면 그 조각을 비운다.</summary>
     /// <summary>
     /// 층 표(<c>layers.tsv</c>)를 세트로 들인다 — 표 옆의 그림들이 오브젝트 여럿 + 스킨으로, 한 칸에(<c>PLAN-set.md</c> S6). 그림 경로는 문서 기준으로 적힌다.
@@ -268,7 +254,7 @@ public sealed class DocumentSession
         return Editor.ImportLayers(kind, sheet, relative, skin, StageSize);
     }
 
-    /// <summary>다른 저작 문서의 세트를 전부 들인다(애니메이션·스킨·연출까지) — 그림 경로는 이 문서 기준으로 바뀐다. 들인 세트의 이름들.</summary>
+    /// <summary>다른 저작 문서의 세트를 전부 들인다(애니메이션·스킨까지) — 그림 경로는 이 문서 기준으로 바뀐다. 들인 세트의 이름들.</summary>
     public IReadOnlyList<string> ImportSets(string documentPath)
     {
         ArgumentNullException.ThrowIfNull(documentPath);

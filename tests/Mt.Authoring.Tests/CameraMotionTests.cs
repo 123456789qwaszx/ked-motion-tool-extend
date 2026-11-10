@@ -124,9 +124,7 @@ public class CameraMotionTests
         Near(0f, nodding.GetState(panKey).AnchoredPosition.X);
 
         // 끝난 뒤의 무대 = 카메라를 그 값으로 둔 씬(층 패럴랙스까지).
-        SceneAsset expectedScene = scene.Clone();
-        expectedScene.Camera.Zoom = 4f;
-        expectedScene.Camera.PanX = 100f;
+        var expectedScene = new SceneAsset { Name = scene.Name, Objects = scene.Objects, Camera = new CameraSettings { Zoom = 4f, PanX = 100f, PanY = scene.Camera.PanY } };
         RectNodeTree expected = BuildTree(expectedScene);
         RectNodeTree after = PoseAt(5.0);
 

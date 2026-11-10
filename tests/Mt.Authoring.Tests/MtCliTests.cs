@@ -35,7 +35,7 @@ public class MtCliTests
     {
         var editor = new MotionEditor(Fixtures.NodBowDocument());
         editor.AddSceneObject(null, "s2", "character");
-        editor.AddMotionEvent("nod", 0.3f, "emoji", "땀");
+        editor.AddMotionEvent("nod", 0.3f, "flash", "땀");
         more?.Invoke(editor);
 
         string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"cli-{Guid.NewGuid():N}");
@@ -90,12 +90,12 @@ public class MtCliTests
         Assert.False(json!["ok"]!.GetValue<bool>());
         Assert.Contains(json["problems"]!.AsArray(), p => p!["kind"]!.GetValue<string>() == "motion" && p["name"]!.GetValue<string>() == "nod" && p["blocking"]!.GetValue<bool>());
 
-        // 알림뿐이면 0이다(그림 없는 연출).
-        (code, json, _, _) = Run("validate", WriteDocument(e => e.AddEmoji("bare", "character")));
+        // 알림뿐이면 0이다(재생되지 않는 재생 블록).
+        (code, json, _, _) = Run("validate", WriteDocument(e => e.Document.Find("bow")!.Plays.Add(new MotionPlayAsset { Node = "ghost", Motion = "nod" })));
         Assert.Equal(0, code);
         Assert.NotEmpty(json!["problems"]!.AsArray());
         Assert.All(json["problems"]!.AsArray(), p => Assert.False(p!["blocking"]!.GetValue<bool>()));
-        Assert.Contains(json["problems"]!.AsArray(), p => p!["kind"]!.GetValue<string>() == "emoji" && p["name"]!.GetValue<string>() == "bare");
+        Assert.Contains(json["problems"]!.AsArray(), p => p!["kind"]!.GetValue<string>() == "motion" && p["name"]!.GetValue<string>() == "bow");
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class MtCliTests
         Assert.Equal(0, code);
         Assert.Equal("motions/3", json!["schema"]!.GetValue<string>()); // 이벤트 키가 있다
         string written = File.ReadAllText(target);
-        Assert.Contains("\"name\": \"emoji\", \"value\": \"땀\"", written, StringComparison.Ordinal);
+        Assert.Contains("\"name\": \"flash\", \"value\": \"땀\"", written, StringComparison.Ordinal);
         Assert.True(MotionsJson.TryRead(written, out List<MotionClip> clips, out _));
         Assert.Equal(2, clips.Count);
 

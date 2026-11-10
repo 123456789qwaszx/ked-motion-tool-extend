@@ -243,15 +243,14 @@ public partial class MainWindow : Window
             _currentTime.Text = TimeText.Format(_graph.CurrentTime, Display);
             SyncTime(() =>
             {
-                // 그래프·도프 시트는 모션의 시각, 뷰포트는 시계의 시각 — 이모지 안에서 구간의 모션을 고칠 때는 구간의 시작만큼 어긋난다.
-                _viewport.ScrubTo(_graph.CurrentTime + _phaseOffset);
+                _viewport.ScrubTo(_graph.CurrentTime);
                 _dope.CurrentTime = _graph.CurrentTime;
             });
         };
         _dope.CurrentTimeChanged += (_, _) => SyncTime(() =>
         {
             _graph.CurrentTime = _dope.CurrentTime;
-            _viewport.ScrubTo(_dope.CurrentTime + _phaseOffset);
+            _viewport.ScrubTo(_dope.CurrentTime);
         });
         _graph.CurvesChanged += (_, _) =>
         {
@@ -260,15 +259,10 @@ public partial class MainWindow : Window
         };
         _viewport.TimeChanged += (_, _) =>
         {
-            if (_viewport.EmojiName is not null && _graph.MotionName is not null)
-            {
-                _phaseOffset = _viewport.EmojiPhaseTimeOffset; // 머묾은 바퀴가 넘어갈 때 시각 차가 바뀐다 — 그래프의 시각이 모션 길이 안에서 다시 돈다
-            }
-
             SyncTime(() =>
             {
-                _graph.CurrentTime = _viewport.Time - _phaseOffset;
-                _dope.CurrentTime = _viewport.Time - _phaseOffset;
+                _graph.CurrentTime = _viewport.Time;
+                _dope.CurrentTime = _viewport.Time;
             });
             RefreshChannelBox();
             RefreshCameraPanel();
@@ -590,7 +584,7 @@ public partial class MainWindow : Window
             _showStageSkeleton.IsChecked = _settings.ShowStageSkeleton;
             _collapsedGroups.Clear();
             _collapsedGroups.UnionWith(_settings.CollapsedChannelBoxGroups);
-            _inspectorTabs.SelectedIndex = Math.Clamp(_settings.InspectorTab, 0, 3);
+            _inspectorTabs.SelectedIndex = Math.Clamp(_settings.InspectorTab, 0, 2);
             int autoSaveIndex = Array.IndexOf(AutoSaveMinutes, _settings.AutoSaveMinutes);
             _autoSaveCombo.SelectedIndex = autoSaveIndex < 0 ? 2 : autoSaveIndex;
             _timeDisplayCombo.SelectedIndex = (int)_settings.TimeDisplay;
@@ -1608,8 +1602,8 @@ public partial class MainWindow : Window
 
     private void BindMotion(string? name)
     {
-        // 세트 보기는 그 세트의 모션만 연기한다 — 연출을 골랐거나 다른 리그의 모션을 골랐으면 세트를 닫는다.
-        if (SelectedSet is { } openSet && (name is null ? SelectedEmoji is not null : _session.Editor.Document.Find(name)?.Rig != openSet))
+        // 세트 보기는 그 세트의 모션만 연기한다 — 다른 리그의 모션을 골랐으면 세트를 닫는다.
+        if (SelectedSet is { } openSet && name is not null && _session.Editor.Document.Find(name)?.Rig != openSet)
         {
             DeselectSet();
             return; // DeselectSet이 다시 묶는다
@@ -1620,19 +1614,8 @@ public partial class MainWindow : Window
         _dope.Controllers = _session.ControllersOf(name is null ? null : _session.Editor.Document.Find(name)?.Rig);
         _dope.Bind(_session.Editor, name);
 
-        if (name is null && SelectedEmoji is { } emoji)
-        {
-            // 모션이 없고 이모지 정의를 골랐다 — 뷰포트(와 시계)는 그 수명의 것이다.
-            _viewport.BindEmoji(_session.Editor, emoji);
-        }
-        else
-        {
-            _viewport.Bind(_session.Editor, name);
-        }
-
+        _viewport.Bind(_session.Editor, name);
         _timeSlider.Bind(_session.Editor, name);
-        _phaseOffset = 0;
-        SyncEmojiContext(); // 이모지를 보는 중이면 고치는 구간의 모션을
         RefreshSelectedNode();
     }
 
@@ -1822,7 +1805,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 오른쪽 = 탭 넷(PLAN-inspector): 채널 박스(기본, 애니메이터) · 씬(무대 세팅) · 모션(속성) · 연출. 설정·단축키는 툴바의 창으로,
+    /// 오른쪽 = 탭 셋(PLAN-inspector): 채널 박스(기본, 애니메이터) · 씬(무대 세팅) · 모션(속성). 설정·단축키는 툴바의 창으로,
     /// 단축키의 그림자 버튼(Q/W/E/R·S·Esc·복사·붙여넣기…)은 없다. 마지막 탭·접힌 묶음은 설정에 남는다.
     /// </summary>
     private void BuildRight()
@@ -1832,7 +1815,6 @@ public partial class MainWindow : Window
             new TabItem { Header = "채널 박스", Content = BuildChannelBoxTab(), FontSize = 12 },
             new TabItem { Header = "씬", Content = BuildSceneTab(), FontSize = 12 },
             new TabItem { Header = "모션", Content = BuildMotionTab(), FontSize = 12 },
-            new TabItem { Header = "연출", Content = BuildEmojiTab(), FontSize = 12 },
         };
         _inspectorTabs.SelectionChanged += (_, _) =>
         {
@@ -1889,7 +1871,7 @@ public partial class MainWindow : Window
             Children = { Small("자리"), _objPlace, Small("focus"), _objPlaceFocus },
         });
         panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { Small("배역"), _objCharacter } });
-        ToolTip.SetTip(_objCharacter, "배역 키(런타임 cast의 characterKey) — 기준점 표(presets/focus.json)의 그 배역 값으로 자리·깊이·이모지의 붙는 자리를 푼다. 비우면 표의 기본값");
+        ToolTip.SetTip(_objCharacter, "배역 키(런타임 cast의 characterKey) — 기준점 표(presets/focus.json)의 그 배역 값으로 자리·깊이를 푼다. 비우면 표의 기본값");
         OnCommit(_objCharacter, text =>
         {
             if (!_refreshing && _viewport.SelectedObject is { } o)
@@ -2011,12 +1993,7 @@ public partial class MainWindow : Window
             if (text != m.Name)
             {
                 _session.Editor.RenameMotion(m.Name, text);
-
-                // 이모지 안에서 구간의 모션 이름을 바꾼 것이면 목록에서 고르지 않는다 — 고르면 이모지가 풀린다(이모지의 참조는 편집기가 따라 바꿨다).
-                if (!EditingInPlace)
-                {
-                    _motionList.SelectedItem = text;
-                }
+                _motionList.SelectedItem = text;
             }
         }));
         OnCommit(_motionDuration, text => WithMotion(m => { if (TryFloat(text, out float v) && v != m.Duration) _session.Editor.SetDuration(m.Name, v); }));
@@ -2188,7 +2165,6 @@ public partial class MainWindow : Window
         "뷰포트\n" +
         "  휠  커서 축으로 확대·축소      MMB 드래그  보기 이동      F  보기 맞춤\n" +
         "  세트를 열고 모션을 안 골랐을 때(배치) — 오브젝트 드래그  자리      Shift+드래그  배율      Ctrl+드래그  회전   (가만히 선 자세다)\n" +
-        "  이모지 정의를 볼 때 — 조각 드래그  놓임(자리)      Shift+드래그  크기      Ctrl+드래그  회전   (스킨의 값이다 — 모션의 키가 아니다)\n" +
         "  LMB  오브젝트 고르기 · 기즈모 끌기(Auto Key면 놓는 순간 키)      Home / End  처음·끝      ← / →  한 프레임\n\n" +
         "그래프 에디터 (마야)\n" +
         "  LMB  키 선택 · 빈 자리 드래그 박스 선택(키가 들면 키만, 커브만 지나면 커브) · Ctrl+드래그 라소\n" +
@@ -2249,7 +2225,7 @@ public partial class MainWindow : Window
     private void OnEditorChanged()
     {
         RefreshMotionList();
-        RefreshEmojis();
+        RefreshSets();
         RefreshMotionInspector();
         RefreshKeyInspector();
         RefreshProblems();
@@ -2742,7 +2718,7 @@ public partial class MainWindow : Window
         };
         Item("캐릭터 리그 만들기" + where, () => CreateObject(SceneObject.DefaultRig, target), new KeyGesture(Key.N, KeyModifiers.Control | KeyModifiers.Shift), enabled: target is not SkeletonNode);
 
-        // 세트를 장면에 놓는다 — 캐릭터에 붙이지 않고 그 층에 제 자리로(화면 전환·소개 같은 연출이 설 오브젝트).
+        // 세트를 장면에 놓는다 — 캐릭터에 붙이지 않고 그 층에 제 자리로(화면 전환·소개의 그림이 설 오브젝트).
         if (_session.Editor.Document.Rigs.Count > 0 && target is not SkeletonNode)
         {
             var place = new MenuItem { Header = "세트 놓기" + where, FontSize = 11 };
@@ -3087,7 +3063,7 @@ public partial class MainWindow : Window
     private void RefreshAll()
     {
         RefreshMotionList();
-        RefreshEmojis();
+        RefreshSets();
         RefreshChannels();
         RefreshMotionInspector();
         RefreshKeyInspector();
@@ -3101,8 +3077,7 @@ public partial class MainWindow : Window
 
         try
         {
-            // 이모지 안에서 구간의 모션을 고치는 중이면 그래프의 모션은 "고른 모션"이 아니다 — 목록에서 골라 주지 않는다(고르면 이모지가 풀린다).
-            string? selected = SelectedMotion ?? (EditingInPlace ? null : _graph.MotionName);
+            string? selected = SelectedMotion ?? _graph.MotionName;
             // rigKind로 묶어 보인다(모션의 주인은 rigKind) — 같은 리그끼리 이름순.
             // 세트를 열었으면 그 세트의 애니메이션만 — 다른 리그의 모션은 이 세트가 연기할 수 없다.
             string? openSet = SelectedSet;
@@ -3124,7 +3099,7 @@ public partial class MainWindow : Window
             int index = selected is null ? -1 : names.IndexOf(selected);
             _motionList.SelectedIndex = index;
 
-            if (index < 0 && _graph.MotionName is not null && !EditingInPlace)
+            if (index < 0 && _graph.MotionName is not null)
             {
                 BindMotion(null);
             }
@@ -3144,11 +3119,6 @@ public partial class MainWindow : Window
         if (_refreshing)
         {
             return;
-        }
-
-        if (SelectedMotion is not null)
-        {
-            DeselectEmoji(); // 시간의 주인은 모션 · 이모지 중 하나다
         }
 
         BindMotion(SelectedMotion);
@@ -3362,7 +3332,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>작은 리그(이모지 등)에서만 키 없는 채널을 늘어놓는다 — 캐릭터 리그는 노드가 많아 목록이 묻힌다(그쪽은 컨트롤러 표가 그 일을 한다).</summary>
+    /// <summary>작은 리그(세트)에서만 키 없는 채널을 늘어놓는다 — 캐릭터 리그는 노드가 많아 목록이 묻힌다(그쪽은 컨트롤러 표가 그 일을 한다).</summary>
     private const int UnkeyedRowsMaxNodes = 16;
 
     /// <summary>테스트 손잡이 — 그래프 목록의 "키 없음" 줄들(노드 · 종류).</summary>
@@ -3444,7 +3414,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>키 없는 채널에 지금 값을 지금 시각의 키로 — 채널이 생긴다. 뷰포트의 길(이모지 안이면 그 문맥의 시각과 시작값)로 놓는다.</summary>
+    /// <summary>키 없는 채널에 지금 값을 지금 시각의 키로 — 채널이 생긴다. 뷰포트의 길로 놓는다.</summary>
     private void KeyUnkeyed(string node, MotionChannelKind kind)
     {
         _viewport.SelectedNode = node;
@@ -3764,8 +3734,7 @@ public partial class MainWindow : Window
     {
         IReadOnlyList<MotionProblem> problems = _session.Problems;
         ProblemsPanel.Children.Clear();
-        IReadOnlyList<EmojiProblem> emojiProblems = EmojiValidator.Validate(_session.Editor.Document, _session.RigNodeIds);
-        ProblemsPanel.IsVisible = problems.Count + emojiProblems.Count > 0;
+        ProblemsPanel.IsVisible = problems.Count > 0;
 
         foreach (MotionProblem problem in problems)
         {
@@ -3794,11 +3763,6 @@ public partial class MainWindow : Window
             }
 
             ProblemsPanel.Children.Add(row);
-        }
-
-        foreach (EmojiProblem problem in emojiProblems)
-        {
-            ProblemsPanel.Children.Add(EmojiProblemRow(problem));
         }
     }
 

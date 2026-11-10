@@ -10,15 +10,15 @@ namespace Mt.Authoring.Tests;
 /// <summary>붙이기(<c>PLAN-parts.md</c> P2) — 오브젝트가 다른 오브젝트의 노드 밑에 서서 따라간다.</summary>
 public class AttachTests
 {
-    private const string Part = "Emoji_Part1";
+    private const string Part = "Badge_Part1";
 
-    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(EmojiRigFixture.WriteDump(Fixtures.PathOf("rig-schemas.json")));
+    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(PartsRigFixture.WriteDump(Fixtures.PathOf("rig-schemas.json")));
 
-    /// <summary>s1 · s2(캐릭터) · e1(이모지, s1의 CharSlot_Scale에 붙음).</summary>
+    /// <summary>s1 · s2(캐릭터) · e1(조각 리그, s1의 CharSlot_Scale에 붙음).</summary>
     private static MotionEditor NewEditor()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddSceneObject(null, "e1", EmojiRigFixture.RigKind);
+        editor.AddSceneObject(null, "e1", PartsRigFixture.RigKind);
         editor.AddSceneObject(null, "s2", "character");
         editor.AttachObject(null, "e1", "s1");
         return editor;
@@ -50,7 +50,7 @@ public class AttachTests
         // 부모의 배율도 따라간다(슬롯 계층) — 조각이 두 배가 된다.
         editor.SetObjectPlacement(null, "s1", 0f, 0f, 0f, 2f, 2f);
         Quad scaled = PartQuad(Build(editor));
-        Near(EmojiRigFixture.PartSize * 2f, scaled.BottomRight.X - scaled.BottomLeft.X);
+        Near(PartsRigFixture.PartSize * 2f, scaled.BottomRight.X - scaled.BottomLeft.X);
 
         // 제 오프셋은 붙는 자리에 대한 값이다. 배율 x = −1이 좌우 반전의 미리보기 — 사각형이 뒤집힌다.
         editor.SetObjectPlacement(null, "s1", 0f, 0f, 0f, 1f, 1f);
@@ -76,11 +76,11 @@ public class AttachTests
         SceneObject s1 = Scene(editor).Find("s1")!;
 
         Vec2 stepped = PartQuad(ScenePreview.Pose(template, s1, editor.Document.Find("step")!, 1.0)).Center;
-        Near(rest.X + 120f, stepped.X); // 슬롯이 가면 이모지도 간다
+        Near(rest.X + 120f, stepped.X); // 슬롯이 가면 붙은 것도 간다
 
         Vec2 nodded = PartQuad(ScenePreview.Pose(template, s1, editor.Document.Find("nod")!, 1.0)).Center;
         Near(rest.X, nodded.X);
-        Near(rest.Y, nodded.Y);         // 초상이 끄덕여도 이모지는 제자리다
+        Near(rest.Y, nodded.Y);         // 초상이 끄덕여도 붙은 것은 제자리다
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class AttachTests
 
         editor.SetObjectLayer(null, "s1", SceneLayers.Front); // 부모가 앞 층으로 가면 같이 간다
         Assert.Equal(new[] { "s2", "s1", "e1" }, Scene(editor).DrawOrder().Select(o => o.Id));
-        Assert.Equal(new[] { "e1" }, Scene(editor).AttachedTo("s1").Select(o => o.Id));
+        Assert.Equal(new[] { "e1" }, Scene(editor).Objects.Where(o => Scene(editor).ParentOf(o)?.Id == "s1").Select(o => o.Id));
 
         // 손으로 쓴 파일: 없는 부모 · 제 자신 — 붙지 않은 것처럼 선다(던지지 않는다).
         Scene(editor).Find("e1")!.AttachTo = "ghost";
