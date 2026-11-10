@@ -1609,4 +1609,125 @@ public class SkinShellTests
             }
         });
     }
+
+    [Fact]
+    public void 하이어아키에서_새_세트로_빼면_인스턴스가_그_자리에_서고_세트_이름_칸에서_이름을_바꾼다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                window.NewSetFromForm();
+                window.SelectSetNode(null);
+                window.AddColorNodeFromForm(); // Color1 — 맨 위
+                window.SelectSetNode(null);
+                window.AddColorNodeFromForm(); // Color2
+                editor.UpdateRigNode("set", "Color2", new RigNodeAsset { X = 200f, Y = 100f, Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Vec2 before = view.CurrentPose()!.TransformPoint("set/Color2", Vec3.Zero).XY;
+
+                // Color1부터 Color2까지를 새 세트로 — 한 칸. 이름은 첫 오브젝트에서, 그 자리에 인스턴스가 서고 골라진다.
+                long revision = editor.Revision;
+                Assert.Equal("color1", window.ExtractSetNodesFromMenu("Color1", "Color2"));
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal("color1", editor.Document.FindRig("set")!.Find("color1")!.Set);
+                Assert.Equal(new[] { "Color1", "Color2" }, editor.Document.FindRig("color1")!.Nodes.Select(n => n.Id));
+                Assert.Equal("color1", window.SetEditorState.Node);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // 보이는 자리는 그대로다.
+                Vec2 after = view.CurrentPose()!.TransformPoint("set/color1.Color2", Vec3.Zero).XY;
+                Assert.Equal(before.X, after.X, 1);
+                Assert.Equal(before.Y, after.Y, 1);
+
+                // 세트 이름 칸 — 새 세트를 열어 이름을 고친다(Enter). 품은 곳이 따라오고 그 세트가 열린 채다.
+                window.SelectSet("color1");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal("color1", window.SetNameBox.Text);
+                window.SetNameBox.Focus();
+                window.SetNameBox.Text = "panels";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.Equal("panels", editor.Document.FindRig("set")!.Find("color1")!.Set);
+                Assert.Equal("panels", window.SelectedSet);
+
+                // 있는 이름은 막히고 칸이 돌아온다.
+                window.SetNameBox.Focus();
+                window.SetNameBox.Text = "set";
+                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                Assert.NotNull(editor.Document.FindRig("panels"));
+                Assert.Equal("panels", window.SetNameBox.Text);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 인스턴스를_고르면_품은_세트의_스킨을_고르고_안쪽_세트로_들어갔다_돌아온다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                window.NewSetFromForm();                 // set — 품길 세트(스킨 둘)
+                editor.AddSkin("red", "set");
+                editor.AddSkin("blue", "set");
+                window.NewSetFromForm();                 // set_2 — 품는 세트
+                window.SelectSetNode(null);
+                window.AddSetInstanceFromMenu("set");
+                window.InspectorTab = 1;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // 인스턴스를 고르면 스킨 칸이 선다 — 고르면 한 칸.
+                Assert.True(window.RigInstanceFieldsShown);
+                Assert.Equal(0, window.RigNodeSkinCombo.SelectedIndex);
+                long revision = editor.Revision;
+                window.RigNodeSkinCombo.SelectedItem = "blue";
+                Assert.Equal("blue", editor.Document.FindRig("set_2")!.Find("set")!.SetSkin);
+                Assert.Equal(revision + 1, editor.Revision);
+                window.RigNodeSkinCombo.SelectedIndex = 0;
+                Assert.Null(editor.Document.FindRig("set_2")!.Find("set")!.SetSkin);
+
+                // 보통 오브젝트에서는 칸이 숨는다.
+                window.SelectSetNode("Body");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.False(window.RigInstanceFieldsShown);
+
+                // 안쪽 세트 열기 → 돌아가기 — 문서는 안 바뀌고, 돌아오면 그 인스턴스가 골라져 있다.
+                window.SelectSetNode("set");
+                revision = editor.Revision;
+                Assert.False(window.SetBackShown);
+                window.EnterSetFromForm();
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal("set", window.SelectedSet);
+                Assert.True(window.SetBackShown);
+                window.BackToOuterSetFromForm();
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(("set_2", "set"), (window.SelectedSet, window.SetEditorState.Node));
+                Assert.False(window.SetBackShown);
+                Assert.Equal(revision, editor.Revision);
+
+                // 들어간 뒤 목록에서 직접 다른 세트를 고르면 돌아갈 길이 사라진다.
+                window.EnterSetFromForm();
+                window.SelectSet("set_2");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.False(window.SetBackShown);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

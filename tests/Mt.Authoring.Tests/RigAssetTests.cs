@@ -675,4 +675,128 @@ public class RigAssetTests
         Assert.Equal(0, editor.UpdateMotionPlay("city_in", 1, "car", "hop", 0.1f, 1)); // roll 앞으로
         Assert.Equal(new[] { "hop", "roll" }, editor.Document.Find("city_in")!.Plays.Select(p => p.Motion));
     }
+
+    [Fact]
+    public void 품은_애니메이션이_길어져_재생_블록이_넘치면_검증이_알리고_뒤쪽이_잘린_채_나간다()
+    {
+        MotionEditor editor = PlayEditor();
+        editor.AddMotionPlay("city_in", "car", "roll", 1.5f); // 1.5 + 0.4 ≤ 2
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+
+        // 품은 애니메이션을 길게(1초) — 바깥에서 막을 길이 없으니 검증이 알린다(막지는 않는다).
+        editor.SetDuration("roll", 1f);
+        editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 0f), Lin(1f, 100f) });
+        MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.False(problem.Blocking);
+        Assert.Equal("city_in", problem.MotionName);
+        Assert.Contains("길이", problem.Message, StringComparison.Ordinal);
+
+        // 구운 것은 길이 안에서 끝난다 — 산출물이 그대로 나간다.
+        ChannelAsset baked = editor.Document.Find("city_in")!.Flattened!.FindChannel("car.Body", MotionChannelKind.Position)!;
+        Assert.Equal(2f, baked.X!.Keys[^1].T);
+        Assert.All(baked.X.Keys.Zip(baked.X.Keys.Skip(1)), pair => Assert.True(pair.Second.T > pair.First.T));
+        Assert.Contains("car.Body", MotionsJson.Write(MotionExport.ToClips(editor.Document)), StringComparison.Ordinal);
+    }
+
+    // ── 새 세트로 빼기 · 세트 이름 바꾸기 ─────────────────────────────
+
+    [Fact]
+    public void 고른_오브젝트들을_새_세트로_빼면_자리와_그림과_키를_데리고_가고_보이는_것은_그대로다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(new RigAsset { Kind = "town", Nodes = { new RigNodeAsset { Id = "Ground", Width = 1920f, Height = 200f, Color = "#334455", Alpha = true } } });
+        editor.AddRigNode("town", "Sun", null, image: true);
+        editor.UpdateRigNode("town", "Sun", new RigNodeAsset { X = 300f, Y = 200f, Width = 100f, Height = 100f, Image = true, Alpha = true });
+        editor.AddRigNode("town", "Ray", "Sun");
+        editor.UpdateRigNode("town", "Ray", new RigNodeAsset { X = 10f, Width = 20f, Height = 20f, Color = "#FFFFFF", Alpha = true });
+        editor.AddRigNode("town", "Glow", null, image: true);
+        editor.UpdateRigNode("town", "Glow", new RigNodeAsset { X = 310f, Y = 190f, Width = 300f, Height = 300f, Image = true, Alpha = true });
+        editor.AddRigNode("town", "Tree", null, image: true);
+        editor.AddSkin("town", "town");
+        editor.SetSkinPart("town", "Sun", "art/sun.png");
+        editor.SetSkinPart("town", "Glow", "art/glow.png");
+        editor.SetSkinPart("town", "Tree", "art/tree.png");
+
+        // 상대값 애니메이션(해가 떠오르고 빛살이 돈다, 나무가 민다) + 절대값 애니메이션(해가 자리 300 → 400).
+        editor.AddMotion("town_in", "town", 1f, MotionEnd.Commit);
+        editor.AddChannel("town_in", "Sun", MotionChannelKind.Position);
+        editor.SetKeys("town_in", "Sun", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, -100f), Lin(1f, 0f) });
+        editor.AddChannel("town_in", "Ray", MotionChannelKind.Euler);
+        editor.SetKeys("town_in", "Ray", MotionChannelKind.Euler, Axis.Z, new[] { Lin(0f, 0f), Lin(1f, 90f) });
+        editor.AddChannel("town_in", "Tree", MotionChannelKind.Position);
+        editor.SetKeys("town_in", "Tree", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 50f), Lin(1f, 0f) });
+        editor.AddMotion("slide", "town", 1f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.AddChannel("slide", "Sun", MotionChannelKind.Position);
+        editor.SetKeys("slide", "Sun", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 300f), Lin(1f, 400f) });
+        editor.SetKeys("slide", "Sun", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, 200f), Lin(1f, 200f) });
+
+        Vec2 World(string motion, string node, double t)
+        {
+            RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+            var scene = new SceneAsset { Name = "s", Objects = { new SceneObject { Id = "c", Rig = "town" } } };
+            MotionAsset asset = editor.Document.Find(motion)!;
+            return MotionPreview.Pose(ScenePreview.Build(rig, scene), asset, t, asset.PreviewMode, null, "c/").TransformPoint("c/" + node, Vec3.Zero).XY;
+        }
+
+        double[] times = { 0, 0.3, 0.7, 1 };
+        var before = times.Select(t => (World("town_in", "Sun", t), World("town_in", "Ray", t), World("town_in", "Glow", t), World("slide", "Sun", t))).ToList();
+
+        // 해와 빛을 새 세트 star로 — 한 칸. 그 자리에 인스턴스가, 고른 것들의 가운데에 선다.
+        long revision = editor.Revision;
+        Assert.Equal("star", editor.ExtractRigNodes("town", new[] { "Sun", "Glow" }, "star"));
+        Assert.Equal(revision + 1, editor.Revision);
+        RigAsset town = editor.Document.FindRig("town")!;
+        Assert.Equal(new[] { "Ground", "star", "Tree" }, town.Nodes.Select(n => n.Id));
+        Assert.Equal(("star", 310f, 190f), (town.Find("star")!.Set, town.Find("star")!.X, town.Find("star")!.Y));
+        RigAsset star = editor.Document.FindRig("star")!;
+        Assert.Equal(new[] { ("Sun", "", -10f, 10f), ("Ray", "Sun", 10f, 0f), ("Glow", "", 0f, 0f) }, star.Nodes.Select(n => (n.Id, n.Parent, n.X, n.Y)));
+
+        // 그림이 새 세트의 스킨으로, 키가 새 세트의 애니메이션으로 — 원래 애니메이션에는 그것을 트는 재생 블록이 선다.
+        Assert.Equal(new[] { "Tree" }, editor.Document.FindSkin("town")!.Parts.Keys);
+        Assert.Equal("star", editor.Document.FindSkin("star")!.Rig);
+        Assert.Equal(new[] { "Glow", "Sun" }, editor.Document.FindSkin("star")!.Parts.Keys);
+        Assert.Equal(new[] { "Tree" }, editor.Document.Find("town_in")!.Channels.Select(c => c.Node));
+        Assert.Equal(new[] { ("star", "star_in", 0f) }, editor.Document.Find("town_in")!.Plays.Select(p => (p.Node, p.Motion, p.At)));
+        Assert.Equal("star", editor.Document.Find("star_in")!.Rig);
+        Assert.Equal(new[] { "Sun", "Ray" }, editor.Document.Find("star_in")!.Channels.Select(c => c.Node));
+        Assert.Equal(MotionChannelMode.Absolute, editor.Document.Find("star_slide")!.PreviewMode);
+
+        // 보이는 것은 그대로다 — 상대값도 절대값도.
+        var after = times.Select(t => (World("town_in", "star.Sun", t), World("town_in", "star.Ray", t), World("town_in", "star.Glow", t), World("slide", "star.Sun", t))).ToList();
+
+        for (int i = 0; i < times.Length; i++)
+        {
+            Assert.Equal(before[i].Item1.X, after[i].Item1.X, 1);
+            Assert.Equal(before[i].Item1.Y, after[i].Item1.Y, 1);
+            Assert.Equal(before[i].Item2.X, after[i].Item2.X, 1);
+            Assert.Equal(before[i].Item2.Y, after[i].Item2.Y, 1);
+            Assert.Equal(before[i].Item3.X, after[i].Item3.X, 1);
+            Assert.Equal(before[i].Item4.X, after[i].Item4.X, 1);
+            Assert.Equal(before[i].Item4.Y, after[i].Item4.Y, 1);
+        }
+
+        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, composed.NodeIds, null, composed.AlphaNodeIds));
+
+        // 막는 것: 있는 이름 · 부모가 다른 것들. 문서는 그대로다.
+        revision = editor.Revision;
+        Assert.Throws<InvalidOperationException>(() => editor.ExtractRigNodes("town", new[] { "Tree" }, "star"));
+        Assert.Throws<InvalidOperationException>(() => editor.ExtractRigNodes("star", new[] { "Ray", "Glow" }, "bits"));
+        Assert.Equal(revision, editor.Revision);
+
+        // 세트 이름 바꾸기 — 한 칸. 품은 곳 · 애니메이션 · 스킨이 따라온다.
+        editor.RenameRig("star", "sol");
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Equal("sol", town.Find("star")!.Set);
+        Assert.Equal(("sol", "sol"), (editor.Document.Find("star_in")!.Rig, editor.Document.FindSkin("star")!.Rig));
+        Assert.Throws<InvalidOperationException>(() => editor.RenameRig("sol", "town"));
+
+        // 되돌리면 통째로 돌아간다.
+        editor.Undo();
+        editor.Undo();
+        Assert.Null(editor.Document.FindRig("star"));
+        Assert.Equal(new[] { "Ground", "Sun", "Ray", "Glow", "Tree" }, editor.Document.FindRig("town")!.Nodes.Select(n => n.Id));
+        Assert.Empty(editor.Document.Find("town_in")!.Plays);
+    }
 }

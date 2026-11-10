@@ -203,7 +203,11 @@ public static class MotionFlatten
                 : new KeyAsset { T = Math.Min(t, duration), V = v, InTangent = flatIn ? 0f : like.InTangent * factor, OutTangent = like.OutTangent * factor, Tangent = TangentMode.Free, Broken = true });
         }
 
-        Add(0f, state);
+        // 0초에서 시작하는 블록은 0초의 값이 그 블록의 것이다 — 남은 상태의 키를 먼저 놓으면 첫 프레임에 튄다.
+        if (pieces.Min(p => p.Start) > MotionRules.Tolerance)
+        {
+            Add(0f, state);
+        }
 
         foreach (Piece piece in pieces.OrderBy(p => p.Start))
         {
@@ -229,7 +233,7 @@ public static class MotionFlatten
                 }
 
                 // 블록이 남은 상태와 다른 값에서 시작하면, 직전까지는 남은 상태 그대로 두고 짧은 선으로 잇는다.
-                if (first && Math.Abs(value - state) > 1e-5f && piece.Start - Seam > keys[^1].T + MotionRules.Tolerance)
+                if (first && keys.Count > 0 && Math.Abs(value - state) > 1e-5f && piece.Start - Seam > keys[^1].T + MotionRules.Tolerance)
                 {
                     Add(piece.Start - Seam, state);
                 }

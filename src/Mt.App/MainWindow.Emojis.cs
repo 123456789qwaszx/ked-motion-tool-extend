@@ -209,7 +209,7 @@ public partial class MainWindow
 
             _emojiSkinParts.Children.Add(new TextBlock { Text = $"{title} — {skin.Name}", FontSize = 10, Opacity = 0.75, Margin = new Avalonia.Thickness(0, 4, 0, 0) });
 
-            foreach (string node in parts)
+            foreach (string node in OwnParts(parts))
             {
                 Control row = SkinPartRow(skin, node, boxes);
 
@@ -223,6 +223,8 @@ public partial class MainWindow
 
                 _emojiSkinParts.Children.Add(row);
             }
+
+            _emojiSkinParts.Children.AddRange(NestedPartNotes(parts));
         }
 
         Rows(emoji.Skin, "조각 그림", _emojiSetupBoxes, flipped: false);

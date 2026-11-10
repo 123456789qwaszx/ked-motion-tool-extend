@@ -71,6 +71,11 @@ public static class MotionValidator
                 {
                     problems.Add(new MotionProblem(motion.Name, $"재생 블록 {play.At:0.###}초: 애니메이션 '{play.Motion}'이 세트 '{inner}'에 없다 — 이 블록은 재생되지 않는다", Blocking: false));
                 }
+                else if (play.At + child.Duration * Math.Max(1, play.Repeat) > motion.Duration + 1e-3f)
+                {
+                    // 놓을 때는 막지만, 품은 애니메이션을 나중에 길게 고치면(또는 이 애니메이션을 짧게 고치면) 넘친다 — 넘친 뒤쪽은 잘려 재생된다.
+                    problems.Add(new MotionProblem(motion.Name, $"재생 블록 {play.At:0.###}초: '{play.Motion}'({child.Duration * Math.Max(1, play.Repeat):0.###}초)이 이 애니메이션의 길이({motion.Duration:0.###}초)를 넘는다 — 뒤쪽이 잘린다", Blocking: false));
+                }
             }
         }
 
