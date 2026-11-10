@@ -22,6 +22,17 @@ public static class CutStage
     private const string Pan = "~pan";
     private const string Frame = "~frame/";
 
+    /// <summary>
+    /// 카메라의 점 — 컷의 오브젝트 계층에 함께 서는 크기 없는 오브젝트 둘. 그 자리가 곧 카메라의 값이다:
+    /// <see cref="CameraPan"/>의 x·y = 밀기(px), <see cref="CameraZoom"/>의 x = 당기기. 그래서 카메라가 **같은 타임라인의 트랙**이 된다 — 자리 채널에 키를 놓으면 카메라가 움직인다.
+    /// 키가 없는 동안은 컷에 적힌 카메라 값(<see cref="CutAsset.Camera"/>)으로 선다.
+    /// </summary>
+    public const string CameraPan = CameraRig.PanNode;
+    public const string CameraZoom = CameraRig.ZoomNode;
+
+    /// <summary>카메라의 점인가 — 하이어아키의 오브젝트가 아니다(그리지도 집지도 않는다).</summary>
+    public static bool IsCameraNode(string? nodeId) => nodeId is CameraPan or CameraZoom;
+
     /// <summary>깊이의 눈금과 그 층의 이름 — 가까워지는 차례.</summary>
     private static readonly (float Level, string Layer)[] Marks =
     {
@@ -61,6 +72,15 @@ public static class CutStage
             {
                 tree.Add(prefix + node.id, prefix + Pan, state);
             }
+            else if (node.id == CameraPan)
+            {
+                // 카메라의 점 — 가만히 선 자리가 컷의 카메라 값이다. 카메라에 따라 움직이지 않는 자리(당기기 틀의 바깥)에 둔다.
+                tree.Add(prefix + node.id, null, state.WithAnchoredPosition(new Vec2(cut.Camera.PanX, cut.Camera.PanY)));
+            }
+            else if (node.id == CameraZoom)
+            {
+                tree.Add(prefix + node.id, null, state.WithAnchoredPosition(new Vec2(cut.Camera.Zoom, 0f)));
+            }
             else if (IsTop(node))
             {
                 // 맨 위 오브젝트 — 제 틀 밑에 선다(틀이 카메라에 따르는 정도를 받는다).
@@ -81,12 +101,13 @@ public static class CutStage
     /// <summary>
     /// 카메라와 깊이를 넣는다 — <see cref="Build"/>로 세워 포즈를 잡은 트리에 **한 번**(맨 위 오브젝트의 배율에 깊이의 배율을 곱하므로 두 번 넣으면 안 된다).
     /// </summary>
+    /// <remarks>카메라는 트리에 선 카메라의 점에서 읽는다 — 타임라인의 키가 그 점을 움직였으면 그 값이다.</remarks>
     /// <param name="depthOf">그 시각의 깊이(키로 움직일 때) — 없으면 오브젝트에 적힌 값.</param>
-    public static void Apply(RectNodeTree tree, CutAsset cut, string prefix, CameraSettings camera, DepthTuningFile? depth, Func<RigNodeAsset, float?>? depthOf = null)
+    public static void Apply(RectNodeTree tree, CutAsset cut, string prefix, DepthTuningFile? depth, Func<RigNodeAsset, float?>? depthOf = null)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(cut);
-        ArgumentNullException.ThrowIfNull(camera);
+        CameraSettings camera = CameraOf(tree, cut, prefix);
 
         float scale = ShotIntentMath.EvaluateCameraScale(camera.Zoom);
         var pan = new Vec2(camera.PanX, camera.PanY);
@@ -124,6 +145,21 @@ public static class CutStage
                 tree.SetState(key, state.WithLocalScale(new Vec3(state.LocalScale.X * size, state.LocalScale.Y * size, state.LocalScale.Z)));
             }
         }
+    }
+
+    /// <summary>그 포즈의 카메라 — 카메라의 점의 자리. 점이 없는 트리면 컷에 적힌 값.</summary>
+    public static CameraSettings CameraOf(RectNodeTree tree, CutAsset cut, string prefix)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentNullException.ThrowIfNull(cut);
+
+        if (!tree.Contains(prefix + CameraPan) || !tree.Contains(prefix + CameraZoom))
+        {
+            return cut.Camera;
+        }
+
+        Vec2 pan = tree.GetState(prefix + CameraPan).AnchoredPosition;
+        return new CameraSettings { PanX = pan.X, PanY = pan.Y, Zoom = tree.GetState(prefix + CameraZoom).AnchoredPosition.X };
     }
 
     /// <summary>깊이에 따른 크기 — mid에서 1(지은 그대로), 멀수록 작게. 깊이 커브가 없으면 1.</summary>

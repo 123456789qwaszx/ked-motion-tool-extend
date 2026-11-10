@@ -123,6 +123,35 @@ public static class RigAssetCodec
         return new RigSchemaRigDto { rigKind = rig.Kind, sourcePrefab = "", nodes = nodes };
     }
 
+    /// <summary>
+    /// 크기 없는 점 노드를 맨 위에 더한다 — 그리지 않고 값만 담는 자리(컷의 카메라: 그 자리가 곧 밀기·당기기의 값이다). 키를 놓을 수 있는 오브젝트로 선다.
+    /// </summary>
+    public static RigSchemaRigDto WithPoints(RigSchemaRigDto dto, params string[] ids)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        ArgumentNullException.ThrowIfNull(ids);
+
+        foreach (string id in ids)
+        {
+            dto.nodes.Add(new RigSchemaNodeDto
+            {
+                id = id,
+                parent = RootId,
+                anchoredPosition = F2(0f, 0f),
+                anchorMin = F2(0.5f, 0.5f),
+                anchorMax = F2(0.5f, 0.5f),
+                pivot = F2(0.5f, 0.5f),
+                sizeDelta = F2(0f, 0f),
+                localScale = F3(1f, 1f, 1f),
+                localEulerAngles = F3(0f, 0f, 0f),
+                measuredRectSize = F2(0f, 0f),
+                canvasGroupAlpha = 1f,
+            });
+        }
+
+        return dto;
+    }
+
     /// <summary>세트의 오브젝트들을 <paramref name="prefix"/>를 붙여 더한다 — 맨 위의 것은 <paramref name="under"/> 밑에. 인스턴스를 만나면 그 세트를 그 밑에 펼친다.</summary>
     private static void Expand(List<RigSchemaNodeDto> nodes, RigAsset rig, string prefix, string under, Func<string, RigAsset?>? resolve, HashSet<string> open, int depth)
     {

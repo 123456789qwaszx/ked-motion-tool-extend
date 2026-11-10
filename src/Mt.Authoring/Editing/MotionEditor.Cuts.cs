@@ -129,6 +129,47 @@ public sealed partial class MotionEditor
     }
 
     /// <summary>
+    /// 컷의 타임라인에 **카메라의 키**를 놓는다 — 그 시각에 밀기(x·y)와 당기기 셋 다. 한 칸. 같은 시각에 키가 있으면 그 키를 대신한다.
+    /// 카메라는 타임라인의 트랙이다(<see cref="Preview.CutStage.CameraPan"/> · <see cref="Preview.CutStage.CameraZoom"/>의 자리 채널).
+    /// </summary>
+    public void SetCutCameraKey(string name, float time, CameraSettings camera)
+    {
+        ArgumentNullException.ThrowIfNull(camera);
+        CutAsset cut = RequireCut(name);
+        MotionAsset timeline = Document.Find(name) ?? throw new InvalidOperationException($"컷 '{name}'의 타임라인이 없다.");
+
+        if (!float.IsFinite(time) || time < 0f || time > cut.Seconds + MotionRules.Tolerance)
+        {
+            throw new InvalidOperationException($"키의 시각은 컷의 길이(0~{cut.Seconds:0.###}초) 안이다 ('{time}')");
+        }
+
+        if (!float.IsFinite(camera.Zoom) || !float.IsFinite(camera.PanX) || !float.IsFinite(camera.PanY))
+        {
+            throw new InvalidOperationException("카메라의 값은 수여야 한다.");
+        }
+
+        Batch(MotionChangeKind.Keys, () =>
+        {
+            foreach (string node in new[] { Preview.CutStage.CameraPan, Preview.CutStage.CameraZoom })
+            {
+                if (timeline.FindChannel(node, MotionChannelKind.Position) is null)
+                {
+                    AddChannel(name, node, MotionChannelKind.Position);
+                }
+            }
+
+            AddKey(name, Preview.CutStage.CameraPan, MotionChannelKind.Position, Axis.X, new KeyAsset { T = time, V = camera.PanX });
+            AddKey(name, Preview.CutStage.CameraPan, MotionChannelKind.Position, Axis.Y, new KeyAsset { T = time, V = camera.PanY });
+            AddKey(name, Preview.CutStage.CameraZoom, MotionChannelKind.Position, Axis.X, new KeyAsset { T = time, V = camera.Zoom });
+        });
+    }
+
+    /// <summary>컷의 카메라에 키가 있는가 — 있으면 카메라 칸의 값은 키로 들어간다(없으면 가만히 선 값을 고친다).</summary>
+    public bool CutCameraIsKeyed(string name)
+        => Document.Find(name) is { } timeline
+           && timeline.Channels.Any(c => Preview.CutStage.IsCameraNode(c.Node) && new[] { c.X, c.Y, c.Z }.Any(curve => curve is { Keys.Count: > 0 }));
+
+    /// <summary>
     /// 컷의 맨 위 오브젝트의 깊이(depthLevel)를 준다 — null이면 mid. 밑의 오브젝트는 부모를 따르므로 깊이를 갖지 않는다.
     /// </summary>
     public void SetCutNodeDepth(string cutName, string id, float? depth)

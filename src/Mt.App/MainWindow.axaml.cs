@@ -3717,10 +3717,12 @@ public partial class MainWindow : Window
         {
             MotionAsset? motion = _graph.Motion;
             bool has = motion is not null;
-            _motionName.IsEnabled = has;
-            _motionDuration.IsEnabled = has;
-            _motionEnd.IsEnabled = has;
-            _motionDefaultMode.IsEnabled = has;
+            // 컷의 타임라인은 이름·길이를 컷의 칸에서 고치고, 종료 처리·재생 기준은 고를 것이 없다(키는 그 프레임의 모습이다).
+            bool free = has && _session.Editor.Document.FindCut(motion!.Rig) is null;
+            _motionName.IsEnabled = free;
+            _motionDuration.IsEnabled = free;
+            _motionEnd.IsEnabled = free;
+            _motionDefaultMode.IsEnabled = free;
 
             _motionName.Text = motion?.Name ?? "";
             _motionDuration.Text = motion is null ? "" : motion.Duration.ToString("0.###", CultureInfo.InvariantCulture);

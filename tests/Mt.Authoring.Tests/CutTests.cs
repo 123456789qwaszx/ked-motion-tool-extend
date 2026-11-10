@@ -4,6 +4,7 @@ using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
 using Mt.Authoring.Rig;
 using Mt.Authoring.Serialization;
+using Mt.Authoring.Validation;
 using Xunit;
 
 namespace Mt.Authoring.Tests;
@@ -183,8 +184,9 @@ public class CutTests
 
     private static RectNodeTree Staged(MotionEditor editor, CutAsset cut, CameraSettings camera, DepthTuningFile? depth)
     {
-        RectNodeTree tree = CutStage.Build(RigAssets.Compose(Dump, editor.Document), cut, "cut/")!;
-        CutStage.Apply(tree, cut, "cut/", camera, depth);
+        editor.SetCutCamera(cut.Name, camera);
+        RectNodeTree tree = CutStage.Build(RigAssets.Compose(Dump, editor.Document), editor.Document.FindCut(cut.Name)!, "cut/")!;
+        CutStage.Apply(tree, editor.Document.FindCut(cut.Name)!, "cut/", depth);
         return tree;
     }
 
@@ -241,9 +243,58 @@ public class CutTests
 
         // 그리는 순서 — 먼 것부터. 밑의 것은 제 맨 위 오브젝트를 따라간다. 깊이를 바꾸면 차례가 바뀐다.
         RigAssets.Compose(Dump, editor.Document).TryGetRig("arrival", out RigSchemaRigDto dto);
-        string[] Order() => CutStage.DrawOrder(cut, dto.nodes).Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey).ToArray();
+        string[] Order() => CutStage.DrawOrder(cut, dto.nodes).Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsCameraNode(id)).ToArray();
         Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order());
         editor.SetCutNodeDepth("arrival", "hero", 30f);
         Assert.Equal(new[] { "sky", "near", "hero", "arm" }, Order());
+    }
+
+    // ── 타임라인 — 카메라가 같은 타임라인의 트랙이다 ───────────────────
+
+    [Fact]
+    public void 카메라의_키는_컷의_타임라인에_놓이고_그_시각의_카메라가_오브젝트를_움직인다()
+    {
+        (MotionEditor editor, CutAsset cut) = StageCut();
+        editor.SetCutCamera("arrival", new CameraSettings { PanX = 10f });
+        Assert.False(editor.CutCameraIsKeyed("arrival"));
+
+        // 2초에 밀기 0, 6초에 밀기 200 — 각각 한 칸. 키가 처음(0초)과 끝(10초)에 없어도 된다.
+        long revision = editor.Revision;
+        editor.SetCutCameraKey("arrival", 2f, new CameraSettings());
+        editor.SetCutCameraKey("arrival", 6f, new CameraSettings { PanX = 200f });
+        Assert.Equal(revision + 2, editor.Revision);
+        Assert.True(editor.CutCameraIsKeyed("arrival"));
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+
+        // 그 시각의 포즈 — 타임라인을 얹은 뒤 카메라와 깊이를 넣는다. 키 앞뒤로는 그 키의 값이 이어진다.
+        float HeroX(double t)
+        {
+            RectNodeTree posed = MotionPreview.Pose(CutStage.Build(rig, editor.Document.FindCut("arrival")!, "cut/")!, editor.Document.Find("arrival")!, t, MotionChannelMode.Absolute, null, "cut/");
+            CutStage.Apply(posed, editor.Document.FindCut("arrival")!, "cut/", null);
+            return posed.TransformPoint("cut/hero", Vec3.Zero).X;
+        }
+
+        Assert.Equal(0f, HeroX(0), 1);     // 첫 키 앞 — 첫 키의 값(가만히 선 값 10이 아니다: 키가 있는 트랙은 키가 정한다)
+        Assert.Equal(0f, HeroX(2), 1);
+        Assert.InRange(HeroX(4), 60f, 140f);
+        Assert.Equal(200f, HeroX(6), 1);
+        Assert.Equal(200f, HeroX(9), 1);   // 마지막 키 뒤 — 그 값이 이어진다
+
+        // 같은 시각에 다시 놓으면 그 키를 대신한다. 길이 밖은 막힌다.
+        editor.SetCutCameraKey("arrival", 6f, new CameraSettings { PanX = 100f, Zoom = 4f });
+        Assert.Equal(2, editor.Document.Find("arrival")!.FindChannel(CutStage.CameraPan, MotionChannelKind.Position)!.X!.Keys.Count);
+        Assert.Equal(120f, HeroX(6), 1); // 밀기 100 × 당기기 4(배율 1.2)
+        Assert.Throws<InvalidOperationException>(() => editor.SetCutCameraKey("arrival", 11f, new CameraSettings()));
+
+        // 오브젝트의 키도 하나뿐이어도, 처음과 끝에 없어도 된다 — 컷의 타임라인만 그렇다(세트의 애니메이션은 옛 규칙 그대로).
+        editor.AddChannel("arrival", "hero", MotionChannelKind.Position);
+        editor.AddKey("arrival", "hero", MotionChannelKind.Position, Axis.Y, new KeyAsset { T = 3f, V = 50f });
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        editor.AddRig(new RigAsset { Kind = "prop", Nodes = { new RigNodeAsset { Id = "Body", Alpha = true } } });
+        editor.AddMotion("prop_in", "prop", 1f, MotionEnd.Commit);
+        editor.AddChannel("prop_in", "Body", MotionChannelKind.Position);
+        editor.AddKey("prop_in", "Body", MotionChannelKind.Position, Axis.Y, new KeyAsset { T = 0.5f, V = 50f });
+        Assert.NotEmpty(MotionValidator.Validate(editor.Document, RigAssets.Compose(Dump, editor.Document).NodeIds));
     }
 }

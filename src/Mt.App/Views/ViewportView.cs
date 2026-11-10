@@ -1616,6 +1616,37 @@ public sealed class ViewportView : Control
             : ScenePreview.Build(_rig, scene, AspectOf, null, _depth, _focus, _stage);
     }
 
+    /// <summary>
+    /// 오브젝트를 끌어 가만히 선 자세를 잡을 수 있는가 — 배치 모드이거나, 컷을 열고 그 타임라인이 붙어 있을 때(컷은 타임라인이 늘 붙어 있다 — 키 없는 값은 끌어서 고친다).
+    /// </summary>
+    private bool CanLayout => IsLayoutMode || (ShownCut is { } cut && ShownEmoji is null && Motion is { } timeline && timeline.Name == cut.Name);
+
+    private bool TryStartCutDrag(Point position, KeyModifiers modifiers)
+    {
+        if (ShownCut is not { } cut || Motion is not { } timeline || SelectedObject is not { } o || CurrentPose() is not { } pose
+            || LayoutNodeAt(pose, o, cut.Rig, position) is not { } id)
+        {
+            return false;
+        }
+
+        MotionChannelKind kind = modifiers.HasFlag(KeyModifiers.Shift) ? MotionChannelKind.Scale : modifiers.HasFlag(KeyModifiers.Control) ? MotionChannelKind.Euler : MotionChannelKind.Position;
+        bool keyed = timeline.FindChannel(id, kind) is { } channel && new[] { channel.X, channel.Y, channel.Z }.Any(curve => curve is { Keys.Count: > 0 });
+
+        if (keyed)
+        {
+            SelectedNode = id;
+            LayoutNodePicked?.Invoke(this, id);
+            InvalidateVisual();
+            return false;
+        }
+
+        return TryStartLayoutDrag(position, modifiers);
+    }
+
+    /// <summary>그 시각(지금)의 컷의 카메라 — 타임라인의 키가 움직였으면 그 값. 컷을 안 열었으면 null.</summary>
+    public CameraSettings? CutCameraNow()
+        => ShownCut is { } cut && SetScene() is { } scene && CurrentPose() is { } pose ? CutStage.CameraOf(pose, cut, scene.Objects[0].Prefix) : null;
+
     /// <summary>연 것이 컷이면 그 컷 — 세트를 연 것이면 null.</summary>
     public CutAsset? ShownCut => _editor?.Document.FindCut(_setView);
 
@@ -1624,7 +1655,7 @@ public sealed class ViewportView : Control
     {
         if (ShownCut is { } cut && SetScene() is { } scene)
         {
-            CutStage.Apply(tree, cut, scene.Objects[0].Prefix, cut.Camera, _depth);
+            CutStage.Apply(tree, cut, scene.Objects[0].Prefix, _depth);
         }
 
         return tree;
@@ -2380,7 +2411,7 @@ public sealed class ViewportView : Control
         }
 
         // 배치 모드 — 오브젝트를 집어 가만히 선 자세를 잡는다(키가 아니다).
-        if (IsLayoutMode)
+        if (CanLayout)
         {
             // 더블클릭 — 품은 세트면 그 안쪽으로 들어가고, 빈 곳이면 한 단 나온다.
             if (e.ClickCount == 2 && _editor?.Document.FindRig(_setView) is { } openRig && SelectedObject is { } setObject && CurrentPose() is { } layoutPose)
@@ -2401,13 +2432,25 @@ public sealed class ViewportView : Control
                 }
             }
 
-            if (TryStartLayoutDrag(position, e.KeyModifiers))
+            if (IsLayoutMode)
+            {
+                if (TryStartLayoutDrag(position, e.KeyModifiers))
+                {
+                    e.Pointer.Capture(this);
+                    e.Handled = true;
+                }
+
+                return;
+            }
+
+            // 컷(타임라인이 붙어 있다) — 그 오브젝트의 그 값에 키가 없으면 끌기가 가만히 선 값을 바꾼다(마야: 키 없는 값은 그냥 그 값이다).
+            // 키가 있으면 오브젝트만 고르고 아래의 길(손잡이로 포즈를 잡아 키를 놓는다)로 넘긴다.
+            if (TryStartCutDrag(position, e.KeyModifiers))
             {
                 e.Pointer.Capture(this);
                 e.Handled = true;
+                return;
             }
-
-            return;
         }
 
         // 이모지 정의를 보는 중: 구간을 고치는 중이 아니면 조각을 끌어 스킨의 놓임을 잡는다(모션의 키가 아니다).
@@ -2806,7 +2849,7 @@ public sealed class ViewportView : Control
     /// <summary>그 인스턴스의 안쪽으로 들어간다(null = 나온다). 배치 모드에서만, 세트를 품은 오브젝트만. 들어갔으면 true.</summary>
     public bool EnterInstance(string? path)
     {
-        if (path is not null && (!IsLayoutMode || ResolveSetNode(path) is not { Node.Set.Length: > 0 }))
+        if (path is not null && (!CanLayout || ResolveSetNode(path) is not { Node.Set.Length: > 0 }))
         {
             return false;
         }

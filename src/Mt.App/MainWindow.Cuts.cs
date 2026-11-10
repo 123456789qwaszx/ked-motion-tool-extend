@@ -19,6 +19,7 @@ public partial class MainWindow
     private readonly TextBox _cutPanX = new() { FontSize = 11, Width = 56 };
     private readonly TextBox _cutPanY = new() { FontSize = 11, Width = 56 };
     private readonly StackPanel _cutFields = new() { Spacing = 3 };
+    private readonly Button _cutCameraKey = new() { Content = "키", FontSize = 11, Padding = new Avalonia.Thickness(6, 1), Margin = new Avalonia.Thickness(3, 0, 0, 0) };
     private readonly TextBox _rigNodeDepth = new() { FontSize = 11, PlaceholderText = "(mid 14)" };
     private Control? _rigNodeDepthRow;
     private bool _switchingLists;
@@ -33,6 +34,9 @@ public partial class MainWindow
     internal (TextBox Name, TextBox Frames, TextBox Zoom, TextBox PanX, TextBox PanY) CutBoxes => (_cutName, _cutFrames, _cutZoom, _cutPanX, _cutPanY);
 
     internal TextBox RigNodeDepthBox => _rigNodeDepth;
+
+    /// <summary>테스트 손잡이 — 카메라의 "키" 단추.</summary>
+    internal void KeyCutCameraFromForm() => _cutCameraKey.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
     internal bool RigNodeDepthShown => _rigNodeDepthRow?.IsVisible == true;
 
@@ -60,7 +64,7 @@ public partial class MainWindow
         _cutFields.Children.Add(Labeled("카메라", new WrapPanel
         {
             Orientation = Orientation.Horizontal,
-            Children = { _cutZoom, _cutPanX, _cutPanY },
+            Children = { _cutZoom, _cutPanX, _cutPanY, _cutCameraKey },
         }));
         ToolTip.SetTip(_cutName, "연 컷의 이름 — 고치고 Enter. 타임라인과 그림 표가 따라온다. 영문 소문자로 시작하는 영문 소문자·숫자·_");
         ToolTip.SetTip(_cutFrames, $"컷의 길이(프레임, {CutAsset.Fps}fps — 240 = 10초). 타임라인의 길이가 따라온다. 키는 옮기지 않는다");
@@ -87,19 +91,27 @@ public partial class MainWindow
             }
         }));
 
+        // 카메라 칸 — 카메라에 키가 없으면 가만히 선 값을, 있으면 지금 프레임의 키를 고친다(마야: 키 있는 값을 고치면 그 프레임의 키가 된다).
         foreach (TextBox box in new[] { _cutZoom, _cutPanX, _cutPanY })
         {
             OnCommit(box, _ => WithOpenCut(cut =>
             {
-                float Value(TextBox from, float fallback) => TryFloat(from.Text ?? "", out float parsed) ? parsed : fallback;
-                _session.Editor.SetCutCamera(cut.Name, new CameraSettings
+                CameraSettings camera = CameraFromBoxes(cut);
+
+                if (_session.Editor.CutCameraIsKeyed(cut.Name))
                 {
-                    Zoom = Value(_cutZoom, cut.Camera.Zoom),
-                    PanX = Value(_cutPanX, cut.Camera.PanX),
-                    PanY = Value(_cutPanY, cut.Camera.PanY),
-                });
+                    _session.Editor.SetCutCameraKey(cut.Name, CutTimeNow(cut), camera);
+                }
+                else
+                {
+                    _session.Editor.SetCutCamera(cut.Name, camera);
+                }
             }));
         }
+
+        _cutCameraKey.Click += (_, _) => WithOpenCut(cut => _session.Editor.SetCutCameraKey(cut.Name, CutTimeNow(cut), CameraFromBoxes(cut)));
+        ToolTip.SetTip(_cutCameraKey, "카메라의 키 — 지금 프레임에 카메라 칸의 값(당기기 · 밀기 X · 밀기 Y)으로 키를 놓는다. 카메라는 타임라인의 트랙이다(그래프에 Camera_Pan · Camera_Zoom으로 보인다). 키가 한 번 놓이면 그 뒤로 칸을 고치는 것이 그 프레임의 키가 된다");
+        _viewport.TimeChanged += (_, _) => RefreshCutFields(); // 카메라 칸은 지금 프레임의 값을 보인다
 
         // 오브젝트의 깊이 — 컷의 맨 위 오브젝트에서만 선다("세트의 오브젝트" 칸 안, 부모 칸 아래 — 줄은 그 칸을 지을 때 선다).
         ToolTip.SetTip(_rigNodeDepth, $"깊이(depthLevel) — far 0 · back 10 · mid 14 · front 16 · close 20, {MotionEditor.MinDepth:0}~{MotionEditor.MaxDepth:0}. 멀수록 작게 보이고 카메라에 덜 따라 움직이며 뒤에 그려진다. 비우면 mid. 맨 위 오브젝트만 가진다(밑의 것은 부모를 따른다)");
@@ -144,6 +156,13 @@ public partial class MainWindow
         }
 
         OnSetSelected();
+
+        // 컷을 열면 그 타임라인이 바로 붙는다 — 따로 고르지 않는다(컷에는 타임라인이 하나다).
+        if (SelectedCut is { } cut && _session.Editor.Document.Find(cut) is not null)
+        {
+            RefreshMotionList();
+            _motionList.SelectedItem = cut;
+        }
     }
 
     private void WithOpenCut(Action<CutAsset> action)
@@ -156,6 +175,16 @@ public partial class MainWindow
         Guard("컷", () => action(cut));
         RefreshCutFields();
     }
+
+    private CameraSettings CameraFromBoxes(CutAsset cut)
+    {
+        CameraSettings now = _viewport.CutCameraNow() ?? cut.Camera;
+        float Value(TextBox from, float fallback) => TryFloat(from.Text ?? "", out float parsed) ? parsed : fallback;
+        return new CameraSettings { Zoom = Value(_cutZoom, now.Zoom), PanX = Value(_cutPanX, now.PanX), PanY = Value(_cutPanY, now.PanY) };
+    }
+
+    /// <summary>지금 시각(초) — 컷의 길이 안으로.</summary>
+    private float CutTimeNow(CutAsset cut) => (float)Math.Clamp(_graph.CurrentTime, 0, cut.Seconds);
 
     private string NewCut()
     {
@@ -208,9 +237,10 @@ public partial class MainWindow
 
             Write(_cutName, cut?.Name ?? "");
             Write(_cutFrames, cut?.Frames.ToString(CultureInfo.InvariantCulture) ?? "");
-            Write(_cutZoom, cut is null ? "" : F(cut.Camera.Zoom));
-            Write(_cutPanX, cut is null ? "" : F(cut.Camera.PanX));
-            Write(_cutPanY, cut is null ? "" : F(cut.Camera.PanY));
+            CameraSettings? camera = cut is null ? null : _viewport.CutCameraNow() ?? cut.Camera; // 지금 프레임의 값
+            Write(_cutZoom, camera is null ? "" : F(camera.Zoom));
+            Write(_cutPanX, camera is null ? "" : F(camera.PanX));
+            Write(_cutPanY, camera is null ? "" : F(camera.PanY));
 
             // 깊이 칸 — 컷의 맨 위 오브젝트일 때만.
             RigNodeAsset? node = EditedRigNode;

@@ -48,7 +48,9 @@ public class CutShellTests
                 Assert.Equal(("cut", "cut", "cut"), (window.SelectedCut, window.SelectedSet, view.SetView));
                 Assert.NotNull(view.ShownCut);
                 Assert.Equal(("cut", "240"), (window.CutBoxes.Name.Text, window.CutBoxes.Frames.Text));
-                Assert.True(view.IsLayoutMode);
+                // 타임라인이 바로 붙는다 — 따로 고르지 않는다. 종료 처리 같은 칸은 컷에서 고를 것이 없다.
+                Assert.Equal("cut", view.Motion?.Name);
+                Assert.Equal("cut", window.Graph.Motion?.Name);
 
                 // 오브젝트를 바로 놓는다 — 세트를 먼저 만들지 않는다.
                 window.SelectSetNode(null);
@@ -147,6 +149,88 @@ public class CutShellTests
                 window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
                 window.MouseUp(At(drop), MouseButton.Left);
                 Assert.Equal(100f, editor.Document.FindCut("cut")!.Rig.Find("Color1")!.X, 0); // 화면의 120 = 틀 안의 100(배율 1.2)
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 컷에서_키_없는_오브젝트는_끌면_가만히_선_자리가_바뀌고_카메라는_칸과_키_단추로_타임라인에_놓인다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+                window.NewCutFromForm();
+                window.SelectSetNode(null);
+                window.AddColorNodeFromForm(); // Color1 — 400×300, 가운데
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Point At(Vec2 p) => view.TranslatePoint(view.ToScreen(p), window) ?? throw new InvalidOperationException("뷰가 창에 붙어 있지 않다");
+                RigNodeAsset Color() => editor.Document.FindCut("cut")!.Rig.Find("Color1")!;
+                MotionAsset Timeline() => editor.Document.Find("cut")!;
+
+                // 타임라인이 붙어 있어도, 자리에 키가 없는 오브젝트는 끌면 가만히 선 자리가 바뀐다(키가 안 생긴다). 한 칸.
+                long revision = editor.Revision;
+                Vec2 grab = view.CurrentPose()!.TransformPoint("set/Color1", Vec3.Zero).XY;
+                var drop = new Vec2(grab.X + 60f, grab.Y + 30f);
+                window.MouseDown(At(grab), MouseButton.Left);
+                window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(At(drop), MouseButton.Left);
+                Assert.Equal((60f, 30f), (Color().X, Color().Y));
+                Assert.Empty(Timeline().Channels);
+                Assert.Equal(revision + 1, editor.Revision);
+
+                // 자리에 키가 생기면 끌기가 가만히 선 자리를 건드리지 않는다 — 그 오브젝트가 골라질 뿐이다(키는 손잡이·채널 박스로).
+                editor.AddChannel("cut", "Color1", MotionChannelKind.Position);
+                editor.AddKey("cut", "Color1", MotionChannelKind.Position, Axis.X, new KeyAsset { T = 0f, V = 60f });
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                grab = view.CurrentPose()!.TransformPoint("set/Color1", Vec3.Zero).XY;
+                drop = new Vec2(grab.X + 40f, grab.Y);
+                window.MouseDown(At(grab), MouseButton.Left);
+                window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(At(drop), MouseButton.Left);
+                Assert.Equal(60f, Color().X);
+                Assert.Equal("Color1", view.SelectedNode);
+
+                // 카메라 — 키가 없는 동안 칸은 가만히 선 값을 고친다.
+                Type(window, window.CutBoxes.PanX, "50");
+                Assert.Equal(50f, editor.Document.FindCut("cut")!.Camera.PanX);
+                Assert.False(editor.CutCameraIsKeyed("cut"));
+
+                // "키" — 지금 프레임(0)에 카메라의 키가 놓인다(한 칸). 그 뒤로 칸을 고치면 그 프레임의 키가 된다.
+                revision = editor.Revision;
+                window.KeyCutCameraFromForm();
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.True(editor.CutCameraIsKeyed("cut"));
+                window.Graph.CurrentTime = 2.0;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Type(window, window.CutBoxes.PanX, "250");
+                Assert.Equal(50f, editor.Document.FindCut("cut")!.Camera.PanX); // 가만히 선 값은 그대로
+                Assert.Equal(new[] { (0f, 50f), (2f, 250f) }, Timeline().FindChannel("Camera_Pan", MotionChannelKind.Position)!.X!.Keys.Select(k => (k.T, k.V)));
+                Assert.Equal(0, window.ProblemRowsShown);
+
+                // 칸은 지금 프레임의 값을 보이고, 뷰포트의 카메라가 타임라인을 따른다(mid의 오브젝트가 밀기만큼 움직인다).
+                float X(double t)
+                {
+                    window.Graph.CurrentTime = t;
+                    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                    return view.CurrentPose()!.TransformPoint("set/Color1", Vec3.Zero).X;
+                }
+
+                Assert.Equal(200f, X(2.0) - X(0.0), 1);
+                window.Graph.CurrentTime = 0.0;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                view.Focus();
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal("50", window.CutBoxes.PanX.Text);
             }
             finally
             {

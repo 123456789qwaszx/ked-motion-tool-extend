@@ -49,7 +49,10 @@ public static class MotionValidator
                 problems.Add(new MotionProblem(motion.Name, "같은 이름이 둘이다"));
             }
 
-            problems.AddRange(ValidateMotion(motion, rigNodeIds, controllers, alphaNodeIds));
+            // 컷의 타임라인은 키가 처음과 끝에 꼭 있지 않아도 되고 하나뿐이어도 된다(앞뒤로는 그 키의 값이 이어진다) —
+            // "0초에서 시작해 길이에서 끝난다"는 옛 산출물(motions.json)의 규칙이다. 컷은 제 형식으로 나간다(PLAN-standalone.md §7).
+            bool cutTimeline = document.FindCut(motion.Rig) is not null;
+            problems.AddRange(ValidateMotion(motion, rigNodeIds, controllers, alphaNodeIds).Where(p => !cutTimeline || !CutRelaxed.Any(text => p.Message.Contains(text, StringComparison.Ordinal))));
 
             // 이모지를 띄우는 이벤트 키 — 값이 문서의 이모지 키여야 미리보기에서 뜬다. 런타임의 이모지 표는 따로일 수 있어 막지는 않고,
             // 문서가 이모지를 하나도 정의하지 않았으면(표가 밖에 있다) 말하지 않는다.
@@ -81,6 +84,9 @@ public static class MotionValidator
 
         return problems;
     }
+
+    /// <summary>컷의 타임라인에는 걸지 않는 모양 규칙의 문구(코어 <see cref="MotionRules"/>의 것).</summary>
+    private static readonly string[] CutRelaxed = { "키가 2개 이상이어야 한다", "첫 키 시각이 0이 아니다", "마지막 키 시각이 길이와 다르다" };
 
     public static IReadOnlyList<MotionProblem> ValidateMotion(
         MotionAsset motion,
