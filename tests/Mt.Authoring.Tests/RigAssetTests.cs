@@ -699,6 +699,47 @@ public class RigAssetTests
         Assert.Contains("car.Body", MotionsJson.Write(MotionExport.ToClips(editor.Document)), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void 재생_블록을_따로_떼면_구운_키가_제_키로_굳고_재생은_그대로이며_원본을_더는_안_따른다()
+    {
+        MotionEditor editor = PlayEditor();
+        editor.AddMotionPlay("city_in", "car", "roll", 0.5f, repeat: 2);
+        editor.AddMotionPlay("city_in", "car", "hop", 1.5f);
+        double[] times = { 0.3, 0.7, 1.1, 1.4, 1.6, 1.9 };
+        List<Vec2> before = times.Select(t => PosedAt(editor, "car.Body", t)).ToList();
+
+        // 그 인스턴스의 블록을 다 뗀다 — 한 칸. 블록이 사라지고 경로 이름의 채널이 제 것으로 선다. 이벤트도 옮겨 온다.
+        long revision = editor.Revision;
+        Assert.Equal(1, editor.DetachMotionPlays("city_in", "car"));
+        Assert.Equal(revision + 1, editor.Revision);
+        MotionAsset motion = editor.Document.Find("city_in")!;
+        Assert.Empty(motion.Plays);
+        Assert.Null(motion.Flattened);
+        Assert.NotNull(motion.FindChannel("car.Body", MotionChannelKind.Position));
+        Assert.Equal(("thud", 1.6f), (Assert.Single(motion.Events).Name, MathF.Round(motion.Events[0].T, 3)));
+
+        // 재생은 그대로다.
+        for (int i = 0; i < times.Length; i++)
+        {
+            Vec2 after = PosedAt(editor, "car.Body", times[i]);
+            Assert.Equal(before[i].X, after.X, 1);
+            Assert.Equal(before[i].Y, after.Y, 1);
+        }
+
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+
+        // 원본을 고쳐도 더는 안 따라온다.
+        editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 0f), Lin(0.4f, 10f) });
+        Assert.Equal(before[3].X, PosedAt(editor, "car.Body", 1.4).X, 1);
+
+        // 블록이 없으면 막힌다. 되돌리면 블록이 돌아온다.
+        Assert.Throws<InvalidOperationException>(() => editor.DetachMotionPlays("city_in", "car"));
+        editor.Undo();
+        editor.Undo();
+        Assert.Equal(2, editor.Document.Find("city_in")!.Plays.Count);
+    }
+
     // ── 새 세트로 빼기 · 세트 이름 바꾸기 ─────────────────────────────
 
     [Fact]

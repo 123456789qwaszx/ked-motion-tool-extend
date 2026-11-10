@@ -237,6 +237,17 @@ public sealed class DocumentSession
         return Editor.ImportLayers(kind, sheet, relative, skin, StageSize);
     }
 
+    /// <summary>다른 저작 문서의 세트를 전부 들인다(애니메이션·스킨·연출까지) — 그림 경로는 이 문서 기준으로 바뀐다. 들인 세트의 이름들.</summary>
+    public IReadOnlyList<string> ImportSets(string documentPath)
+    {
+        ArgumentNullException.ThrowIfNull(documentPath);
+        MotionDocument source = MotionDocumentJson.Read(File.ReadAllText(documentPath));
+        string folder = Path.GetDirectoryName(Path.GetFullPath(documentPath)) ?? "";
+        IReadOnlyList<string> kinds = Editor.ImportSets(source, null, image => Path.IsPathRooted(image) ? image : RelativeToDocument(Path.Combine(folder, image)).Replace('\\', '/'));
+        SetStatus($"세트 {kinds.Count}개를 들였다 — {string.Join(", ", kinds)}");
+        return kinds;
+    }
+
     public void SetSkinPart(string skin, string node, string? path)
         => Editor.SetSkinPart(skin, node, string.IsNullOrEmpty(path) ? null : RelativeToDocument(path));
 

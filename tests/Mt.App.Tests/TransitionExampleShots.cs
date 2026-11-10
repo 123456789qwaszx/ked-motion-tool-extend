@@ -77,6 +77,20 @@ public class TransitionExampleShots
 
                 window.StageOnlyChecked = false;
 
+                // 조립 — pillar 세트를 열고 등장 애니메이션을 고른다: 타임 슬라이더에 재생 블록의 막대, "모션" 탭에 재생 블록 줄.
+                window.SelectSet("pillar");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.SelectMotion("pillar_in");
+                window.SelectSetNode("sun");
+                window.InspectorTab = 2;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.Viewport.ScrubTo(1.2);
+                Shot("pillar-assembly");
+                window.InspectorTab = 1;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Shot("pillar-instance");
+                window.SelectSet(null);
+
                 // 세트가 세트를 품는다 — 새 세트에 pillar를 둘 넣는다(하나는 작게 돌려서). 화면에만: 저장하지 않는다.
                 window.NewSetFromForm();
                 window.SelectSetNode(null);

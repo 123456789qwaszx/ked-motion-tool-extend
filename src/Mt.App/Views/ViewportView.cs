@@ -1279,6 +1279,20 @@ public sealed class ViewportView : Control
 
     public MotionAsset? Motion => _editor is not null && _motionName is not null ? _editor.Document.Find(_motionName) : null;
 
+    /// <summary>묶인 애니메이션의 재생 블록이 차지하는 구간들(시작 · 끝 · "인스턴스 ▸ 애니메이션") — 타임 슬라이더가 막대로 그린다.</summary>
+    public IReadOnlyList<(double Start, double End, string Label)> PlaySpans()
+    {
+        if (_editor is null || Motion is not { Plays.Count: > 0 } motion)
+        {
+            return Array.Empty<(double, double, string)>();
+        }
+
+        return motion.Plays
+            .Select(p => (Start: (double)p.At, End: Math.Min(motion.Duration, p.At + (_editor.Document.Find(p.Motion)?.Duration ?? 0f) * Math.Max(1, p.Repeat)), Label: $"{p.Node} ▸ {p.Motion}{(p.Repeat > 1 ? $" ×{p.Repeat}" : "")}"))
+            .Select(span => ((double)span.Start, (double)span.End, span.Label))
+            .ToList();
+    }
+
     // ── 이모지 정의의 미리보기(PLAN-parts.md §8) ─────────────────────────
 
     private string? _emojiName;

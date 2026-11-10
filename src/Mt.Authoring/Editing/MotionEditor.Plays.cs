@@ -46,6 +46,54 @@ public sealed partial class MotionEditor
         Mutate(MotionChangeKind.Keys, () => motion.Plays.Remove(target));
     }
 
+    /// <summary>
+    /// 그 인스턴스의 재생 블록들을 **따로 뗀다** — 블록들이 구워 내던 키를 이 애니메이션의 제 키(경로 이름의 채널)로 굳히고 블록을 지운다.
+    /// 재생은 그대로이고, 그 뒤로는 품은 애니메이션을 고쳐도 여기는 안 따라온다(여기서만 다르게 고칠 수 있다). 굳힌 채널의 수를 돌려준다.
+    /// 같은 인스턴스의 블록은 이어져 한 커브로 구워지므로(유지는 쌓인다) 하나만 뗄 수는 없다 — 그 인스턴스의 것을 다 뗀다.
+    /// </summary>
+    public int DetachMotionPlays(string motionName, string node)
+    {
+        MotionAsset motion = Require(motionName);
+        List<MotionPlayAsset> plays = motion.Plays.Where(p => p.Node == node).ToList();
+
+        if (plays.Count == 0)
+        {
+            throw new InvalidOperationException($"'{node}'의 재생 블록이 없다.");
+        }
+
+        // 그 블록들만 가진 빈 애니메이션을 구워, 나온 채널·이벤트를 제 것으로 들인다.
+        var probe = new MotionAsset { Name = motion.Name, Rig = motion.Rig, Duration = motion.Duration, End = motion.End, PreviewMode = motion.PreviewMode, Plays = plays };
+        MotionAsset baked = Preview.MotionFlatten.Flatten(Document, probe);
+        int count = 0;
+
+        Mutate(MotionChangeKind.Keys, () =>
+        {
+            foreach (ChannelAsset channel in baked.Channels)
+            {
+                ChannelAsset? own = motion.FindChannel(channel.Node, channel.Kind);
+
+                if (own is null)
+                {
+                    motion.Channels.Add(channel);
+                    count++;
+                    continue;
+                }
+
+                // 이미 제 키가 있는 성분은 그것이 이기고 있었다 — 비어 있는 성분만 채운다.
+                own.X ??= channel.X;
+                own.Y ??= channel.Y;
+                own.Z ??= channel.Z;
+                count++;
+            }
+
+            motion.Events.AddRange(baked.Events);
+            motion.Events.Sort((a, b) => a.T.CompareTo(b.T));
+            motion.Plays.RemoveAll(plays.Contains);
+        });
+
+        return count;
+    }
+
     private static void InsertPlay(MotionAsset motion, MotionPlayAsset added)
     {
         int at = motion.Plays.Count;

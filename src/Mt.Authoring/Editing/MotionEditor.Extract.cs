@@ -223,6 +223,81 @@ public sealed partial class MotionEditor
         });
     }
 
+    /// <summary>
+    /// 다른 문서의 세트를 들인다 — 세트(와 그것이 품은 세트들), 그 애니메이션·스킨·연출이 통째로 온다. 통째로 되돌리기 한 칸. 들인 세트의 이름들을 돌려준다.
+    /// 같은 이름의 세트·애니메이션·스킨·연출이 이미 있으면 막는다(어느 쪽을 가리키는지 흐려진다 — 한쪽의 이름을 먼저 바꾼다).
+    /// </summary>
+    /// <param name="source">들일 문서 — 이 호출이 가져간다(읽은 것을 그대로 넘긴다).</param>
+    /// <param name="kinds">들일 세트들. null이면 그 문서의 세트 전부.</param>
+    /// <param name="rebaseImage">그 문서 기준의 그림 경로를 이 문서 기준으로 바꾼다.</param>
+    public IReadOnlyList<string> ImportSets(MotionDocument source, IReadOnlyCollection<string>? kinds, Func<string, string> rebaseImage)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(rebaseImage);
+
+        // 고른 세트 + 그것들이 품은 세트(몇 다리 건너서도).
+        var wanted = new HashSet<string>(StringComparer.Ordinal);
+        var queue = new Queue<string>(kinds ?? source.Rigs.Select(r => r.Kind).ToList());
+
+        while (queue.Count > 0)
+        {
+            string kind = queue.Dequeue();
+            RigAsset rig = source.FindRig(kind) ?? throw new KeyNotFoundException($"그 문서에 세트 '{kind}'가 없다.");
+
+            if (wanted.Add(kind))
+            {
+                foreach (string inner in rig.Nodes.Select(n => n.Set).OfType<string>().Where(k => k.Length > 0))
+                {
+                    queue.Enqueue(inner);
+                }
+            }
+        }
+
+        if (wanted.Count == 0)
+        {
+            throw new InvalidOperationException("그 문서에 세트가 없다.");
+        }
+
+        List<RigAsset> rigs = source.Rigs.Where(r => wanted.Contains(r.Kind)).ToList();
+        List<MotionAsset> motions = source.Motions.Where(m => wanted.Contains(m.Rig)).ToList();
+        List<SkinAsset> skins = source.Skins.Where(k => wanted.Contains(k.Rig)).ToList();
+        List<EmojiAsset> emojis = source.Emojis.Where(e => wanted.Contains(e.Rig)).ToList();
+
+        List<string> clashes = rigs.Where(r => Document.FindRig(r.Kind) is not null || ReservedRigKinds.Contains(r.Kind)).Select(r => $"세트 {r.Kind}")
+            .Concat(motions.Where(m => Document.Find(m.Name) is not null).Select(m => $"애니메이션 {m.Name}"))
+            .Concat(skins.Where(k => Document.FindSkin(k.Name) is not null).Select(k => $"스킨 {k.Name}"))
+            .Concat(emojis.Where(e => Document.FindEmoji(e.Name) is not null).Select(e => $"연출 {e.Name}"))
+            .ToList();
+
+        if (clashes.Count > 0)
+        {
+            throw new InvalidOperationException($"같은 이름이 이미 있다 — {string.Join(", ", clashes.Take(6))}{(clashes.Count > 6 ? $" 외 {clashes.Count - 6}개" : "")}. 한쪽의 이름을 먼저 바꾼다.");
+        }
+
+        Mutate(MotionChangeKind.Document, () =>
+        {
+            foreach (SkinAsset skin in skins)
+            {
+                foreach (string part in skin.Parts.Keys.ToList())
+                {
+                    skin.Parts[part] = rebaseImage(skin.Parts[part]);
+                }
+
+                foreach (SkinPartSetup setup in skin.Setups.Values)
+                {
+                    setup.Frames = setup.Frames.Select(rebaseImage).ToList();
+                }
+            }
+
+            Document.Rigs.AddRange(rigs);
+            Document.Motions.AddRange(motions);
+            Document.Skins.AddRange(skins);
+            Document.Emojis.AddRange(emojis);
+        });
+
+        return rigs.Select(r => r.Kind).ToList();
+    }
+
     private string RequireNewRigKind(string? kind)
     {
         string name = (kind ?? "").Trim();

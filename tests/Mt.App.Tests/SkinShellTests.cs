@@ -1336,6 +1336,16 @@ public class SkinShellTests
                 window.MouseUp(At(drop), MouseButton.Left);
                 Assert.Equal((50f, 20f, "#EE6C4D"), (Node("Color1").X, Node("Color1").Y, Node("Color1").Color));
 
+                // 색 견본 — 이 문서에서 쓴 색이 먼저 서고, 고르면 바로 들어간다(한 칸).
+                window.SelectSetNode("Color1");
+                Assert.Equal("#EE6C4D", window.ColorSwatches()[0]);
+                Assert.Contains("#243B6B", window.ColorSwatches());
+                revision = editor.Revision;
+                window.PickColorSwatch("#243B6B");
+                Assert.Equal("#243B6B", Node("Color1").Color);
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal("#243B6B", window.RigNodeColorBox.Text);
+
                 // 색을 비우면 보통 오브젝트로 돌아간다.
                 window.SelectSetNode("Color1");
                 window.RigNodeColorBox.Focus();
@@ -1568,6 +1578,10 @@ public class SkinShellTests
                 Assert.Equal(1, window.PlayRowCount);
                 Assert.Equal(("0.5", "set", "slide", "1"), (window.PlayRow(0).Time.Text, window.PlayRow(0).Node.SelectedItem, window.PlayRow(0).Motion.SelectedItem, window.PlayRow(0).Repeat.Text));
 
+                // 타임 슬라이더가 블록의 구간을 막대로 그린다(0.5 ~ 0.9초).
+                (double start, double end, string label) = Assert.Single(view.PlaySpans());
+                Assert.Equal((0.5, 0.9, "set ▸ slide"), (Math.Round(start, 3), Math.Round(end, 3), label));
+
                 // 뷰포트가 품은 애니메이션을 튼다 — 블록 전에는 제자리, 가운데서 반, 끝난 뒤에는 남는다(유지).
                 float X(double t)
                 {
@@ -1595,6 +1609,17 @@ public class SkinShellTests
                 time.Text = "1.9";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Equal(revision, editor.Revision);
+
+                // 줄의 "떼기" — 블록이 사라지고 그 움직임이 제 키로 굳는다(한 칸). 뷰포트의 재생은 그대로다.
+                window.Viewport.Focus();
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                revision = editor.Revision;
+                window.DetachPlayRow(0);
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Empty(editor.Document.Find("city_in")!.Plays);
+                Assert.NotNull(editor.Document.Find("city_in")!.FindChannel("set.Color1", MotionChannelKind.Position));
+                Assert.Equal(200f, X(1.5) - rest, 0);
+                Assert.Equal(0, window.PlayRowCount);
 
                 // 품은 세트가 없는 세트의 애니메이션에서는 칸이 숨는다.
                 window.SelectSet("set");
@@ -1723,6 +1748,56 @@ public class SkinShellTests
                 window.SelectSet("set_2");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.False(window.SetBackShown);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 다른_문서의_세트를_들이면_애니메이션과_스킨과_연출이_함께_오고_그림을_찾는다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                DirectoryInfo? root = new(AppContext.BaseDirectory);
+
+                while (root is not null && !File.Exists(Path.Combine(root.FullName, "KedMotionTool.sln")))
+                {
+                    root = root.Parent;
+                }
+
+                string path = Path.Combine(root!.FullName, "examples", "transitions", "pillar", "pillar.motion-authoring.json");
+
+                // pillar 문서의 세트 둘(pillar · 그것이 품은 sun)이 애니메이션 · 스킨 · 연출과 함께 — 한 칸.
+                long revision = editor.Revision;
+                Assert.Equal(new[] { "pillar", "sun" }, window.ImportSetsFromFile(path).OrderBy(k => k, StringComparer.Ordinal));
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.NotNull(editor.Document.Find("pillar_in"));
+                Assert.NotNull(editor.Document.Find("sun_rise"));
+                Assert.NotNull(editor.Document.FindSkin("sun"));
+                Assert.True(editor.Document.FindEmoji("pillar")!.Screen);
+                Assert.NotNull(editor.Document.Find("pillar_in")!.Flattened); // 재생 블록도 따라와 구워진다
+
+                // 그림은 그 문서의 자리를 가리킨다 — 전부 찾는다.
+                Assert.All(window.Session.SkinImages(), image => Assert.True(image.Path is not null && File.Exists(image.Path), image.Image));
+
+                // 세트 목록에 서고 열린다.
+                window.SelectSet("sun");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal("sun", window.SelectedSet);
+
+                // 같은 이름이 이미 있으면 막힌다 — 문서는 그대로다.
+                revision = editor.Revision;
+                Assert.Throws<InvalidOperationException>(() => window.ImportSetsFromFile(path));
+                Assert.Equal(revision, editor.Revision);
             }
             finally
             {

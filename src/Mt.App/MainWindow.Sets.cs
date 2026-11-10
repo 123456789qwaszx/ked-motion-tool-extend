@@ -33,6 +33,61 @@ public partial class MainWindow
     private readonly TextBox _rigNodeColor = new() { FontSize = 11, PlaceholderText = "(색 없음) #RRGGBB" };
     private readonly CheckBox _rigNodeImage = new() { Content = "그림을 그린다", FontSize = 11 };
     private readonly CheckBox _rigNodeAlpha = new() { Content = "불투명도를 받는다", FontSize = 11 };
+    private readonly Button _rigNodeSwatch = new() { Width = 22, Height = 20, Margin = new Avalonia.Thickness(3, 0, 0, 0), Padding = new Avalonia.Thickness(0), BorderThickness = new Avalonia.Thickness(1), BorderBrush = Avalonia.Media.Brushes.Gray };
+
+    /// <summary>기본 견본 — 종이 느낌의 차분한 색들(예시 그림의 색에서).</summary>
+    private static readonly string[] DefaultSwatches =
+    {
+        "#FFFFFF", "#F4EDE0", "#E8D5B5", "#C9B79C", "#8A8176", "#3A3A3A", "#000000",
+        "#243B6B", "#3D5A80", "#5C7FA8", "#98C1D9", "#6B4E8A", "#9A7FB8", "#C9B3DE",
+        "#EE6C4D", "#F2A65A", "#F6C453", "#E8A0A0", "#C0504D", "#5E8C61", "#A8C5A0",
+    };
+
+    /// <summary>테스트 손잡이 — 색 견본들(문서에서 쓴 색 + 기본), 견본 하나를 고른다.</summary>
+    internal IReadOnlyList<string> ColorSwatches() => SwatchColors();
+
+    internal void PickColorSwatch(string color) => ApplySwatch(color);
+
+    private List<string> SwatchColors()
+        => _session.Editor.Document.Rigs.SelectMany(r => r.Nodes).Select(n => n.Color).OfType<string>().Where(c => c.Length > 0)
+            .Concat(DefaultSwatches).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    private void ApplySwatch(string color)
+    {
+        if (EditedRigNode is null)
+        {
+            return;
+        }
+
+        _rigNodeColor.Text = color;
+        Guard("색", CommitRigNode);
+    }
+
+    private void OpenColorSwatches()
+    {
+        var grid = new WrapPanel { Orientation = Orientation.Horizontal, MaxWidth = 7 * 26 };
+        var flyout = new Flyout { Content = grid };
+
+        foreach (string color in SwatchColors())
+        {
+            if (!Avalonia.Media.Color.TryParse(color.Length == 9 ? color[..7] : color, out Avalonia.Media.Color parsed)) // #RRGGBBAA면 견본은 색만
+            {
+                continue;
+            }
+
+            string captured = color;
+            var swatch = new Button { Width = 22, Height = 22, Margin = new Avalonia.Thickness(2), Padding = new Avalonia.Thickness(0), Background = new Avalonia.Media.SolidColorBrush(parsed) };
+            ToolTip.SetTip(swatch, captured);
+            swatch.Click += (_, _) =>
+            {
+                flyout.Hide();
+                ApplySwatch(captured);
+            };
+            grid.Children.Add(swatch);
+        }
+
+        flyout.ShowAt(_rigNodeSwatch);
+    }
 
     // 세트를 품은 오브젝트(인스턴스)의 칸 — 품은 세트에 입힐 스킨, 그 세트로 들어가기. 들어갔으면 돌아오는 단추가 선다.
     private const string FirstSkinChoice = "(그 세트의 첫 스킨)";
@@ -152,12 +207,27 @@ public partial class MainWindow
                 _session.SetStatus($"층 표 가져오기 실패: {exception.Message}");
             }
         });
+        Button importSets = SmallButton("다른 문서에서…", async (_, _) =>
+        {
+            try
+            {
+                if (await PickOpenAsync("세트를 들일 저작 문서", new FilePickerFileType("저작 문서") { Patterns = new[] { "*.motion-authoring.json", "*.json" } }) is { } path)
+                {
+                    Guard("세트 들이기", () => ImportSetsFrom(path));
+                }
+            }
+            catch (Exception exception)
+            {
+                _session.SetStatus($"세트 들이기 실패: {exception.Message}");
+            }
+        });
+        ToolTip.SetTip(importSets, "다른 저작 문서의 세트를 이 문서로 들인다 — 세트(품은 세트까지)와 그 애니메이션·스킨·연출이 통째로 온다. 그림은 그 문서의 자리를 그대로 가리킨다(복사하지 않는다). 같은 이름이 이미 있으면 막힌다 — 한쪽의 이름을 먼저 바꾼다. 되돌리기 한 번");
         ToolTip.SetTip(importLayers, "그림 한 묶음을 한 번에 — 층 표(layers.tsv: 파일 ⇥ 왼쪽 ⇥ 위 ⇥ 너비 ⇥ 높이, 뒤에서 앞으로)를 읽어 층마다 그림 오브젝트를 그 자리에 세우고 스킨에 그림을 준다. 표의 설명 줄에 #RRGGBB가 있으면 맨 뒤에 그 색의 바탕이 선다. 되돌리기 한 번");
         ToolTip.SetTip(import, "PNG를 연 세트의 그림 오브젝트로 — 이름은 파일 이름에서, 크기는 그림의 크기, 지금 입혀 보는 스킨에 그림이 들어간다(스킨이 없으면 만든다). 되돌리기 한 번. 뷰포트에 파일을 끌어다 놓아도 된다");
         ToolTip.SetTip(add, "빈 세트(오브젝트 Body 하나)를 만들어 연다 — 이름 set, set_2…. 하이어아키에서 우클릭해 오브젝트를 더한다");
         ToolTip.SetTip(remove, "연 세트를 지운다. 그 세트의 애니메이션·스킨·연출은 남고 문제 목록이 알린다(되돌리기 한 번)");
         ToolTip.SetTip(close, "세트를 닫고 씬으로 돌아간다");
-        LeftPanel.Children.Insert(2, new WrapPanel { Orientation = Orientation.Horizontal, Children = { add, remove, close, import, importLayers, SmallButton("rigs.json…", OnExportRigsClick) } });
+        LeftPanel.Children.Insert(2, new WrapPanel { Orientation = Orientation.Horizontal, Children = { add, remove, close, import, importLayers, importSets, SmallButton("rigs.json…", OnExportRigsClick) } });
         LeftPanel.Children.Insert(3, Labeled("세트 이름", _setName));
         LeftPanel.Children.Insert(4, _setBack);
         _setBack.Click += (_, _) => Guard("돌아가기", BackToOuterSet);
@@ -192,7 +262,14 @@ public partial class MainWindow
         _rigNodeFields.Children.Add(Labeled("회전", _rigNodeRotation));
         _rigNodeFields.Children.Add(Labeled("배율 X", _rigNodeScaleX));
         _rigNodeFields.Children.Add(Labeled("배율 Y", _rigNodeScaleY));
-        _rigNodeFields.Children.Add(Labeled("색", _rigNodeColor));
+        // 색 — 글로 적거나, 옆의 견본을 눌러 고른다(이 문서에서 쓴 색이 먼저, 그 뒤에 기본 견본).
+        var colorRow = new DockPanel();
+        DockPanel.SetDock(_rigNodeSwatch, Dock.Right);
+        colorRow.Children.Add(_rigNodeSwatch);
+        colorRow.Children.Add(_rigNodeColor);
+        _rigNodeFields.Children.Add(Labeled("색", colorRow));
+        ToolTip.SetTip(_rigNodeSwatch, "색 고르기 — 이 문서에서 쓴 색과 기본 견본에서 고른다. 고르면 바로 들어간다(되돌리기 한 번). 정확한 값은 왼쪽 칸에 #RRGGBB로 적는다");
+        _rigNodeSwatch.Click += (_, _) => OpenColorSwatches();
         ToolTip.SetTip(_rigNodeColor, "색 — #RRGGBB 또는 #RRGGBBAA. 적으면 단색 사각형이 된다(그림 없이 너비 × 높이를 이 색으로 채운다 — 화면 전환·소개의 패널). 비우면 색 오브젝트가 아니다");
         _rigNodeFields.Children.Add(_rigNodeImage);
         _rigNodeFields.Children.Add(_rigNodeAlpha);
@@ -200,7 +277,7 @@ public partial class MainWindow
         Button enter = SmallButton("안쪽 세트 열기 ▸", (_, _) => Guard("안쪽 세트 열기", EnterInnerSet));
         ToolTip.SetTip(enter, "이 오브젝트가 품은 세트를 연다 — 안쪽의 자리·그림·애니메이션을 고친다. 세트 목록 아래의 \"◂ 돌아가기\"로 여기로 돌아온다. 참조라서 고친 것이 품은 곳 모두에 보인다");
         ToolTip.SetTip(_rigNodeSkin, "품은 세트에 입힐 스킨 — 같은 세트를 다른 그림으로 여러 번 품을 수 있다(빨간 차 · 파란 차)");
-        _rigInstanceFields.Children.Add(Labeled("품은 세트의 스킨", _rigNodeSkin));
+        _rigInstanceFields.Children.Add(Labeled("안쪽 스킨", _rigNodeSkin));
         _rigInstanceFields.Children.Add(enter);
         _rigNodeFields.Children.Add(_rigInstanceFields);
         _rigNodeSkin.SelectionChanged += (_, _) =>
@@ -472,6 +549,16 @@ public partial class MainWindow
         }
 
         RefreshSetNodePanel();
+    }
+
+    /// <summary>테스트 손잡이 — "다른 문서에서…"(파일 고르기 뒤의 일).</summary>
+    internal IReadOnlyList<string> ImportSetsFromFile(string path) => ImportSetsFrom(path);
+
+    private IReadOnlyList<string> ImportSetsFrom(string path)
+    {
+        IReadOnlyList<string> kinds = _session.ImportSets(path);
+        RefreshSets();
+        return kinds;
     }
 
     private string NewSet()
@@ -982,6 +1069,9 @@ public partial class MainWindow
             Write(_rigNodeScaleX, node is null ? "" : F(node.ScaleX));
             Write(_rigNodeScaleY, node is null ? "" : F(node.ScaleY));
             Write(_rigNodeColor, node?.Color ?? "");
+            _rigNodeSwatch.Background = node?.Color is { Length: > 0 } fill && Avalonia.Media.Color.TryParse(fill.Length == 9 ? fill[..7] : fill, out Avalonia.Media.Color shown)
+                ? new Avalonia.Media.SolidColorBrush(shown)
+                : Avalonia.Media.Brushes.Transparent;
             _rigNodeImage.IsChecked = node?.Image == true;
             _rigNodeAlpha.IsChecked = node?.Alpha == true;
 

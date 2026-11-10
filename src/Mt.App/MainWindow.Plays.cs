@@ -19,6 +19,9 @@ public partial class MainWindow
 
     internal int PlayRowCount => _playRows.Children.Count;
 
+    /// <summary>테스트 손잡이 — 줄의 "떼기".</summary>
+    internal void DetachPlayRow(int index) => ((Panel)_playRows.Children[index]).Children.OfType<Button>().First(b => b.Content as string == "떼기").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
     internal (TextBox Time, ComboBox Node, ComboBox Motion, TextBox Repeat) PlayRow(int index)
     {
         var row = (Panel)_playRows.Children[index];
@@ -150,16 +153,31 @@ public partial class MainWindow
         };
 
         Button remove = SmallButton("×", (_, _) => Guard("재생 블록 삭제", () => _session.Editor.RemoveMotionPlay(motionName, index)));
-        var row = new DockPanel();
-        DockPanel.SetDock(remove, Dock.Right);
-        row.Children.Add(remove);
-        DockPanel.SetDock(time, Dock.Left);
-        row.Children.Add(time);
-        DockPanel.SetDock(node, Dock.Left);
-        row.Children.Add(node);
-        DockPanel.SetDock(repeat, Dock.Right);
-        row.Children.Add(repeat);
-        row.Children.Add(child);
+        Button detach = SmallButton("떼기", (_, _) => Guard("재생 블록 떼기", () =>
+        {
+            int count = _session.Editor.DetachMotionPlays(motionName, play.Node);
+            _session.SetStatus($"{play.Node}: 재생 블록을 떼어 채널 {count}개를 이 애니메이션의 제 키로 굳혔다 — 이제 원본을 따르지 않는다.");
+        }));
+        ToolTip.SetTip(detach, "따로 떼기 — 이 인스턴스의 재생 블록들이 내던 움직임을 이 애니메이션의 제 키(경로 이름의 채널)로 굳히고 블록을 지운다. 재생은 그대로이고, 그 뒤로는 품은 애니메이션을 고쳐도 여기는 안 바뀐다(여기서만 다르게 고칠 때). 같은 인스턴스의 블록은 함께 떼진다");
+        // 두 줄 — 윗줄: 시각 · 인스턴스 · 떼기 · × / 아랫줄: 애니메이션 · 반복. 옆 칸이 좁아 한 줄에는 이름이 잘린다.
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), Margin = new Avalonia.Thickness(0, 0, 0, 3) };
+
+        void Place(Control control, int line, int column, int span = 1)
+        {
+            Grid.SetRow(control, line);
+            Grid.SetColumn(control, column);
+            Grid.SetColumnSpan(control, span);
+            row.Children.Add(control);
+        }
+
+        node.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+        child.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+        Place(time, 0, 0);
+        Place(node, 0, 1);
+        Place(detach, 0, 2);
+        Place(remove, 0, 3);
+        Place(child, 1, 0, 2);
+        Place(repeat, 1, 2, 2);
         return row;
     }
 }

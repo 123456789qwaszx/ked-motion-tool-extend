@@ -40,6 +40,7 @@ public sealed class TimeSliderView : Control
     private static readonly Pen MajorTickPen = new(new SolidColorBrush(Color.FromRgb(0x6E, 0x6E, 0x6E)), 1);
     private static readonly IBrush LabelBrush = new SolidColorBrush(Color.FromRgb(0xB4, 0xB4, 0xB4));
     private static readonly IBrush KeyTickBrush = new SolidColorBrush(Color.FromRgb(0xD3, 0x3C, 0x3C));
+    private static readonly IBrush PlaySpanBrush = new SolidColorBrush(Color.FromArgb(200, 0xB0, 0x7C, 0xE8));
     private static readonly IBrush EnterTickBrush = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0x6B));
     private static readonly IBrush HoldTickBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xB0, 0x30));
     private static readonly IBrush ExitTickBrush = new SolidColorBrush(Color.FromRgb(0x4A, 0x9E, 0xE8));
@@ -392,6 +393,27 @@ public sealed class TimeSliderView : Control
                 double ex = XAtTime(e.T);
                 context.DrawGeometry(EventMarkBrush, null, new PolylineGeometry(
                     new[] { new Point(ex - 3.5, track.Bottom), new Point(ex + 3.5, track.Bottom), new Point(ex, track.Bottom - 6) }, true));
+            }
+        }
+
+        // 재생 블록 — 품은 세트의 애니메이션이 도는 구간을 눈금 아래쪽의 막대로(인스턴스가 여럿이면 층층이). 보기만: 고치는 것은 "모션" 탭의 재생 블록 줄에서.
+        if (Motion is not null && Viewport?.PlaySpans() is { Count: > 0 } spans)
+        {
+            var lanes = new List<string>();
+
+            foreach ((double start, double end, string label) in spans)
+            {
+                string who = label.Split(' ')[0];
+
+                if (!lanes.Contains(who))
+                {
+                    lanes.Add(who);
+                }
+
+                double y = track.Bottom - 5 - lanes.IndexOf(who) * 4;
+                double x0 = XAtTime(start);
+                double x1 = Math.Max(x0 + 2, XAtTime(end));
+                context.FillRectangle(PlaySpanBrush, new Rect(x0, y, x1 - x0, 3));
             }
         }
 
