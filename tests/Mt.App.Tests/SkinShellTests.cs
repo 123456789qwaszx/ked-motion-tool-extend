@@ -1582,6 +1582,25 @@ public class SkinShellTests
                 (double start, double end, string label) = Assert.Single(view.PlaySpans());
                 Assert.Equal((0.5, 0.9, "set ▸ slide"), (Math.Round(start, 3), Math.Round(end, 3), label));
 
+                // 막대를 끌면 블록의 시작 시각이 옮겨진다 — 놓을 때 한 칸. 막대 너비(0.4초)만큼 오른쪽으로.
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Rect bar = window.TimeSlider.PlayBarRects()[0];
+                Point Slider(Point p) => window.TimeSlider.TranslatePoint(p, window) ?? throw new InvalidOperationException("슬라이더가 창에 붙어 있지 않다");
+                revision = editor.Revision;
+                window.MouseDown(Slider(bar.Center), MouseButton.Left);
+                window.MouseMove(Slider(new Point(bar.Center.X + bar.Width, bar.Center.Y)), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(Slider(new Point(bar.Center.X + bar.Width, bar.Center.Y)), MouseButton.Left);
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.InRange(editor.Document.Find("city_in")!.Plays[0].At, 0.8f, 1.0f);
+
+                // 길이 밖으로 끌면 끝에 맞춰 선다(2 − 0.4 = 1.6초).
+                bar = window.TimeSlider.PlayBarRects()[0];
+                window.MouseDown(Slider(bar.Center), MouseButton.Left);
+                window.MouseMove(Slider(new Point(bar.Center.X + 4000, bar.Center.Y)), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(Slider(new Point(bar.Center.X + 4000, bar.Center.Y)), MouseButton.Left);
+                Assert.Equal(1.6f, editor.Document.Find("city_in")!.Plays[0].At, 2);
+                editor.UpdateMotionPlay("city_in", 0, "set", "slide", 0.5f, 1);
+
                 // 뷰포트가 품은 애니메이션을 튼다 — 블록 전에는 제자리, 가운데서 반, 끝난 뒤에는 남는다(유지).
                 float X(double t)
                 {
@@ -1798,6 +1817,85 @@ public class SkinShellTests
                 revision = editor.Revision;
                 Assert.Throws<InvalidOperationException>(() => window.ImportSetsFromFile(path));
                 Assert.Equal(revision, editor.Revision);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 품은_세트를_더블클릭하면_바깥을_보는_채로_안쪽의_오브젝트를_끌어_그_세트를_고친다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                ViewportView view = window.Viewport;
+
+                // set(색 사각형 Color1) · set_2(set을 (300, 100)에 품는다).
+                window.NewSetFromForm();
+                window.SelectSetNode("Body");
+                window.AddColorNodeFromForm();
+                window.NewSetFromForm();
+                window.SelectSetNode(null);
+                window.AddSetInstanceFromMenu("set");
+                editor.UpdateRigNode("set_2", "set", new RigNodeAsset { X = 300f, Y = 100f, Alpha = true });
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Point At(Vec2 p) => view.TranslatePoint(view.ToScreen(p), window) ?? throw new InvalidOperationException("뷰가 창에 붙어 있지 않다");
+                Vec2 Inner() => view.CurrentPose()!.TransformPoint("set/set.Color1", Vec3.Zero).XY;
+                RigNodeAsset Color() => editor.Document.FindRig("set")!.Find("Color1")!;
+                RigNodeAsset Instance() => editor.Document.FindRig("set_2")!.Find("set")!;
+
+                // 더블클릭 — 안쪽으로 들어간다. 문서는 안 바뀐다.
+                long revision = editor.Revision;
+                Vec2 grab = Inner();
+                window.MouseDown(At(grab), MouseButton.Left);
+                window.MouseUp(At(grab), MouseButton.Left);
+                window.MouseDown(At(grab), MouseButton.Left);
+                window.MouseUp(At(grab), MouseButton.Left);
+                Assert.Equal("set", view.EnteredInstance);
+                Assert.Equal(revision, editor.Revision);
+
+                // 안쪽의 것을 끈다 — 품은 세트의 오브젝트가 옮겨지고(한 칸) 인스턴스는 그대로다.
+                var drop = new Vec2(grab.X + 60f, grab.Y + 30f);
+                window.MouseDown(At(grab), MouseButton.Left);
+                Assert.Equal("set.Color1", view.SelectedNode);
+                window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(At(drop), MouseButton.Left);
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal((60f, 30f), (Color().X, Color().Y));
+                Assert.Equal((300f, 100f), (Instance().X, Instance().Y));
+
+                // Esc — 나온다. 그 인스턴스가 골라지고, 이제 안쪽을 끌면 인스턴스가 통째로 옮겨진다.
+                view.Focus();
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                Assert.Null(view.EnteredInstance);
+                Assert.Equal("set", window.SetEditorState.Node);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                grab = Inner();
+                drop = new Vec2(grab.X + 10f, grab.Y);
+                window.MouseDown(At(grab), MouseButton.Left);
+                window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(At(drop), MouseButton.Left);
+                Assert.Equal((310f, 60f), (Instance().X, Color().X));
+
+                // 칸의 단추로도 들어간다. 애니메이션을 고른 때(배치 모드가 아니다)는 안 들어가진다.
+                window.SelectSetNode("set");
+                Assert.True(window.EnterInstanceInPlaceFromForm());
+                Assert.Equal("set", view.EnteredInstance);
+                view.EnterInstance(null);
+                editor.AddMotion("city_in", "set_2", 1f, MotionEnd.Commit);
+                window.SelectMotion("city_in");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.SelectSetNode("set");
+                Assert.False(window.EnterInstanceInPlaceFromForm());
+                Assert.Null(view.EnteredInstance);
             }
             finally
             {

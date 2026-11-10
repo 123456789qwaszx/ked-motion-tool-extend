@@ -104,6 +104,25 @@ public partial class MainWindow
 
     internal void EnterSetFromForm() => EnterInnerSet();
 
+    /// <summary>테스트 손잡이 — "여기서 안쪽 고치기".</summary>
+    internal bool EnterInstanceInPlaceFromForm() => EnterInstanceInPlace();
+
+    private bool EnterInstanceInPlace()
+    {
+        if (EditedRigNode is not { Set.Length: > 0 } node)
+        {
+            return false;
+        }
+
+        if (!_viewport.EnterInstance(node.Id))
+        {
+            _session.SetStatus("안쪽 고치기는 배치 모드에서만 된다 — 애니메이션 고르기를 푼다(애니메이션은 \"안쪽 세트 열기\"로 그 세트에서 고친다).");
+            return false;
+        }
+
+        return true;
+    }
+
     internal bool SetBackShown => _setBack.IsVisible;
 
     internal void BackToOuterSetFromForm() => BackToOuterSet();
@@ -278,7 +297,9 @@ public partial class MainWindow
         ToolTip.SetTip(enter, "이 오브젝트가 품은 세트를 연다 — 안쪽의 자리·그림·애니메이션을 고친다. 세트 목록 아래의 \"◂ 돌아가기\"로 여기로 돌아온다. 참조라서 고친 것이 품은 곳 모두에 보인다");
         ToolTip.SetTip(_rigNodeSkin, "품은 세트에 입힐 스킨 — 같은 세트를 다른 그림으로 여러 번 품을 수 있다(빨간 차 · 파란 차)");
         _rigInstanceFields.Children.Add(Labeled("안쪽 스킨", _rigNodeSkin));
-        _rigInstanceFields.Children.Add(enter);
+        Button inPlace = SmallButton("여기서 안쪽 고치기", (_, _) => Guard("안쪽 고치기", () => EnterInstanceInPlace()));
+        ToolTip.SetTip(inPlace, "이 세트를 보는 채로, 품은 세트 안쪽의 오브젝트를 뷰포트에서 끌어 고친다 — 둘레의 것과 맞춰 보며 자리를 잡을 때. 뷰포트에서 품은 세트를 더블클릭해도 된다. Esc나 빈 곳 더블클릭으로 나간다. 애니메이션을 고르지 않은 때(배치)만");
+        _rigInstanceFields.Children.Add(new WrapPanel { Orientation = Orientation.Horizontal, Children = { enter, inPlace } });
         _rigNodeFields.Children.Add(_rigInstanceFields);
         _rigNodeSkin.SelectionChanged += (_, _) =>
         {
@@ -338,6 +359,18 @@ public partial class MainWindow
 
             e.Handled = true;
         });
+
+        // 안쪽 고치기에 들어가고 나올 때 — 칸의 안내가 바뀌고, 나오면 그 인스턴스가 골라진다.
+        _viewport.EnteredInstanceChanged += (_, _) =>
+        {
+            if (_viewport.EnteredInstance is null && _viewport.SelectedNode is { } back && EditedRig?.Find(back) is not null)
+            {
+                _rigNodeSelected = back;
+            }
+
+            RefreshSetNodePanel();
+            RebuildHierarchy();
+        };
 
         // 뷰포트에서 집은 오브젝트가 하이어아키와 칸에서도 골라진다.
         _viewport.LayoutNodePicked += (_, id) =>
@@ -1048,6 +1081,7 @@ public partial class MainWindow
             _setNodePanel.IsVisible = rig is not null;
             _rigNodeFields.IsEnabled = node is not null;
             _setNodeTitle.Text = rig is null ? ""
+                : _viewport.EnteredInstance is { } inside ? $"세트 {rig.Kind} › {inside} 안쪽을 고치는 중 — 뷰포트에서 안쪽의 오브젝트를 끌어 자리·배율·회전을 잡는다(품은 세트가 바뀐다 — 품은 곳 모두에 보인다). 숫자로 고치려면 \"안쪽 세트 열기\". Esc로 나간다"
                 : node is null ? $"세트 {rig.Kind} — 오브젝트 {rig.Nodes.Count}개. 하이어아키에서 오브젝트를 고르면 여기서 고친다(우클릭: 더하기 · 지우기 · 순서 · 부모)"
                 : string.IsNullOrEmpty(node.Set) ? $"세트 {rig.Kind} › {node.Id}"
                 : $"세트 {rig.Kind} › {node.Id} → 세트 {node.Set}를 품었다(참조 — 안쪽은 그 세트를 열어 고친다. 이 칸의 자리·배율·회전은 통째로 옮긴다)";

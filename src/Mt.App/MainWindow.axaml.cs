@@ -222,6 +222,7 @@ public partial class MainWindow : Window
         _graph.Clipboard = _clipboard;
         _dope.Clipboard = _clipboard;
         _timeSlider.Viewport = _viewport;
+        _timeSlider.Rejected += message => _session.SetStatus(message);
         _timeSlider.Selection = _selection;
         _timeSlider.Clipboard = _clipboard;
         _rangeSlider.Viewport = _viewport;
