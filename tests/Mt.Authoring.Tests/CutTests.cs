@@ -287,7 +287,7 @@ public class CutTests
         Assert.Equal(120f, HeroX(6), 1); // 밀기 100 × 당기기 4(배율 1.2)
         Assert.Throws<InvalidOperationException>(() => editor.SetCutCameraKey("arrival", 11f, new CameraSettings()));
 
-        // 오브젝트의 키도 하나뿐이어도, 처음과 끝에 없어도 된다 — 컷의 타임라인만 그렇다(세트의 애니메이션은 옛 규칙 그대로).
+        // 오브젝트의 키도 하나뿐이어도, 처음과 끝에 없어도 된다 — 컷의 타임라인도 묶음(세트)의 애니메이션도 같다.
         editor.AddChannel("arrival", "hero", MotionChannelKind.Position);
         editor.AddKey("arrival", "hero", MotionChannelKind.Position, Axis.Y, new KeyAsset { T = 3f, V = 50f });
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
@@ -295,53 +295,46 @@ public class CutTests
         editor.AddMotion("prop_in", "prop", 1f, MotionEnd.Commit);
         editor.AddChannel("prop_in", "Body", MotionChannelKind.Position);
         editor.AddKey("prop_in", "Body", MotionChannelKind.Position, Axis.Y, new KeyAsset { T = 0.5f, V = 50f });
-        Assert.NotEmpty(MotionValidator.Validate(editor.Document, RigAssets.Compose(Dump, editor.Document).NodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, RigAssets.Compose(Dump, editor.Document).NodeIds));
     }
 
     [Fact]
-    public void 깊이의_키는_타임라인에_놓이고_오브젝트가_멀어지면_작아지며_그리는_차례가_바뀐다()
+    public void 컷에서_키가_처음과_끝에_없는_오브젝트를_새_세트로_빼도_문제가_없고_재생이_그대로다()
     {
         (MotionEditor editor, CutAsset _) = StageCut();
-        var depth = DepthTuningFile.Load(Fixtures.PathOf("presets/depth.json"));
+        KeyAsset K(float t, float v) => new() { T = t, V = v };
+        editor.AddChannel("arrival", "hero", MotionChannelKind.Position);
+        editor.SetKeys("arrival", "hero", MotionChannelKind.Position, Axis.X, new[] { K(2f, -200f), K(6f, 300f) }); // 0초에도 10초에도 키가 없다
+        editor.AddKey("arrival", "hero", MotionChannelKind.Position, Axis.Y, K(4f, 80f));                            // 하나뿐인 키
+        editor.AddChannel("arrival", "arm", MotionChannelKind.Euler);
+        editor.SetKeys("arrival", "arm", MotionChannelKind.Euler, Axis.Z, new[] { K(1f, 0f), K(3f, 90f) });
 
-        // hero(mid)가 0초에 깊이 20(가까이), 4초에 깊이 0(멀리) — 각각 한 칸.
-        long revision = editor.Revision;
-        editor.SetCutDepthKey("arrival", "hero", 0f, 20f);
-        editor.SetCutDepthKey("arrival", "hero", 4f, 0f);
-        Assert.Equal(revision + 2, editor.Revision);
-        Assert.True(editor.CutDepthIsKeyed("arrival", "hero"));
-        Assert.False(editor.CutDepthIsKeyed("arrival", "sky"));
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
-        CutAsset cut = editor.Document.FindCut("arrival")!;
-
-        RectNodeTree At(double t)
+        Vec2 At(string node, double t)
         {
+            RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+            CutAsset cut = editor.Document.FindCut("arrival")!;
             RectNodeTree posed = MotionPreview.Pose(CutStage.Build(rig, cut, "cut/")!, editor.Document.Find("arrival")!, t, MotionChannelMode.Absolute, null, "cut/");
-            CutStage.Apply(posed, cut, "cut/", depth);
-            return posed;
+            CutStage.Apply(posed, cut, "cut/", null);
+            return posed.TransformPoint("cut/" + node, new Vec3(10f, 0f, 0f)).XY;
         }
 
-        float Width(RectNodeTree tree) => tree.TransformPoint("cut/hero", new Vec3(50f, 0f, 0f)).X - tree.TransformPoint("cut/hero", new Vec3(-50f, 0f, 0f)).X;
-        Assert.True(Width(At(0)) > Width(At(2)) && Width(At(2)) > Width(At(4)), $"{Width(At(0))} · {Width(At(2))} · {Width(At(4))}");
-        Assert.Equal(20f, CutStage.DepthOf(At(0), cut.Rig.Find("hero")!, "cut/"), 3);
-        Assert.Equal(14f, CutStage.DepthOf(At(0), cut.Rig.Find("near")!, "cut/") - 6f, 3); // 키 없는 near는 적힌 깊이(20)
+        double[] times = { 0, 1, 2, 3.5, 4, 6, 8, 10 };
+        var before = times.Select(t => (At("hero", t), At("arm", t))).ToList();
 
-        // 그리는 차례 — 0초에는 hero가 near(20)와 같은 깊이라 목록 순, 4초에는 맨 뒤(sky와 같은 0 — 목록 순으로 sky 다음).
-        rig.TryGetRig("arrival", out RigSchemaRigDto dto);
-        string[] Order(double t) => CutStage.DrawOrder(cut, dto.nodes, At(t), "cut/").Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsPointNode(id)).ToArray();
-        Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order(0));
-        Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order(4));
-        editor.SetCutNodeDepth("arrival", "sky", 5f);
-        cut = editor.Document.FindCut("arrival")!;
-        Assert.Equal(new[] { "hero", "arm", "sky", "near" }, Order(4)); // hero(0)가 sky(5)보다 멀어졌다
+        // 빼기 — 키들이 그대로 세트의 애니메이션이 되고, 컷은 그것을 재생 블록으로 튼다. 막는 문제가 없다.
+        editor.ExtractRigNodes("arrival", new[] { "hero" }, "cast");
+        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, composed.NodeIds, null, composed.AlphaNodeIds));
+        Assert.Equal(new[] { 2f, 6f }, editor.Document.Find("cast_arrival")!.FindChannel("hero", MotionChannelKind.Position)!.X!.Keys.Select(k => k.T));
 
-        // 이름을 바꾸면 깊이의 트랙이 따라온다. 밑의 오브젝트와 범위 밖은 막힌다. 트랙이 쓰는 이름으로는 오브젝트를 못 만든다.
-        editor.RenameRigNode("arrival", "hero", "actor");
-        Assert.True(editor.CutDepthIsKeyed("arrival", "actor"));
-        Assert.Throws<InvalidOperationException>(() => editor.SetCutDepthKey("arrival", "arm", 0f, 10f));
-        Assert.Throws<InvalidOperationException>(() => editor.SetCutDepthKey("arrival", "actor", 0f, 50f));
-        Assert.Throws<InvalidOperationException>(() => editor.AddRigNode("arrival", "sky__depth"));
+        // 재생은 그대로다 — 첫 키 앞과 마지막 키 뒤로 그 키의 값이 이어지는 것까지.
+        for (int i = 0; i < times.Length; i++)
+        {
+            Vec2 hero = At("cast.hero", times[i]);
+            Vec2 arm = At("cast.arm", times[i]);
+            Assert.True(MathF.Abs(before[i].Item1.X - hero.X) < 1.5f && MathF.Abs(before[i].Item1.Y - hero.Y) < 1.5f, $"hero @ {times[i]}: {before[i].Item1.X},{before[i].Item1.Y} → {hero.X},{hero.Y}");
+            Assert.True(MathF.Abs(before[i].Item2.X - arm.X) < 1.5f && MathF.Abs(before[i].Item2.Y - arm.Y) < 1.5f, $"arm @ {times[i]}: {before[i].Item2.X},{before[i].Item2.Y} → {arm.X},{arm.Y}");
+        }
     }
 
     // ── 그림 키 — 계단 키(표정 바꾸기) ────────────────────────────────

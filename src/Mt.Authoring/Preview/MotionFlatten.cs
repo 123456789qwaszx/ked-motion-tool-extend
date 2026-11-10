@@ -108,7 +108,7 @@ public static class MotionFlatten
                             pieces[key] = list;
                         }
 
-                        list.Add(new Piece(start, child.Duration, curve.Keys, child.PreviewMode, child.End, RestOf(document, inner, channel.Node, channel.Kind, axis)));
+                        list.Add(new Piece(start, child.Duration, Spanning(curve.Keys, child.Duration), child.PreviewMode, child.End, RestOf(document, inner, channel.Node, channel.Kind, axis)));
                     }
                 }
 
@@ -154,6 +154,44 @@ public static class MotionFlatten
         open.Remove(motion.Name);
         done[motion.Name] = result;
         return result;
+    }
+
+    /// <summary>
+    /// 커브가 그 애니메이션의 처음(0초)과 끝(길이)까지 닿게 — 키가 처음과 끝에 없으면 첫 키 앞과 마지막 키 뒤로 그 값이 이어진다(재생의 규칙).
+    /// 굽기는 조각을 "0초의 키부터 길이의 키까지"로 이어 붙이므로, 그 이어짐을 키로 적어 준다.
+    /// </summary>
+    private static List<KeyAsset> Spanning(List<KeyAsset> keys, float duration)
+    {
+        bool head = keys[0].T > MotionRules.Tolerance;
+        bool tail = keys[^1].T < duration - MotionRules.Tolerance;
+
+        if (!head && !tail)
+        {
+            return keys;
+        }
+
+        var spanned = new List<KeyAsset>();
+
+        if (head)
+        {
+            // 0초부터 첫 키까지 평평하다 — 첫 키로 들어오는 기울기를 끊는다.
+            spanned.Add(new KeyAsset { T = 0f, V = keys[0].V, Tangent = TangentMode.Free, Broken = true });
+            spanned.Add(new KeyAsset { T = keys[0].T, V = keys[0].V, InTangent = 0f, OutTangent = keys.Count > 1 ? keys[0].OutTangent : 0f, Tangent = TangentMode.Free, Broken = true });
+            spanned.AddRange(keys.Skip(1));
+        }
+        else
+        {
+            spanned.AddRange(keys);
+        }
+
+        if (tail)
+        {
+            KeyAsset last = spanned[^1];
+            spanned[^1] = new KeyAsset { T = last.T, V = last.V, InTangent = last.InTangent, OutTangent = 0f, Tangent = TangentMode.Free, Broken = true };
+            spanned.Add(new KeyAsset { T = duration, V = last.V, Tangent = TangentMode.Free, Broken = true });
+        }
+
+        return spanned;
     }
 
     /// <summary>조각 하나 — 품은 애니메이션의 커브 하나가 놓인 자리.</summary>

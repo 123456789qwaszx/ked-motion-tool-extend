@@ -49,9 +49,10 @@ public static class MotionValidator
                 problems.Add(new MotionProblem(motion.Name, "같은 이름이 둘이다"));
             }
 
-            // 컷의 타임라인은 키가 처음과 끝에 꼭 있지 않아도 되고 하나뿐이어도 된다(앞뒤로는 그 키의 값이 이어진다) —
-            // "0초에서 시작해 길이에서 끝난다"는 옛 산출물(motions.json)의 규칙이다. 컷은 제 형식으로 나간다(PLAN-standalone.md §7).
-            bool cutTimeline = document.FindCut(motion.Rig) is not null;
+            // 컷의 타임라인과 묶음(세트)의 애니메이션은 키가 처음과 끝에 꼭 있지 않아도 되고 하나뿐이어도 된다(앞뒤로는 그 키의 값이 이어진다) —
+            // "0초에서 시작해 길이에서 끝난다"는 옛 산출물(motions.json)의 규칙이다. 컷은 제 형식으로 나가고(PLAN-standalone.md §7) 묶음은 컷에 구워져 나간다.
+            // 컷에서 고른 것을 새 세트로 빼면 그 키들이 그대로 세트의 애니메이션이 되므로, 둘의 규칙이 같아야 한다.
+            bool cutTimeline = document.FindRig(motion.Rig) is not null; // 툴이 정의한 것(컷 · 세트) — 덤프의 리그(캐릭터)는 옛 규칙 그대로
             problems.AddRange(ValidateMotion(motion, rigNodeIds, controllers, alphaNodeIds).Where(p => !cutTimeline || !CutRelaxed.Any(text => p.Message.Contains(text, StringComparison.Ordinal))));
 
             // 재생 블록 — 인스턴스나 애니메이션이 사라졌으면 그 블록은 구울 때 빠진다(막지는 않고 알린다).
@@ -78,7 +79,7 @@ public static class MotionValidator
         return problems;
     }
 
-    /// <summary>컷의 타임라인에는 걸지 않는 모양 규칙의 문구(코어 <see cref="MotionRules"/>의 것).</summary>
+    /// <summary>컷의 타임라인과 세트의 애니메이션에는 걸지 않는 모양 규칙의 문구(코어 <see cref="MotionRules"/>의 것).</summary>
     private static readonly string[] CutRelaxed = { "키가 2개 이상이어야 한다", "첫 키 시각이 0이 아니다", "마지막 키 시각이 길이와 다르다" };
 
     public static IReadOnlyList<MotionProblem> ValidateMotion(
