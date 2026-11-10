@@ -265,7 +265,7 @@ public class CutTests
         Assert.Equal(revision + 2, editor.Revision);
         Assert.True(editor.CutCameraIsKeyed("arrival"));
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 그 시각의 포즈 — 타임라인을 얹은 뒤 카메라와 깊이를 넣는다. 키 앞뒤로는 그 키의 값이 이어진다.
         float HeroX(double t)
@@ -290,7 +290,7 @@ public class CutTests
         // 오브젝트의 키도 하나뿐이어도, 처음과 끝에 없어도 된다 — 컷의 타임라인도 묶음(세트)의 애니메이션도 같다.
         editor.AddChannel("arrival", "hero", MotionChannelKind.Position);
         editor.AddKey("arrival", "hero", MotionChannelKind.Position, Axis.Y, new KeyAsset { T = 3f, V = 50f });
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
         editor.AddRig(new RigAsset { Kind = "prop", Nodes = { new RigNodeAsset { Id = "Body", Alpha = true } } });
         editor.AddMotion("prop_in", "prop", 1f, MotionEnd.Commit);
         editor.AddChannel("prop_in", "Body", MotionChannelKind.Position);
@@ -324,7 +324,7 @@ public class CutTests
         // 빼기 — 키들이 그대로 세트의 애니메이션이 되고, 컷은 그것을 재생 블록으로 튼다. 막는 문제가 없다.
         editor.ExtractRigNodes("arrival", new[] { "hero" }, "cast");
         RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, composed.NodeIds, null, composed.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, composed.NodeIds, composed.AlphaNodeIds));
         Assert.Equal(new[] { 2f, 6f }, editor.Document.Find("cast_arrival")!.FindChannel("hero", MotionChannelKind.Position)!.X!.Keys.Select(k => k.T));
 
         // 재생은 그대로다 — 첫 키 앞과 마지막 키 뒤로 그 키의 값이 이어지는 것까지.
@@ -369,7 +369,7 @@ public class CutTests
         Assert.Contains("\"swaps\"", json, StringComparison.Ordinal);
         Assert.Equal(json, MotionDocumentJson.Write(MotionDocumentJson.Read(json)));
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 막는 것: 그림 없는 키 · 길이 밖 · 그림을 그리지 않는 오브젝트.
         revision = editor.Revision;

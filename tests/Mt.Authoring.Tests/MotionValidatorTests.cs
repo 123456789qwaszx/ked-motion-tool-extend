@@ -247,6 +247,12 @@ public class ToolSettingsTests
             var broken = Mt.Authoring.Settings.ToolSettings.Load(path);
             Assert.True(broken.SnapEnabled);
             Assert.NotNull(broken.LoadProblem);
+
+            // 걷어 낸 설정 키가 든 옛 파일도 그대로 열린다 — 그 키는 무시된다.
+            File.WriteAllText(path, """{ "snapEnabled": false, "showRigNodes": true, "collapsedChannelBoxGroups": ["placement"] }""");
+            var old = Mt.Authoring.Settings.ToolSettings.Load(path);
+            Assert.Null(old.LoadProblem);
+            Assert.False(old.SnapEnabled);
         }
         finally
         {

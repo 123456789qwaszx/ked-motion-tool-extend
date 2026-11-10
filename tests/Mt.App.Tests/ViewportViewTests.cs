@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
-using Avalonia.Media.Imaging;
 using Ked.Presentation.Core;
 using Mt.App.Views;
 using Mt.Authoring.Editing;
@@ -84,23 +83,23 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 리그를_실으면_초상이_서고_포즈가_시각을_따른다() => HeadlessUi.Run(() =>
+    public void 리그를_실으면_오브젝트가_서고_포즈가_시각을_따른다() => HeadlessUi.Run(() =>
     {
         (Window window, ViewportView view, _) = Show();
 
         try
         {
             Assert.True(view.HasRig);
-            Quad rest = view.CurrentPortraitQuad() ?? throw new InvalidOperationException("초상이 없다");
+            Quad rest = view.CurrentObjectQuad() ?? throw new InvalidOperationException("오브젝트가 없다");
             Assert.Equal(0f, rest.Center.Y, 2);
 
             view.ScrubTo(0.3);
-            Quad dipped = view.CurrentPortraitQuad()!.Value;
+            Quad dipped = view.CurrentObjectQuad()!.Value;
             Assert.Equal(-18f, dipped.Center.Y, 2);
 
             // 길이에서는 restore라 시작 상태.
             view.ScrubTo(0.6);
-            Assert.Equal(0f, view.CurrentPortraitQuad()!.Value.Center.Y, 2);
+            Assert.Equal(0f, view.CurrentObjectQuad()!.Value.Center.Y, 2);
         }
         finally
         {
@@ -380,13 +379,13 @@ public class ViewportViewTests
         {
             var y = new Mt.Authoring.Graph.CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Mt.Authoring.Model.Axis.Y);
             view.ScrubTo(0.3);
-            Assert.Equal(-18f, view.CurrentPortraitQuad()!.Value.Center.Y, 2);
+            Assert.Equal(-18f, view.CurrentObjectQuad()!.Value.Center.Y, 2);
 
             view.Flags.SetMuted(y, true);
-            Assert.Equal(0f, view.CurrentPortraitQuad()!.Value.Center.Y, 2);
+            Assert.Equal(0f, view.CurrentObjectQuad()!.Value.Center.Y, 2);
 
             view.Flags.SetMuted(y, false);
-            Assert.Equal(-18f, view.CurrentPortraitQuad()!.Value.Center.Y, 2);
+            Assert.Equal(-18f, view.CurrentObjectQuad()!.Value.Center.Y, 2);
         }
         finally
         {
@@ -409,9 +408,9 @@ public class ViewportViewTests
             Quad second = view.ObjectQuad("s2")!.Value;
             Assert.Equal(300f, second.BottomLeft.X - first.BottomLeft.X, 1);
 
-            // 두 번째 오브젝트의 초상 가운데를 클릭하면 그것이 선택된다.
+            // 두 번째 오브젝트의 가운데를 클릭하면 그것이 선택된다.
             Vec2 center = (second.BottomLeft + second.TopRight) * 0.5f;
-            Vec2 canvas = PortraitLayout.ToCanvas(center, view.StageSize);
+            Vec2 canvas = StageQuads.ToCanvas(center, view.StageSize);
             Rect stage = view.StageRect;
             double scale = stage.Width / view.StageSize.X;
             Point at = view.TranslatePoint(new Point(stage.X + canvas.X * scale, stage.Y + canvas.Y * scale), window)!.Value;
@@ -467,33 +466,7 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 초상_비트맵이_종횡비를_정하고_없으면_자리표시다() => HeadlessUi.Run(() =>
-    {
-        (Window window, ViewportView view, _) = Show();
-
-        try
-        {
-            Assert.Equal(PortraitLayout.PlaceholderAspect, view.Aspect);
-
-            using var bitmap = new WriteableBitmap(new PixelSize(80, 100), new Vector(96, 96));
-            view.SetPortrait(bitmap);
-
-            Assert.Equal(0.8f, view.Aspect, 4);
-            Quad quad = view.CurrentPortraitQuad()!.Value;
-            Assert.Equal(864f, (quad.BottomRight - quad.BottomLeft).X, 1);
-            Assert.Equal(1080f, (quad.TopLeft - quad.BottomLeft).Y, 1);
-
-            view.SetPortrait(null);
-            Assert.Equal(PortraitLayout.PlaceholderAspect, view.Aspect);
-        }
-        finally
-        {
-            window.Close();
-        }
-    });
-
-    [Fact]
-    public void 리그가_없거나_rigKind가_다르면_초상이_없다_그래도_그려진다() => HeadlessUi.Run(() =>
+    public void 리그가_없으면_오브젝트가_없고_rigKind가_다른_모션이어도_그려진다() => HeadlessUi.Run(() =>
     {
         MotionEditor editor = TestDocuments.Nod();
         editor.AddMotion("robot_wave", "robot", 1f);
@@ -505,7 +478,7 @@ public class ViewportViewTests
         {
             view.Bind(editor, "nod");
             Assert.False(view.HasRig);
-            Assert.Null(view.CurrentPortraitQuad());
+            Assert.Null(view.CurrentObjectQuad());
 
             view.SetRig(RigSchemaFile.Load(TestDocuments.FixturePath("rig-schemas.json")));
             Assert.True(view.HasRig);
@@ -513,7 +486,7 @@ public class ViewportViewTests
             // 리그가 다른 모션: 오브젝트(s1 character)는 그대로 서고, 모션만 안 맞는다.
             view.Bind(editor, "robot_wave");
             Assert.True(view.HasRig);
-            Assert.NotNull(view.CurrentPortraitQuad());
+            Assert.NotNull(view.CurrentObjectQuad());
             Assert.False(view.CanWear(view.SelectedObject!));
             view.InvalidateVisual();
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();

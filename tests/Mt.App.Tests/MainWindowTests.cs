@@ -1,4 +1,3 @@
-using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -102,7 +101,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 뷰포트와_그래프의_현재_시각은_하나이고_리그를_실으면_뷰포트에_초상이_선다()
+    public void 뷰포트와_그래프의_현재_시각은_하나이고_리그를_실으면_뷰포트에_오브젝트가_선다()
     {
         HeadlessUi.Run(() =>
         {
@@ -116,7 +115,7 @@ public class MainWindowTests
 
                 Assert.Equal("nod", window.Viewport.MotionName);
                 Assert.True(window.Viewport.HasRig);
-                Assert.NotNull(window.Viewport.CurrentPortraitQuad());
+                Assert.NotNull(window.Viewport.CurrentObjectQuad());
 
                 window.Viewport.ScrubTo(0.25);
                 Assert.Equal(0.25, window.Graph.CurrentTime, 9);
@@ -312,7 +311,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 채널_박스는_컨트롤러_자리_깊이_연기이고_값을_넣으면_그_노드에_키가_된다()
+    public void 채널_박스는_고른_노드의_성분이고_값을_넣으면_그_노드에_키가_된다()
     {
         HeadlessUi.Run(() =>
         {
@@ -321,76 +320,44 @@ public class MainWindowTests
 
             try
             {
+                const string node = "CharacterPortrait_SwayPivot";
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
                 window.AddMotionFromForm("step", "character", "0.6", MotionEnd.Commit);
                 window.AddObjectFromForm("s2", "character", "front");
                 Assert.Equal(2, window.HierarchyObjectCount);
 
-                window.SelectInHierarchy("s2", "CharacterPortrait_Track_Move_Y");
+                window.SelectInHierarchy("s2", node);
                 Assert.Equal("s2", window.Viewport.SelectedObjectId);
-                Assert.Equal("CharacterPortrait_Track_Move_Y", window.ChannelBoxNode);
-                Assert.Equal("ctl:character", window.ChannelBoxLayout);
+                Assert.Equal(node, window.ChannelBoxNode);
 
-                // 컨트롤러 값은 포즈다 — 몸 0, 크기 1, 깊이는 층(front = 16)을 level로 되돌린 값.
-                Assert.Equal("0", window.ControllerValueText("body", Axis.X));
-                Assert.Equal("1", window.ControllerValueText("squash", Axis.X));
-                Assert.Equal(16.0, double.Parse(window.ControllerValueText("depth", Axis.X), CultureInfo.InvariantCulture), 2);
+                // 칸의 값은 포즈다 — 회전 0, 배율 1.
+                Assert.Equal("0", window.ChannelBoxValue(MotionChannelKind.Euler, Axis.Z));
+                Assert.Equal("1", window.ChannelBoxValue(MotionChannelKind.Scale, Axis.X));
 
-                // 첫 키가 깊이(absolute 묶음)면 재생 기준(relative/absolute)가 absolute로 — 키 값은 level 20의 배율(2.2) 그대로, X·Y 둘.
+                // Auto Key면 값을 넣는 순간 그 노드에 키 — 재생 기준이 상대값이고 가만히 선 값이 0이라 키 값 = 넣은 값.
                 window.AutoKeyChecked = true;
                 window.Viewport.ScrubTo(0.25);
-                window.SetControllerValue("depth", Axis.X, "20");
+                window.SetChannelBoxValue(MotionChannelKind.Euler, Axis.Z, "15");
                 MotionAsset step = window.Session.Editor.Document.Find("step")!;
-                Assert.Equal(MotionChannelMode.Absolute, step.PreviewMode);
-                ChannelAsset depth = step.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!;
-                Assert.Equal(2.2, depth.X!.Keys.Single().V, 3);
-                Assert.Equal(2.2, depth.Y!.Keys.Single().V, 3);
-                Assert.Equal("20", window.ControllerValueText("depth", Axis.X));
-                // 같은 손잡이가 DepthY도 굽는다 — 얼굴(bust 820) 제자리: −820 × (2.2 − 1) = −984. 되돌리기 하나.
-                Assert.Equal(-984.0, step.FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
+                Assert.Equal(15.0, step.FindChannel(node, MotionChannelKind.Euler)!.Z!.Keys.Single().V, 3);
+                Assert.Equal("15", window.ChannelBoxValue(MotionChannelKind.Euler, Axis.Z));
+
+                // += 는 지금 값에 상대 — 같은 시각의 키가 바뀐다.
+                window.SetChannelBoxValue(MotionChannelKind.Euler, Axis.Z, "+=5");
+                step = window.Session.Editor.Document.Find("step")!;
+                Assert.Equal(20.0, step.FindChannel(node, MotionChannelKind.Euler)!.Z!.Keys.Single().V, 3);
+
+                // ● 는 지금 값으로 지금 시각에 키 — 채널이 없는 성분이면 채널이 생긴다. 되돌리기 한 번.
+                window.Viewport.ScrubTo(0.5);
+                long revision = window.Session.Editor.Revision;
+                window.KeyChannelBoxComponent(MotionChannelKind.Position, Axis.X);
+                Assert.Equal(revision + 1, window.Session.Editor.Revision);
+                step = window.Session.Editor.Document.Find("step")!;
+                KeyAsset key = step.FindChannel(node, MotionChannelKind.Position)!.X!.Keys.Single();
+                Assert.Equal(0.5f, key.T, 3);
+                Assert.Equal(0f, key.V, 3);
                 window.Session.Editor.Undo();
-                Assert.Null(window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_DepthY", MotionChannelKind.Position));
-                Assert.Null(window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
-                window.Session.Editor.Redo();
-                step = window.Session.Editor.Document.Find("step")!;
-                Assert.Equal(-984.0, step.FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
-
-                // 숙임 15 → CharacterPortrait_SwayPivot euler Z 키(absolute 미리보기라 값 그대로).
-                window.SetControllerValue("bow", Axis.Z, "15");
-                step = window.Session.Editor.Document.Find("step")!;
-                Assert.Equal(15.0, step.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler)!.Z!.Keys.Single().V, 3);
-                Assert.Equal("15", window.ControllerValueText("bow", Axis.Z));
-                Assert.DoesNotContain(window.ProblemsShown, p => !p.Blocking); // absolute 미리보기 — 경고 없음
-
-                // relative로 돌리면 자리·깊이 컨트롤러 경고(막지 않음) → 두 모션으로 나누기: 깊이는 step_place로, 숙임은 남는다.
-                window.Session.Editor.SetPreviewMode("step", MotionChannelMode.Relative);
-                MotionProblem warning = Assert.Single(window.ProblemsShown, p => p.MotionName == "step" && !p.Blocking);
-                Assert.False(warning.Blocking);
-                Assert.True(window.ApplyFix("step", Mt.Authoring.Validation.MotionFix.SplitByGroup));
-                MotionAsset place = window.Session.Editor.Document.Find("step_place")!;
-                Assert.Equal(MotionChannelMode.Absolute, place.PreviewMode);
-                Assert.NotNull(place.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
-                Assert.NotNull(place.FindChannel("CharSlot_DepthY", MotionChannelKind.Position)); // 깊이 Y도 깊이 묶음
-                Assert.Null(window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
-                Assert.NotNull(window.Session.Editor.Document.Find("step")!.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler));
-                Assert.DoesNotContain(window.ProblemsShown, p => !p.Blocking);
-
-                // 옛 모션(nod는 Track_Move_Y)은 "몸 Y"로 보이고, 그 성분에 값을 넣으면 있는 채널(별칭 노드)에 키가 간다.
-                window.Session.ImportMotions(TestDocuments.FixturePath("motions.nod-bow.json"));
-                window.SelectMotion("nod");
-                window.SelectInHierarchy("s2", null);
-                window.Viewport.ScrubTo(0.3);
-                Assert.Equal("-18", window.ControllerValueText("body", Axis.Y));
-                window.SetControllerValue("body", Axis.Y, "-20");
-                MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
-                Assert.Null(nod.FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position));
-                Assert.Equal(-20.0, nod.FindChannel("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position)!.Y!.Keys.Single(k => Math.Abs(k.T - 0.3f) < 1e-4).V, 3);
-
-                // ● 는 지금 값으로 지금 시각에 키 — 채널이 없는 성분은 주 노드에 생긴다.
-                window.Viewport.ScrubTo(0.1);
-                window.KeyControllerFromBox("shake", Axis.X);
-                nod = window.Session.Editor.Document.Find("nod")!;
-                Assert.Equal(0.0, nod.FindChannel("CharacterPortrait_Shake", MotionChannelKind.Position)!.X!.Keys.Single().V, 3);
+                Assert.Null(window.Session.Editor.Document.Find("step")!.FindChannel(node, MotionChannelKind.Position));
             }
             finally
             {
@@ -466,7 +433,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 아웃라이너는_모션의_컨트롤러_전부_표_순서이고_흐린_성분_클릭은_만들지_않으며_키_없는_컨트롤러를_고르면_그래프가_비고_S가_고른_컨트롤러를_키한다()
+    public void 아웃라이너는_모션의_채널을_노드로_보이고_흐린_성분_클릭은_만들지_않으며_S가_고른_노드를_키한다()
     {
         HeadlessUi.Run(() =>
         {
@@ -482,18 +449,14 @@ public class MainWindowTests
                 window.AddChannelFromForm(y.Node, y.Kind);
                 window.Session.Editor.SetKeys("nod", y.Node, y.Kind, y.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.3f, -18f), TestDocuments.Key(0.6f, 0f) });
 
-                // 컨트롤러 10개 전부, 표 순서 그대로(선택·키와 무관 — 순서가 바뀌면 헷갈린다).
-                // 행 수 = 컨트롤러 10 + 표가 쓰는 성분(B): 몸 2 · 자리 2 · 슬롯 기울기 1 · 자세 배율 2 · 깊이 3(배율 X·Y + 깊이 Y) · 기울기 1 · 숙임 1 · 떨림 2 · 크기 2 · 방향 1 = 17.
-                string[] tableOrder = { "place", "slotLean", "stance", "depth", "body", "lean", "bow", "shake", "squash", "facing" };
-                Assert.Equal(tableOrder, window.OutlinerOrder);
-                Assert.Equal(27, window.OutlinerRowCount);
+                // 채널 하나 = 제목 줄 + 그 종류의 성분 전부(위치는 X·Y — 없는 것은 흐리게).
+                Assert.Equal(3, window.OutlinerRowCount);
                 Assert.Single(window.Graph.Curves);
 
-                // 흐린 성분(몸 X) 클릭은 성분을 만들지 않는다(A2) — 그 컨트롤러를 고를 뿐.
+                // 흐린 성분(X) 클릭은 성분을 만들지 않는다(마야식).
                 window.OutlinerClick(x, additive: false);
                 Assert.Single(window.Graph.Curves);
                 Assert.Null(window.Session.Editor.Document.Find("nod")!.FindChannel(x.Node, x.Kind)!.X);
-                Assert.Equal("CharacterPortrait_Track_Move_Y", window.Viewport.SelectedNode);
 
                 // 있는 성분 클릭은 그 커브만 · 더하기.
                 window.Session.Editor.SetKeys("nod", x.Node, x.Kind, x.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.6f, 0f) });
@@ -504,48 +467,31 @@ public class MainWindowTests
                 window.OutlinerClick(x, additive: true);
                 Assert.All(window.Graph.Curves, c => Assert.True(c.Visible));
 
-                // 하이어아키에서 키 없는 숙임을 고르면 순서는 그대로, 그래프는 빈다(전에 보던 몸 커브를 남기지 않는다). 몸을 다시 고르면 몸 커브만.
-                window.SelectControllerInHierarchy("s1", "bow");
-                Assert.Equal(tableOrder, window.OutlinerOrder);
-                Assert.All(window.Graph.Curves, c => Assert.False(c.Visible));
-                window.SelectControllerInHierarchy("s1", "body");
-                Assert.True(window.Graph.Curves.Single(c => c.Curve == y).Visible); // 몸 Y(별칭 Track_Move_Y)
-                Assert.False(window.Graph.Curves.Single(c => c.Curve == x).Visible); // Track_Move_Y의 X는 몸의 성분이 아니다(별칭은 Y만)
-                window.SelectControllerInHierarchy("s1", "bow");
-
-                // 검색은 컨트롤러 이름·id·노드로 거른다.
+                // 검색은 노드 이름·종류로 거른다.
                 window.OutlinerQuery = "없는노드";
                 Assert.Equal(0, window.OutlinerRowCount);
-                window.OutlinerQuery = "몸";
-                Assert.Equal(3, window.OutlinerRowCount); // 몸 + X·Y
+                window.OutlinerQuery = "Track_Move";
+                Assert.Equal(3, window.OutlinerRowCount);
                 window.OutlinerQuery = "";
+
+                // S = 고른 노드의 있는 성분을 지금 값으로 현재 시각에 키 — 키 없는 포즈가 없어도. 되돌리기 한 번.
+                window.SelectInHierarchy("s1", y.Node);
+                window.Viewport.ScrubTo(0.15);
+                long revision = window.Session.Editor.Revision;
+                window.KeyPressQwerty(PhysicalKey.S, RawInputModifiers.None);
+                Assert.Equal(revision + 1, window.Session.Editor.Revision);
+                ChannelAsset moveY = window.Session.Editor.Document.Find("nod")!.FindChannel(y.Node, y.Kind)!;
+                Assert.Contains(moveY.Y!.Keys, k => Math.Abs(k.T - 0.15f) < 1e-4);
+                Assert.Equal(4, moveY.Y.Keys.Count);
+                window.Session.Editor.Undo();
 
                 // 성분 하나 삭제는 다른 성분을 남기고, 마지막 성분이면 채널이 없어진다.
                 window.RemoveComponentFromOutliner(x);
-                ChannelAsset moveY = window.Session.Editor.Document.Find("nod")!.FindChannel(y.Node, y.Kind)!;
+                moveY = window.Session.Editor.Document.Find("nod")!.FindChannel(y.Node, y.Kind)!;
                 Assert.Null(moveY.X);
                 Assert.NotNull(moveY.Y);
                 window.RemoveComponentFromOutliner(y);
                 Assert.Null(window.Session.Editor.Document.Find("nod")!.FindChannel(y.Node, y.Kind));
-
-                // S = 고른 컨트롤러(숙임)의 지금 값을 현재 시각에 키 — 키 없는 포즈가 없어도.
-                window.Viewport.ScrubTo(0.25);
-                window.SetKeyFromShell();
-                KeyAsset bowKey = window.Session.Editor.Document.Find("nod")!.FindChannel("CharacterPortrait_SwayPivot", MotionChannelKind.Euler)!.Z!.Keys.Single();
-                Assert.Equal(0.25f, bowKey.T, 3);
-                Assert.Equal(0f, bowKey.V, 3);
-                Assert.Equal(tableOrder, window.OutlinerOrder);
-
-                // 깊이를 고르고 S(단축키) — 배율 X·Y와 깊이 Y가 한 번에(되돌리기 하나). 키 값은 재생 기준(relative/absolute)대로(absolute): s1은 mid라 1.708 · −580.56.
-                window.Session.Editor.SetPreviewMode("nod", MotionChannelMode.Absolute);
-                window.SelectControllerInHierarchy("s1", "depth");
-                long revision = window.Session.Editor.Revision;
-                window.KeyPressQwerty(PhysicalKey.S, RawInputModifiers.None);
-                Assert.Equal(revision + 1, window.Session.Editor.Revision);
-                MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
-                Assert.Equal(1.708, nod.FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.X!.Keys.Single().V, 2);
-                Assert.Equal(-580.56, nod.FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 1);
-                Assert.Equal(tableOrder, window.OutlinerOrder);
 
                 // 시간 표시는 프레임이 기본: 0.5초 = 12프레임.
                 window.Viewport.ScrubTo(0.5);
@@ -675,85 +621,6 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 하이어아키_기본은_오브젝트_밑에_자리_깊이_연기_컨트롤러이고_고르면_그_노드가_손잡이다()
-    {
-        HeadlessUi.Run(() =>
-        {
-            MainWindow window = NewWindow();
-            window.Show();
-
-            try
-            {
-                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                Assert.False(window.ShowRigNodes);
-
-                // 오브젝트 › 묶음(라벨 · mode) › 컨트롤러(라벨 · 종류 성분). 노드 항목은 없다.
-                IReadOnlyList<string> body = window.HierarchyPathOfController("s1", "body");
-                Assert.Equal(new[] { "s1  ·  character", "연기  ·  상대값", "몸  ·  position XY" }, body.TakeLast(3));
-                Assert.Equal("자리  ·  절대값", window.HierarchyPathOfController("s1", "place")[^2]);
-                Assert.Equal("깊이  ·  절대값", window.HierarchyPathOfController("s1", "depth")[^2]);
-                Assert.Equal("발 기준 회전  ·  rotate Z", window.HierarchyPathOfController("s1", "bow")[^1]);
-                Assert.Empty(window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move"));
-
-                // 컨트롤러를 고르면 그 오브젝트 + 주 노드 + 종류의 매니퓰레이터(선택(Q)이면 그대로).
-                window.Viewport.Manipulator = ManipulatorMode.Move;
-                window.SelectControllerInHierarchy("s1", "bow");
-                Assert.Equal("s1", window.Viewport.SelectedObjectId);
-                Assert.Equal("CharacterPortrait_SwayPivot", window.Viewport.SelectedNode);
-                Assert.Equal(ManipulatorMode.Rotate, window.Manipulator);
-                window.Viewport.Manipulator = ManipulatorMode.Select;
-                window.SelectControllerInHierarchy("s1", "squash");
-                Assert.Equal(ManipulatorMode.Select, window.Manipulator);
-                Assert.Equal("CharacterPortrait_ActingScale", window.Viewport.SelectedNode);
-
-                // W/E/R(C4): 고른 컨트롤러가 그 종류를 받으면 그 노드 그대로(자리 X·Y), 아니면 표의 기본 손잡이(몸·숙임·크기)로.
-                window.SelectControllerInHierarchy("s1", "place");
-                Assert.Equal("CharSlot_Track", window.Viewport.SelectedNode);
-                window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.None);
-                Assert.Equal("CharSlot_Track", window.Viewport.SelectedNode);
-                window.KeyPressQwerty(PhysicalKey.E, RawInputModifiers.None);
-                Assert.Equal(ManipulatorMode.Rotate, window.Manipulator);
-                Assert.Equal("CharacterPortrait_SwayPivot", window.Viewport.SelectedNode);
-                window.KeyPressQwerty(PhysicalKey.R, RawInputModifiers.None);
-                Assert.Equal("CharacterPortrait_ActingScale", window.Viewport.SelectedNode);
-                window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.None);
-                Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedNode);
-                window.KeyPressQwerty(PhysicalKey.Q, RawInputModifiers.None);
-                Assert.Equal("CharacterPortrait_Track_Move", window.Viewport.SelectedNode); // Q는 노드를 안 옮긴다
-
-                // 컨트롤러 위에서 만들기 = 그 오브젝트와 같은 무대·층에(오브젝트끼리 부모·자식은 없다). 트리에서는 s1 옆.
-                string s2 = window.CreateObjectAtController("character", "s1", "body");
-                Assert.Equal(s2, window.Viewport.SelectedObjectId);
-                Assert.Equal("mid", window.Viewport.SelectedObject!.Layer);
-                Assert.Equal(window.HierarchyPathOf("s1", null)[^2], window.HierarchyPathOf(s2, null)[^2]);
-
-                // 프리셋에서 추가(C5): 선택 오브젝트의 리그로, 표가 노드를 푼다. 목록이 그 모션을 고른다. 문제 없음.
-                window.SelectInHierarchy("s1", null);
-                Assert.Equal("nod", window.AddPresetFromForm("nod"));
-                Assert.Equal("nod", window.SelectedMotion);
-                MotionAsset nod = window.Session.Editor.Document.Find("nod")!;
-                Assert.Equal("character", nod.Rig);
-                Assert.NotNull(nod.FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!.Y);
-                Assert.Empty(window.ProblemsShown);
-                Assert.Equal("nod_2", window.AddPresetFromForm("nod"));
-                window.Session.Editor.Undo();
-                Assert.Null(window.Session.Editor.Document.Find("nod_2"));
-
-                // "리그 노드 보기"면 덤프 노드 26단. 끄면 다시 컨트롤러.
-                window.ShowRigNodes = true;
-                Assert.Empty(window.HierarchyPathOfController("s1", "body"));
-                Assert.NotEmpty(window.HierarchyPathOf("s1", "CharacterPortrait_Track_Move"));
-                window.ShowRigNodes = false;
-                Assert.Equal("몸  ·  position XY", window.HierarchyPathOfController("s1", "body")[^1]);
-            }
-            finally
-            {
-                window.Close();
-            }
-        });
-    }
-
-    [Fact]
     public void 인스펙터는_탭_셋이고_마지막_탭은_설정에_남는다()
     {
         HeadlessUi.Run(() =>
@@ -779,7 +646,7 @@ public class MainWindowTests
     // 설정 창·단축키 창은 헤드리스 세션(창 하나 전제)에서 두 번째 창을 열면 UI 스레드가 멈춰 여기서 열지 않는다 — 데스크톱에서 확인한다.
 
     [Fact]
-    public void 채널_박스_묶음은_접히고_접힌_묶음에도_값이_들어가며_무대_뼈대는_기본_숨김이다()
+    public void 무대_뼈대는_기본_숨김이고_켜면_전부_보인다()
     {
         HeadlessUi.Run(() =>
         {
@@ -789,15 +656,6 @@ public class MainWindowTests
             try
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                window.AddMotionFromForm("step", "character", "0.5", MotionEnd.Commit);
-                window.SelectInHierarchy("s1", null);
-                window.ToggleChannelBoxGroup("placement");
-                Assert.Contains("placement", window.Settings.CollapsedChannelBoxGroups);
-                window.AutoKeyChecked = true;
-                window.SetControllerValue("place", Axis.X, "40");
-                Assert.Equal(40.0, window.Session.Editor.Document.Find("step")!.FindChannel("CharSlot_Track", MotionChannelKind.Position)!.X!.Keys.Single().V, 3);
-                window.ToggleChannelBoxGroup("placement");
-                Assert.DoesNotContain("placement", window.Settings.CollapsedChannelBoxGroups);
 
                 // 뼈대는 기본 숨김: Scene › Stage00 › mid › s1. 켜면 26단 뼈대.
                 Assert.Equal(new[] { "Scene  scene  ·  PresentataionUIRoot", "Stage00", "mid" }, window.HierarchyPathOf("s1", null).Take(3));
@@ -824,7 +682,6 @@ public class MainWindowTests
             try
             {
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                window.ShowRigNodes = true; // 기본은 컨트롤러 보기 — 이 테스트는 리거의 노드 보기
                 window.ShowStageSkeleton = true; // 기본은 Scene › 무대 › 층만 — 이 테스트는 뼈대 전체
 
                 // 리그 노드는 연기/배치 폴더가 아니라 덤프의 parent 사슬이다. 오브젝트 항목이 곧 __root.
@@ -858,36 +715,6 @@ public class MainWindowTests
                 window.DuplicateSelectedFromMenu();
                 Assert.Equal("s2", window.Viewport.SelectedObjectId);
                 Assert.Equal(3, window.HierarchyObjectCount);
-            }
-            finally
-            {
-                window.Close();
-            }
-        });
-    }
-
-    [Fact]
-    public void 자리_콤보는_place_폴드를_탄다()
-    {
-        HeadlessUi.Run(() =>
-        {
-            MainWindow window = NewWindow();
-            window.Show();
-
-            try
-            {
-                window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
-                window.CommitObjectPlacementFromForm(200f, -40f, 0f, 1f, 1f); // s1
-
-                // 자리(place) — 씬 탭 콤보로. Track_Focus가 코어 place 폴드로 풀린다.
-                window.SelectInHierarchy("s1", null);
-                window.SetPlaceFromForm("right", "face");
-                Mt.Authoring.Model.SceneObject s1 = window.Viewport.Scene!.Find("s1")!;
-                Assert.Equal("right", s1.Place);
-                Assert.Equal("face", s1.PlaceFocus);
-                // place는 오프셋을 모른다(런타임 대본 순서: place → move_by). focus 점이 화면 오른쪽 지점(0.24·1920)에 서고, 오프셋(move) 200은 그 위에 더해진다.
-                Assert.Equal(0.24f * 1920f, window.Viewport.CurrentPose()!.GetState("s1/CharSlot_Track_Focus").AnchoredPosition.X, 1);
-                Assert.Equal(200f, window.Viewport.CurrentPose()!.GetState("s1/CharSlot_Track").AnchoredPosition.X, 1);
             }
             finally
             {
@@ -1011,7 +838,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 복합_조작은_되돌리기_한_칸이다_여러_성분_pending_S_깊이_셋_첫_키와_재생_기준()
+    public void 복합_조작은_되돌리기_한_칸이다_여러_성분_pending_S()
     {
         HeadlessUi.Run(() =>
         {
@@ -1020,64 +847,34 @@ public class MainWindowTests
 
             try
             {
+                const string node = "CharacterPortrait_Track_Move";
                 window.Session.LoadRig(TestDocuments.FixturePath("rig-schemas.json"));
                 window.AddMotionFromForm("step", "character", "0.6", MotionEnd.Commit);
                 var editor = window.Session.Editor;
                 MotionAsset Step() => editor.Document.Find("step")!;
                 window.AutoKeyChecked = false;
+                window.SelectInHierarchy("s1", node);
                 window.Viewport.ScrubTo(0.25);
 
-                // Auto Key OFF에서 깊이를 바꾸고 S — DepthScale X·Y와 DepthY가 한 칸으로 생기고 한 칸으로 사라진다.
-                // (첫 키라 재생 기준이 absolute로 — 채널이 없는 모션에서만 자동으로 바뀐다.)
-                window.SetControllerValue("depth", Axis.X, "20");
-                Assert.Equal(MotionChannelMode.Absolute, Step().PreviewMode);
-                Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
+                // 좌우·상하 두 성분을 키 없는 포즈로 두고 S — 키 확정은 한 칸(가만히 선 값이 0이라 키 값 = 넣은 값).
+                window.SetChannelBoxValue(MotionChannelKind.Position, Axis.X, "10");
+                window.SetChannelBoxValue(MotionChannelKind.Position, Axis.Y, "-5");
+                Assert.True(window.Viewport.HasPending);
+                Assert.Null(Step().FindChannel(node, MotionChannelKind.Position));
                 long before = editor.Revision;
                 window.SetKeyFromShell();
+                ChannelAsset body = Step().FindChannel(node, MotionChannelKind.Position)!;
+                Assert.Equal(10f, body.X!.Keys.Single().V, 3);
+                Assert.Equal(-5f, body.Y!.Keys.Single().V, 3);
                 Assert.Equal(before + 1, editor.Revision);
-                Assert.Equal(2.2, Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.X!.Keys.Single().V, 3);
-                Assert.Equal(2.2, Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale)!.Y!.Keys.Single().V, 3);
-                Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
                 editor.Undo();
-                Assert.Null(Step().FindChannel("CharSlot_DepthScale", MotionChannelKind.Scale));
-                Assert.Null(Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position));
+                Assert.Null(Step().FindChannel(node, MotionChannelKind.Position)); // 둘 다 한 번에
                 Assert.True(window.Viewport.HasPending); // 키 확정 직전의 키 없는 포즈로
                 editor.Redo();
                 Assert.False(window.Viewport.HasPending);
-                Assert.Equal(-984.0, Step().FindChannel("CharSlot_DepthY", MotionChannelKind.Position)!.Y!.Keys.Single().V, 2);
-
-                // 좌우·상하 두 성분을 키 없는 포즈로 두고 S — 키 확정은 한 칸(연기 축은 휴지가 항등이라 absolute 값 = 넣은 값).
-                window.SetControllerValue("body", Axis.X, "10");
-                window.SetControllerValue("body", Axis.Y, "-5");
-                Assert.True(window.Viewport.HasPending);
-                Assert.Null(Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position));
-                before = editor.Revision;
-                window.SetKeyFromShell();
-                ChannelAsset body = Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!;
+                body = Step().FindChannel(node, MotionChannelKind.Position)!;
                 Assert.Equal(10f, body.X!.Keys.Single().V, 3);
                 Assert.Equal(-5f, body.Y!.Keys.Single().V, 3);
-                Assert.Equal(before + 1, editor.Revision);
-                editor.Undo();
-                Assert.Null(Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)); // 둘 다 한 번에
-                Assert.True(window.Viewport.HasPending);
-                editor.Redo();
-                Assert.False(window.Viewport.HasPending);
-                body = Step().FindChannel("CharacterPortrait_Track_Move", MotionChannelKind.Position)!;
-                Assert.Equal(10f, body.X!.Keys.Single().V, 3);
-                Assert.Equal(-5f, body.Y!.Keys.Single().V, 3);
-
-                // Auto Key ON: 첫 키와 재생 기준 자동 변경(absolute 묶음)이 같은 칸 — 되돌리면 둘 다 돌아온다.
-                window.AddMotionFromForm("walk", "character", "0.6", MotionEnd.Commit);
-                Assert.Equal(MotionChannelMode.Relative, editor.Document.Find("walk")!.PreviewMode);
-                window.AutoKeyChecked = true;
-                before = editor.Revision;
-                window.SetControllerValue("place", Axis.X, "100");
-                Assert.Equal(before + 1, editor.Revision);
-                Assert.Equal(MotionChannelMode.Absolute, editor.Document.Find("walk")!.PreviewMode);
-                Assert.NotNull(editor.Document.Find("walk")!.FindChannel("CharSlot_Track", MotionChannelKind.Position));
-                editor.Undo();
-                Assert.Equal(MotionChannelMode.Relative, editor.Document.Find("walk")!.PreviewMode);
-                Assert.Null(editor.Document.Find("walk")!.FindChannel("CharSlot_Track", MotionChannelKind.Position));
             }
             finally
             {
@@ -1087,7 +884,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 초상과_리그_참조를_되돌리면_실은_자산도_따라오고_키_편집은_자산을_다시_읽지_않는다()
+    public void 리그_참조를_되돌리면_실은_자산도_따라오고_키_편집은_자산을_다시_읽지_않는다()
     {
         HeadlessUi.Run(() =>
         {
@@ -1097,32 +894,10 @@ public class MainWindowTests
             try
             {
                 var editor = window.Session.Editor;
-                string dir = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(dir);
-                string a = Path.Combine(dir, "a.png");
-                string b = Path.Combine(dir, "b.png");
-                File.WriteAllBytes(a, new byte[] { 1 }); // 헤드리스는 PNG를 못 읽는다 — 참조와 다시 싣기만 본다
-                File.WriteAllBytes(b, new byte[] { 2 });
-
-                // 초상 A → B → Undo: 문서도 세션도 뷰포트 다시 싣기도 A로. Redo면 B.
-                window.Session.SetPortrait("s1", a);
-                window.Session.SetPortrait("s1", b);
-                SceneObject S1() => editor.Document.ActiveSceneAsset!.Find("s1")!;
-                Assert.Equal(Path.GetFullPath(b), Path.GetFullPath(window.Session.PortraitPathOf(S1())!));
-                int refreshes = window.AssetRefreshCount;
-                int syncs = window.Session.AssetSyncCount;
-                editor.Undo();
-                Assert.Equal(Path.GetFullPath(a), Path.GetFullPath(window.Session.PortraitPathOf(S1())!));
-                Assert.Equal(refreshes + 1, window.AssetRefreshCount);
-                Assert.Equal(syncs + 1, window.Session.AssetSyncCount);
-                editor.Redo();
-                Assert.Equal(Path.GetFullPath(b), Path.GetFullPath(window.Session.PortraitPathOf(S1())!));
-                Assert.Equal(refreshes + 2, window.AssetRefreshCount);
-
                 // 키·메타 편집과 그 되돌리기는 자산을 다시 읽지 않는다.
                 window.AddMotionFromForm("nod", "character", "0.6", MotionEnd.Restore);
-                refreshes = window.AssetRefreshCount;
-                syncs = window.Session.AssetSyncCount;
+                int refreshes = window.AssetRefreshCount;
+                int syncs = window.Session.AssetSyncCount;
                 editor.SetDuration("nod", 1f);
                 editor.Undo();
                 editor.Redo();
@@ -1135,12 +910,17 @@ public class MainWindowTests
                 Assert.False(window.Session.IsBuiltinRig);
                 Assert.NotSame(BuiltinTuning.Depth, window.Session.Depth);
                 long revision = editor.Revision;
+                refreshes = window.AssetRefreshCount;
+                syncs = window.Session.AssetSyncCount;
                 editor.Undo();
                 Assert.Equal(revision + 1, editor.Revision);
                 Assert.Null(editor.Document.RigSchemas);
                 Assert.True(window.Session.IsBuiltinRig);
                 Assert.Same(BuiltinTuning.Depth, window.Session.Depth);
+                Assert.Equal(refreshes + 1, window.AssetRefreshCount);
+                Assert.Equal(syncs + 1, window.Session.AssetSyncCount);
                 editor.Redo();
+                Assert.Equal(refreshes + 2, window.AssetRefreshCount);
                 Assert.False(window.Session.IsBuiltinRig);
                 Assert.Equal(Path.GetFullPath(rig), Path.GetFullPath(window.Session.RigPath!));
                 Assert.NotSame(BuiltinTuning.Depth, window.Session.Depth);

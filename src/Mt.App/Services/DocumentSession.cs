@@ -26,8 +26,8 @@ public sealed class DocumentSession
 
     // ── 문서 ↔ 실은 자산 ──────────────────────────────────────────────
     //
-    // 문서가 적은 자산 참조(리그 덤프 경로·기준 해상도 경로·오브젝트별 초상)는 되돌리기·다시하기로도 바뀐다. 그때 실은 리그·깊이·focus·컨트롤러 표·
-    // 무대 크기와 뷰포트의 초상 비트맵이 문서와 어긋나지 않도록, 참조 지문을 두고 달라진 때만 다시 싣고 AssetsChanged를 올린다.
+    // 문서가 적은 자산 참조(리그 덤프 경로·기준 해상도 경로·스킨의 그림)는 되돌리기·다시하기로도 바뀐다. 그때 실은 리그·깊이·
+    // 무대 크기와 뷰포트의 그림 비트맵이 문서와 어긋나지 않도록, 참조 지문을 두고 달라진 때만 다시 싣고 AssetsChanged를 올린다.
     // 키 편집(Keys·Metadata)은 보지도 않고, 참조가 같으면 파일을 읽지 않는다.
 
     private string _assetFingerprint = "";
@@ -38,7 +38,7 @@ public sealed class DocumentSession
 
     private static string AssetFingerprintOf(MotionDocument document)
         => "rig=" + (document.RigSchemas?.Path ?? "") + "\nbase=" + (document.BaseResolution?.Path ?? "") + "\n"
-           + string.Join("\n", document.Scenes.SelectMany(scene => scene.Objects).Select(o => $"portrait {o.Id}={o.Portrait ?? ""} skin={o.Skin ?? ""}"))
+           + string.Join("\n", document.Scenes.SelectMany(scene => scene.Objects).Select(o => $"object {o.Id} skin={o.Skin ?? ""}"))
            + "\nrigs " + RigsKeyOf(document)
            + "\n" + string.Join("\n", document.Skins.Select(s => $"skin {s.Name}:{s.Rig}:" + string.Join(",", s.Parts.Keys.Select(node => node + "=" + string.Join("|", s.ImagesOf(node))))));
 
@@ -70,7 +70,7 @@ public sealed class DocumentSession
         if (rigChanged)
         {
             UseBuiltinTuning();      // 참조가 사라졌으면 내장으로
-            TryLoadRigFromDocument(); // 있으면 그 덤프와 옆의 깊이·focus·컨트롤러 표
+            TryLoadRigFromDocument(); // 있으면 그 덤프와 옆의 깊이 커브
         }
 
         if (rigChanged || baseChanged)
@@ -84,17 +84,15 @@ public sealed class DocumentSession
         }
 
         AssetSyncCount++;
-        AssetsChanged?.Invoke(this, EventArgs.Empty); // 초상은 뷰포트가 문서 참조대로 다시 싣는다
+        AssetsChanged?.Invoke(this, EventArgs.Empty); // 그림은 뷰포트가 문서 참조대로 다시 싣는다
     }
 
     /// <summary>내장 기본값으로 — 덤프 파일이 없는 문서의 시작 상태.</summary>
     private void UseBuiltinTuning()
     {
-        Controllers = BuiltinTuning.Controllers;
         Rig = BuiltinTuning.RigSchemas;
         RigPath = null;
         Depth = BuiltinTuning.Depth;
-        Focus = BuiltinTuning.Focus;
         StageSize = BuiltinTuning.BaseResolution;
     }
 
@@ -180,7 +178,7 @@ public sealed class DocumentSession
             return false;
         }
 
-        List<MotionProblem> blocking = MotionValidator.Blocking(MotionValidator.Validate(Editor.Document, RigNodeIds, null, Rig?.AlphaNodeIds))
+        List<MotionProblem> blocking = MotionValidator.Blocking(MotionValidator.Validate(Editor.Document, RigNodeIds, Rig?.AlphaNodeIds))
             .Where(p => Editor.Document.Find(p.MotionName)?.Rig is { } rig && (rig == cutName || Editor.Document.FindRig(rig) is not null)).ToList();
 
         if (blocking.Count > 0)
@@ -205,31 +203,7 @@ public sealed class DocumentSession
     /// <summary>덤프 옆 presets/depth.json. 없으면 레이어는 그리는 순서만 정한다.</summary>
     public DepthTuningFile? Depth { get; private set; }
 
-    /// <summary>덤프 옆 presets/focus.json — 배역별 focus 오프셋. 없으면 base 오프셋 없이(0).</summary>
-    public FocusTuningFile? Focus { get; private set; }
-
-    /// <summary>컨트롤러 표 — 덤프 옆 <c>presets/controllers.json</c>, 없으면 내장본. 리그에 없는 노드를 가리키면 상태 줄에 알린다.</summary>
-    public ControllersFile Controllers { get; private set; } = BuiltinTuning.Controllers;
-
-    /// <summary>선택 리그의 컨트롤러 표. 표에 없는 리그는 null — 노드로 다룬다.</summary>
-    public ControllerRig? ControllersOf(string? rigKind) => Controllers.Rig(rigKind);
-
     public string Status { get; private set; } = "";
-
-    /// <summary>미리보기 초상 PNG의 절대 경로. 문서에는 문서 기준 상대 경로로 적힌다.</summary>
-    /// <summary>오브젝트의 초상 파일(절대 경로). 문서에 없거나 파일이 없으면 null.</summary>
-    public string? PortraitPathOf(SceneObject o)
-    {
-        ArgumentNullException.ThrowIfNull(o);
-
-        if (string.IsNullOrEmpty(o.Portrait))
-        {
-            return null;
-        }
-
-        string resolved = ResolveFromDocument(o.Portrait);
-        return File.Exists(resolved) ? resolved : null;
-    }
 
     /// <summary>문서의 스킨들이 쓰는 그림 전부 — 문서 기준 경로 → 파일 경로(파일이 없으면 null: 자리표시로 그린다).</summary>
     public IReadOnlyList<(string Image, string? Path)> SkinImages()
@@ -278,13 +252,13 @@ public sealed class DocumentSession
 
     public event EventHandler? StatusChanged;
 
-    /// <summary>리그 덤프·초상·기준 해상도가 바뀌었다. 뷰포트가 다시 싣는다.</summary>
+    /// <summary>리그 덤프·그림·기준 해상도가 바뀌었다. 뷰포트가 다시 싣는다.</summary>
     public event EventHandler? AssetsChanged;
 
-    /// <summary>검증에 쓰는 rigKind → 노드 표 — 덤프의 리그에 카메라 모션의 가짜 리그를 더한 것.</summary>
-    public IReadOnlyDictionary<string, ICollection<string>>? RigNodeIds => Mt.Authoring.Preview.CameraRig.WithCamera(Rig?.NodeIds);
+    /// <summary>검증에 쓰는 rigKind → 노드 표.</summary>
+    public IReadOnlyDictionary<string, ICollection<string>>? RigNodeIds => Rig?.NodeIds;
 
-    public IReadOnlyList<MotionProblem> Problems => MotionValidator.Validate(Editor.Document, RigNodeIds, Controllers, Rig?.AlphaNodeIds);
+    public IReadOnlyList<MotionProblem> Problems => MotionValidator.Validate(Editor.Document, RigNodeIds, Rig?.AlphaNodeIds);
 
     public void SetStatus(string status)
     {
@@ -392,96 +366,15 @@ public sealed class DocumentSession
             }
         }
 
-        string? focusPath = FocusTuningFile.TryFindBeside(path);
-        Focus = BuiltinTuning.Focus;
-
-        if (focusPath is not null)
-        {
-            try
-            {
-                Focus = FocusTuningFile.Load(focusPath);
-            }
-            catch (Exception exception)
-            {
-                SetStatus($"focus.json을 읽지 못했다: {exception.Message} — 배역 오프셋 없이.");
-            }
-        }
-
         if (baseResolution is not null)
         {
             StageSize = BaseResolutionFile.Load(baseResolution);
         }
 
-        string? controllersPath = LoadControllersBeside(path);
-
         AssetsChanged?.Invoke(this, EventArgs.Empty);
         SetStatus($"리그 덤프: {string.Join(", ", rig.RigKinds)} ({Path.GetFileName(path)})"
                   + (baseResolution is null ? " — base-resolution.json이 옆에 없어 1920×1080으로 둔다" : $" · 무대 {StageSize.X:0}×{StageSize.Y:0}")
-                  + (depthPath is null ? " · depth.json 없음(내장 깊이 커브)" : " · 깊이 커브")
-                  + (focusPath is null ? " · focus 없음(내장 표)" : " · focus 표")
-                  + (controllersPath is null ? " · 컨트롤러 내장 표" : " · 컨트롤러 표"));
-    }
-
-    /// <summary>덤프 옆 컨트롤러 표를 싣는다(없으면 내장본). 리그에 없는 노드를 가리키면 상태 줄에 알리고 그대로 쓴다. 찾은 경로를 돌려준다.</summary>
-    private string? LoadControllersBeside(string rigSchemasPath)
-    {
-        string? controllersPath = ControllersFile.TryFindBeside(rigSchemasPath);
-        Controllers = BuiltinTuning.Controllers;
-
-        if (controllersPath is not null)
-        {
-            try
-            {
-                Controllers = ControllersFile.Load(controllersPath);
-            }
-            catch (Exception exception)
-            {
-                SetStatus($"controllers.json을 읽지 못했다: {exception.Message} — 내장 컨트롤러 표로 둔다.");
-                controllersPath = null;
-            }
-        }
-
-        if (Rig is { } rig)
-        {
-            foreach (string rigKind in Controllers.RigKinds)
-            {
-                if (rig.NodeIds.TryGetValue(rigKind, out ICollection<string>? ids) && Controllers.TryGetRig(rigKind, out ControllerRig table))
-                {
-                    IReadOnlyList<string> problems = table.Validate(ids);
-
-                    if (problems.Count > 0)
-                    {
-                        SetStatus($"컨트롤러 표가 리그와 어긋난다: {string.Join(" · ", problems)}");
-                    }
-                }
-            }
-        }
-
-        return controllersPath;
-    }
-
-    /// <summary>오브젝트의 미리보기 초상. 문서에 문서 기준 상대 경로로 적힌다 — 산출물과는 무관하다.</summary>
-    public void SetPortrait(string objectId, string? path)
-    {
-        if (path is not null && !File.Exists(path))
-        {
-            throw new FileNotFoundException("초상 파일이 없다.", path);
-        }
-
-        _syncingAssets = true;
-
-        try
-        {
-            Editor.SetObjectPortrait(null, objectId, path is null ? null : RelativeToDocument(path));
-        }
-        finally
-        {
-            _syncingAssets = false;
-            _assetFingerprint = AssetFingerprintOf(Editor.Document);
-        }
-
-        AssetsChanged?.Invoke(this, EventArgs.Empty);
-        SetStatus(path is null ? $"{objectId}: 초상을 뺐다." : $"{objectId}: 초상 {Path.GetFileName(path)}");
+                  + (depthPath is null ? " · depth.json 없음(내장 깊이 커브)" : " · 깊이 커브"));
     }
 
     /// <summary><c>motions/1</c>을 읽어 문서로 올린다. 이름이 겹치면 바꿔 넣는다.</summary>
@@ -528,7 +421,7 @@ public sealed class DocumentSession
         DocumentReplaced?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>문서가 적어 둔 초상·기준 해상도를 찾아 싣는다. 없는 파일은 상태 줄에 남기고 넘어간다.</summary>
+    /// <summary>문서가 적어 둔 기준 해상도를 찾아 싣는다. 없는 파일은 상태 줄에 남기고 넘어간다.</summary>
     private void TryLoadAssetsFromDocument()
     {
         MotionDocument document = Editor.Document;
@@ -544,17 +437,6 @@ public sealed class DocumentSession
             else
             {
                 SetStatus($"기준 해상도 파일을 찾지 못했다: {resolved} — 1920×1080으로 둔다.");
-            }
-        }
-
-        foreach (SceneAsset scene in document.Scenes)
-        {
-            foreach (SceneObject o in scene.Objects)
-            {
-                if (!string.IsNullOrEmpty(o.Portrait) && !File.Exists(ResolveFromDocument(o.Portrait)))
-                {
-                    SetStatus($"{o.Id}의 초상 파일을 찾지 못했다: {ResolveFromDocument(o.Portrait)} — 자리표시로 보인다.");
-                }
             }
         }
     }
@@ -584,14 +466,11 @@ public sealed class DocumentSession
         try
         {
             Depth = DepthTuningFile.TryFindBeside(resolved) is { } depthPath ? DepthTuningFile.Load(depthPath) : BuiltinTuning.Depth;
-            Focus = FocusTuningFile.TryFindBeside(resolved) is { } focusPath ? FocusTuningFile.Load(focusPath) : BuiltinTuning.Focus;
-            LoadControllersBeside(resolved);
         }
         catch (Exception exception)
         {
-            SetStatus($"덤프 옆 프리셋을 읽지 못했다: {exception.Message} — 내장 프리셋으로 둔다.");
+            SetStatus($"덤프 옆 깊이 커브를 읽지 못했다: {exception.Message} — 내장 깊이 커브로 둔다.");
             Depth = BuiltinTuning.Depth;
-            Focus = BuiltinTuning.Focus;
         }
 
         if (!string.IsNullOrEmpty(reference.Sha256) && !string.Equals(reference.Sha256, rig.Sha256, StringComparison.Ordinal))

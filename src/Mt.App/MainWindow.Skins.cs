@@ -73,7 +73,7 @@ public partial class MainWindow
         return _skinPanel;
     }
 
-    /// <summary>고른 오브젝트의 리그에 조각 노드가 있을 때만 보인다 — 캐릭터(초상 한 장)에는 스킨이 없다.</summary>
+    /// <summary>고른 오브젝트의 리그에 조각 노드가 있을 때만 보인다 — 조각 없는 리그(캐릭터)에는 스킨이 없다.</summary>
     private void RefreshSkinPanel()
     {
         _refreshDepth++;

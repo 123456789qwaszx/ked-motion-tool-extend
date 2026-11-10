@@ -14,7 +14,6 @@ public class MotionDocumentJsonTests
         MotionDocument document = Fixtures.NodBowDocument();
         var editor = new MotionEditor(document);
         editor.SetRigSchemas("../ExportedTuning/rig-schemas.json", "abc123");
-        editor.SetPreviewPortrait("assets/harin_a_01.png");
 
         string first = MotionDocumentJson.Write(editor.Document);
         MotionDocument read = MotionDocumentJson.Read(first);
@@ -23,8 +22,6 @@ public class MotionDocumentJsonTests
         Assert.Equal(first, second);
         Assert.Equal(AuthoringFormat.AuthoringSchema, read.Schema);
         Assert.Equal("abc123", read.RigSchemas!.Sha256);
-        Assert.Null(read.Preview); // 예전 Preview.Portrait는 기본 씬 c1의 초상이 된다
-        Assert.Equal("assets/harin_a_01.png", read.ActiveSceneAsset!.Objects[0].Portrait);
         Assert.DoesNotContain("\"notes\"", first, StringComparison.Ordinal); // 메모는 없다(소유자, 2026-10-28)
     }
 
@@ -122,5 +119,32 @@ public class MotionDocumentJsonTests
         Assert.Contains("\"schema\": \"motion-authoring/2\"", written, StringComparison.Ordinal);
         Assert.DoesNotContain("\"defaultMode\"", written, StringComparison.Ordinal);
         Assert.DoesNotContain("\"mode\"", written, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 옛_문서의_걷어_낸_속성은_읽을_때_무시된다()
+    {
+        // 초상 · 자리(place)와 focus · 배역 · 붙이기는 걷어 냈다 — 그 속성이 든 옛 문서도 열리고, 다시 쓰면 그 속성이 없다.
+        string json = """
+            { "schema": "motion-authoring/2",
+              "preview": { "portrait": "art/old.png" },
+              "motions": [],
+              "scenes": [ { "name": "scene", "objects": [
+                  { "id": "s1", "rig": "character", "layer": "front", "character": "bandi", "place": "left", "placeFocus": "face", "portrait": "art/harin.png" },
+                  { "id": "e1", "rig": "badge", "attachTo": "s1", "attachNode": "CharSlot_Scale", "positionX": 40 } ] } ] }
+            """;
+
+        MotionDocument read = MotionDocumentJson.Read(json);
+
+        Assert.Equal(new[] { "s1", "e1" }, read.ActiveSceneAsset!.Objects.Select(o => o.Id));
+        Assert.Equal("front", read.ActiveSceneAsset.Objects[0].Layer);
+        Assert.Equal(40f, read.ActiveSceneAsset.Objects[1].PositionX);
+
+        string written = MotionDocumentJson.Write(read);
+
+        foreach (string gone in new[] { "\"preview\"", "\"portrait\"", "\"character\":", "\"place\"", "\"placeFocus\"", "\"attachTo\"", "\"attachNode\"" })
+        {
+            Assert.DoesNotContain(gone, written, StringComparison.Ordinal);
+        }
     }
 }

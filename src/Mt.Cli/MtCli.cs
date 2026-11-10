@@ -111,7 +111,7 @@ public static class MtCli
             ["scenes"] = new JsonArray(document.Scenes.Select(s => (JsonNode)new JsonObject
             {
                 ["name"] = s.Name,
-                ["objects"] = new JsonArray(s.Objects.Select(o => (JsonNode)new JsonObject { ["id"] = o.Id, ["rig"] = o.Rig, ["attachTo"] = o.AttachTo }).ToArray()),
+                ["objects"] = new JsonArray(s.Objects.Select(o => (JsonNode)new JsonObject { ["id"] = o.Id, ["rig"] = o.Rig }).ToArray()),
             }).ToArray()),
         });
         return 0;
@@ -193,27 +193,19 @@ public static class MtCli
         result["duration"] = motion.Duration;
         result["mode"] = MotionModeToken.Of(mode);
 
-        if (CameraRig.IsCamera(motion))
-        {
-            CameraSettings camera = CameraRig.Pose(scene.Camera, motion, time, mode);
-            result["camera"] = new JsonObject { ["zoom"] = camera.Zoom, ["panX"] = camera.PanX, ["panY"] = camera.PanY };
-        }
-        else
-        {
-            SceneObject actor = options.Value("object") is { } id
-                ? scene.Find(id) ?? throw new KeyNotFoundException($"오브젝트 '{id}'가 없다.")
-                : scene.Objects.FirstOrDefault(o => o.Rig == motion.Rig) ?? throw new InvalidOperationException($"씬에 리그 '{motion.Rig}'의 오브젝트가 없다 — --object로 고른다.");
-            RectNodeTree pose = MotionPreview.Pose(BuildTree(rig, scene), motion, time, mode, null, actor.Prefix, alphas);
-            var nodes = new JsonObject();
+        SceneObject actor = options.Value("object") is { } id
+            ? scene.Find(id) ?? throw new KeyNotFoundException($"오브젝트 '{id}'가 없다.")
+            : scene.Objects.FirstOrDefault(o => o.Rig == motion.Rig) ?? throw new InvalidOperationException($"씬에 리그 '{motion.Rig}'의 오브젝트가 없다 — --object로 고른다.");
+        RectNodeTree pose = MotionPreview.Pose(BuildTree(rig, scene), motion, time, mode, null, actor.Prefix, alphas);
+        var nodes = new JsonObject();
 
-            foreach (ChannelAsset channel in motion.Channels)
-            {
-                AddNodeValue(nodes, pose, alphas, actor, channel);
-            }
-
-            result["object"] = actor.Id;
-            result["nodes"] = nodes;
+        foreach (ChannelAsset channel in motion.Channels)
+        {
+            AddNodeValue(nodes, pose, alphas, actor, channel);
         }
+
+        result["object"] = actor.Id;
+        result["nodes"] = nodes;
 
         result["events"] = new JsonArray(MotionEvents.Between(motion, time - EventWindow, time)
             .Select(e => (JsonNode)new JsonObject { ["time"] = e.T, ["name"] = e.Name, ["value"] = e.Value }).ToArray());
@@ -231,9 +223,8 @@ public static class MtCli
     {
         var problems = new JsonArray();
         bool blocking = false;
-        IReadOnlyDictionary<string, ICollection<string>>? nodeIds = CameraRig.WithCamera(rig.NodeIds);
 
-        foreach (MotionProblem p in MotionValidator.Validate(document, nodeIds, null, rig.AlphaNodeIds))
+        foreach (MotionProblem p in MotionValidator.Validate(document, rig.NodeIds, rig.AlphaNodeIds))
         {
             problems.Add(new JsonObject { ["kind"] = "motion", ["name"] = p.MotionName, ["message"] = p.Message, ["blocking"] = p.Blocking });
             blocking |= p.Blocking;
@@ -242,9 +233,9 @@ public static class MtCli
         return (problems, blocking);
     }
 
-    /// <summary>앱의 뷰포트와 같은 조립 — 깊이·focus·무대 뼈대(내장본).</summary>
+    /// <summary>앱의 뷰포트와 같은 조립 — 깊이·무대 뼈대(내장본).</summary>
     private static RectNodeTree BuildTree(RigSchemaFile rig, SceneAsset scene)
-        => ScenePreview.Build(rig, scene, null, null, BuiltinTuning.Depth, BuiltinTuning.Focus, BuiltinTuning.StageRig);
+        => ScenePreview.Build(rig, scene, null, BuiltinTuning.Depth, BuiltinTuning.StageRig);
 
     private static void AddNodeValue(JsonObject nodes, RectNodeTree pose, Dictionary<string, float> alphas, SceneObject actor, ChannelAsset channel)
     {

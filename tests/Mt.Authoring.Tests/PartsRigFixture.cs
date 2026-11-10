@@ -32,7 +32,7 @@ internal static class PartsRigFixture
         return rig;
     }
 
-    /// <summary>조각 리그가 든 <c>rig-schemas.json</c>의 경로(옆에 presets는 없다 — 깊이·focus는 내장본이 쓰인다).</summary>
+    /// <summary>조각 리그가 든 <c>rig-schemas.json</c>의 경로(옆에 presets는 없다 — 깊이는 내장본이 쓰인다).</summary>
     public static string WriteDump(string sourceDumpPath)
     {
         JsonNode root = JsonNode.Parse(File.ReadAllText(sourceDumpPath))!;

@@ -1,7 +1,5 @@
 using Ked.Presentation.Core;
-using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
-using Mt.Authoring.Rig;
 
 namespace Mt.Authoring.Validation;
 
@@ -25,16 +23,11 @@ public sealed record MotionProblem(string MotionName, string Message, bool Block
 /// </summary>
 public static class MotionValidator
 {
-    /// <summary>컨트롤러 경고의 문구 머리 — 돕는 손이 이것으로 고른다.</summary>
-    public const string AbsoluteControllerWarning = "absolute로 재생하는 컨트롤러";
-
     /// <param name="rigNodeIds">rigKind → 노드 id 목록. null이면 노드 존재 검사를 생략한다(덤프가 아직 없는 자리).</param>
-    /// <param name="controllers">컨트롤러 표. 주면 자리·깊이(absolute) 컨트롤러가 든 relative 미리보기 모션에 경고한다.</param>
     /// <param name="alphaNodeIds">rigKind → 불투명도를 받을 수 있는 노드(덤프의 hasCanvasGroup). 주면 알파 채널이 그 노드에 놓였는지 본다.</param>
     public static IReadOnlyList<MotionProblem> Validate(
         MotionDocument document,
         IReadOnlyDictionary<string, ICollection<string>>? rigNodeIds = null,
-        ControllersFile? controllers = null,
         IReadOnlyDictionary<string, ICollection<string>>? alphaNodeIds = null)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -53,7 +46,7 @@ public static class MotionValidator
             // "0초에서 시작해 길이에서 끝난다"는 옛 산출물(motions.json)의 규칙이다. 컷은 제 형식으로 나가고(PLAN-standalone.md §7) 묶음은 컷에 구워져 나간다.
             // 컷에서 고른 것을 새 세트로 빼면 그 키들이 그대로 세트의 애니메이션이 되므로, 둘의 규칙이 같아야 한다.
             bool cutTimeline = document.FindRig(motion.Rig) is not null; // 툴이 정의한 것(컷 · 세트) — 덤프의 리그(캐릭터)는 옛 규칙 그대로
-            problems.AddRange(ValidateMotion(motion, rigNodeIds, controllers, alphaNodeIds).Where(p => !cutTimeline || !CutRelaxed.Any(text => p.Message.Contains(text, StringComparison.Ordinal))));
+            problems.AddRange(ValidateMotion(motion, rigNodeIds, alphaNodeIds).Where(p => !cutTimeline || !CutRelaxed.Any(text => p.Message.Contains(text, StringComparison.Ordinal))));
 
             // 재생 블록 — 인스턴스나 애니메이션이 사라졌으면 그 블록은 구울 때 빠진다(막지는 않고 알린다).
             foreach (MotionPlayAsset play in motion.Plays)
@@ -85,7 +78,6 @@ public static class MotionValidator
     public static IReadOnlyList<MotionProblem> ValidateMotion(
         MotionAsset motion,
         IReadOnlyDictionary<string, ICollection<string>>? rigNodeIds = null,
-        ControllersFile? controllers = null,
         IReadOnlyDictionary<string, ICollection<string>>? alphaNodeIds = null)
     {
         ArgumentNullException.ThrowIfNull(motion);
@@ -125,59 +117,7 @@ public static class MotionValidator
             }
         }
 
-        // 경고는 모양 규칙과 무관하게 본다 — 고치는 순서를 작가가 고른다.
-
-        // 자리·깊이 컨트롤러는 absolute로 재생한다(결정 D1·그룹 mode). relative 미리보기면 자리가 누적돼 보인다 — 경고.
-        if (motion.PreviewMode == MotionChannelMode.Relative && controllers?.Rig(motion.Rig) is { } table)
-        {
-            List<string> absolute = AbsoluteControllersIn(motion, table).Select(c => $"{c.Group.Label} · {c.Label}").Distinct().ToList();
-
-            if (absolute.Count > 0)
-            {
-                problems.Add(new MotionProblem(
-                    motion.Name,
-                    $"{AbsoluteControllerWarning}({string.Join(", ", absolute)})가 있다 — 재생 기준이 상대값(relative)이면 자리가 누적돼 보인다. 재생은 <<motion slot {motion.Name} absolute>>로. 연기와 섞였으면 두 모션으로 나눈다",
-                    Blocking: false));
-            }
-        }
-
         return problems;
-    }
-
-    /// <summary>모션의 채널 중 absolute 묶음(자리·깊이)의 컨트롤러로 풀리는 것들.</summary>
-    public static IEnumerable<Controller> AbsoluteControllersIn(MotionAsset motion, ControllerRig table)
-    {
-        ArgumentNullException.ThrowIfNull(motion);
-        ArgumentNullException.ThrowIfNull(table);
-
-        foreach (ChannelAsset channel in motion.Channels)
-        {
-            foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
-            {
-                if (channel.Get(axis) is not null && table.TryResolve(new CurveRef(channel.Node, channel.Kind, axis), out Controller c, out _) && c.Group.Mode == MotionChannelMode.Absolute)
-                {
-                    yield return c;
-                    break;
-                }
-            }
-        }
-    }
-
-    /// <summary>채널이 absolute 묶음의 컨트롤러인가 — 두 모션으로 나눌 때의 기준.</summary>
-    public static bool IsAbsoluteController(ChannelAsset channel, ControllerRig table)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-        ArgumentNullException.ThrowIfNull(table);
-
-        foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
-        {
-            if (table.TryResolve(new CurveRef(channel.Node, channel.Kind, axis), out Controller c, out _))
-            {
-                return c.Group.Mode == MotionChannelMode.Absolute;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>내보내기를 막는 것만.</summary>

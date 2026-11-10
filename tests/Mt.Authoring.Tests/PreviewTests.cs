@@ -95,46 +95,20 @@ public class MotionPreviewTests
     }
 }
 
-public class PortraitLayoutTests
+public class StageQuadsTests
 {
+    private const string Node = ScenePreview.OutlineNode;
+
     private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
-
-    [Fact]
-    public void 사이징은_런타임과_같다_sizeDelta는_부모_높이_곱_종횡비()
-    {
-        RectNodeTree tree = RigFile.BuildTree("character");
-        PortraitLayout.ApplySizing(tree, 0.8f);
-
-        Vec2 sizeDelta = tree.GetState(PortraitLayout.ImageNodeId).SizeDelta;
-        Assert.Equal(1080f * 0.8f, sizeDelta.X, 3);
-        Assert.Equal(0f, sizeDelta.Y);
-    }
-
-    [Fact]
-    public void 보이는_사각형은_높이_맞춤이고_무대_가운데_선다()
-    {
-        RectNodeTree tree = RigFile.BuildTree("character");
-        PortraitLayout.ApplySizing(tree, 0.8f);
-
-        Quad quad = PortraitLayout.VisualQuad(tree, PortraitLayout.ImageNodeId, 0.8f);
-
-        Assert.Equal(-432f, quad.BottomLeft.X, 2);
-        Assert.Equal(-540f, quad.BottomLeft.Y, 2);
-        Assert.Equal(432f, quad.TopRight.X, 2);
-        Assert.Equal(540f, quad.TopRight.Y, 2);
-        Assert.Equal(0f, quad.Center.X, 2);
-        Assert.Equal(0f, quad.Center.Y, 2);
-    }
 
     [Fact]
     public void 포즈가_바뀌면_사각형이_따라온다_nod_가운데는_18_아래다()
     {
         MotionAsset nod = Fixtures.NodBowDocument().Find("nod")!;
         RectNodeTree template = RigFile.BuildTree("character");
-        PortraitLayout.ApplySizing(template, 0.8f);
 
-        Quad rest = PortraitLayout.VisualQuad(MotionPreview.Pose(template, nod, 0), PortraitLayout.ImageNodeId, 0.8f);
-        Quad dipped = PortraitLayout.VisualQuad(MotionPreview.Pose(template, nod, 0.3), PortraitLayout.ImageNodeId, 0.8f);
+        Quad rest = StageQuads.RectQuad(MotionPreview.Pose(template, nod, 0), Node);
+        Quad dipped = StageQuads.RectQuad(MotionPreview.Pose(template, nod, 0.3), Node);
 
         Assert.Equal(rest.Center.Y - 18f, dipped.Center.Y, 2);
         Assert.Equal(rest.Center.X, dipped.Center.X, 2);
@@ -145,36 +119,31 @@ public class PortraitLayoutTests
     {
         MotionAsset bow = Fixtures.NodBowDocument().Find("bow")!;
         RectNodeTree template = RigFile.BuildTree("character");
-        PortraitLayout.ApplySizing(template, 0.8f);
 
-        Quad tilted = PortraitLayout.VisualQuad(MotionPreview.Pose(template, bow, 0.4), PortraitLayout.ImageNodeId, 0.8f);
+        Quad rest = StageQuads.RectQuad(MotionPreview.Pose(template, bow, 0), Node);
+        Quad tilted = StageQuads.RectQuad(MotionPreview.Pose(template, bow, 0.4), Node);
 
+        Assert.Equal(rest.BottomLeft.Y, rest.BottomRight.Y, 3);
         Assert.NotEqual(tilted.BottomLeft.Y, tilted.BottomRight.Y);
-        float width = (tilted.BottomRight - tilted.BottomLeft).X;
-        float height = (tilted.TopLeft - tilted.BottomLeft).Y;
-        Assert.True(Math.Abs(width - 864f) < 864f * 0.02f, "너비가 거의 보존돼야 한다(8도 회전)");
-        Assert.True(height < 1080f && height > 1000f);
+        // 8도 돌아도 변의 길이는 그대로다 — 네 모서리를 그대로 든다.
+        Assert.Equal(Length(rest.BottomRight - rest.BottomLeft), Length(tilted.BottomRight - tilted.BottomLeft), 2);
+        Assert.Equal(Length(rest.TopLeft - rest.BottomLeft), Length(tilted.TopLeft - tilted.BottomLeft), 2);
     }
 
     [Fact]
     public void 캔버스_변환과_축()
     {
-        Vec2 canvas = PortraitLayout.ToCanvas(new Vec2(10f, 20f), new Vec2(1920f, 1080f));
+        Vec2 canvas = StageQuads.ToCanvas(new Vec2(10f, 20f), new Vec2(1920f, 1080f));
         Assert.Equal(970f, canvas.X);
         Assert.Equal(520f, canvas.Y);
 
         RectNodeTree tree = RigFile.BuildTree("character");
-        (Vec2 origin, Vec2 xEnd, Vec2 yEnd) = PortraitLayout.Axes(tree, "CharacterPortrait_SwayPivot", 50f);
+        (Vec2 origin, Vec2 xEnd, Vec2 yEnd) = StageQuads.Axes(tree, "CharacterPortrait_SwayPivot", 50f);
         Assert.Equal(origin.X + 50f, xEnd.X, 3);
         Assert.Equal(origin.Y + 50f, yEnd.Y, 3);
     }
 
-    [Fact]
-    public void 종횡비_0은_거부한다()
-    {
-        RectNodeTree tree = RigFile.BuildTree("character");
-        Assert.Throws<ArgumentOutOfRangeException>(() => PortraitLayout.VisualQuad(tree, PortraitLayout.ImageNodeId, 0f));
-    }
+    private static float Length(Vec2 v) => MathF.Sqrt(v.X * v.X + v.Y * v.Y);
 }
 
 public class PlaybackClockTests

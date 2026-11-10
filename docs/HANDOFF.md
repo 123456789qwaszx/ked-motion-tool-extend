@@ -7,7 +7,7 @@
 ## 1. 무엇인가
 
 캐릭터 모션 전용 저작 도구(마야식 그래프 편집기 + 뷰포트 + 도프 시트). 입력은 유니티가 내보낸
-리그 덤프(`ExportedTuning/`)와 초상 PNG, 산출물은 무대 런타임(`ked-stage-runtime`)이 읽는
+리그 덤프(`ExportedTuning/`), 산출물은 무대 런타임(`ked-stage-runtime`)이 읽는
 `motions.json`(스키마 `motions/2`) **하나**다. 툴은 Yarn·커맨드·대본을 모른다.
 
 - 저장소: `123456789qwaszx/ked-motion-tool`, 작업 브랜치 **`dev`**, CI는 `main`·`dev` 푸시와 PR에서 돈다(Linux, `dotnet test`).
@@ -23,7 +23,6 @@
 | 리그는 만들지 않는다 — **캐릭터 리그는** | `rig-schemas.json`(유니티 덤프)에서 `RectNodeTree`를 세운다. 덤프 없이도 내장본으로 열린다. **예외(2026-11-10): 새로 만드는 리그(세트)는 툴이 정의해 내보낸다** — Spine처럼 툴이 원본 | `PLAN.md` §4, `Mt.Authoring/Rig/BuiltinTuning`, `PLAN-parts.md` §9 |
 | 보이는 것 = 재생하는 것 | 포즈는 매 프레임 코어 `MotionMath.Compose`. 재현이 아니라 같은 함수 | `PLAN.md` §1 |
 | 채널에 mode는 없다(`motions/2`) | relative/absolute는 대본의 `<<motion slot 이름 relative\|absolute>>`가 정한다. 툴의 "재생 기준"은 키 값을 읽는 렌즈일 뿐 파일에 안 나간다 | `ked-stage-runtime/docs/motion-contract.md` |
-| 컨트롤러 표 | 애니메이터가 리그 계층을 몰라도 되게 `controllers.json`(`controllers/1`)이 자리·깊이·연기 세 묶음의 손잡이를 정한다. 덤프 옆 `presets/controllers.json`이 있으면 그것이, 없으면 내장본 | `PLAN-controller.md` |
 | 리그 하나의 모션에 집중 | 배역(character)·오브젝트 부모/자식·메모·채널 mode UI·그래프의 절대/정규화/쌓기·기울기 칸은 **통째로 제거**했다(마이그레이션 없음 — 옛 저작본이 없다). 불필요한 기능은 흔적 없이 지운다 | 커밋 30b0c8e·429790e·c698d4d·7c82677 |
 | 설정은 인스펙터가 아니라 창 | 오른쪽 패널은 채널 박스·씬·모션 탭 셋. 설정·단축키(F1)는 툴바의 창 | `PLAN-inspector.md` |
 | 조작 하나 = 되돌리기 한 칸 | 키 없는 포즈도 이력에 든다. 무변경 조작은 기록하지 않는다 | `PLAN-undo.md` |
@@ -38,10 +37,9 @@ Ked.Presentation.Core (복사 반입, 수정 금지)
            Editing/      MotionEditor — 모든 편집의 유일한 통로, 스냅샷 undo(최대 200)
            Serialization MotionDocumentJson(저작 원본) · MotionsJson(motions/2 정규 쓰기·관용 읽기)
            Validation/   MotionValidator(코어 MotionRules) · MotionFixes(돕는 손) · MotionExport
-           Rig/          RigSchemaFile(덤프+SHA-256) · BuiltinTuning · ControllersFile · DepthTuningFile · FocusTuningFile · BaseResolutionFile
-           Preview/      ScenePreview(씬 조립) · MotionPreview(포즈) · PoseEdit · PortraitLayout · StageShotResponse · PlaybackClock
+           Rig/          RigSchemaFile(덤프+SHA-256) · BuiltinTuning · DepthTuningFile · BaseResolutionFile
+           Preview/      ScenePreview(씬 조립) · MotionPreview(포즈) · PoseEdit · StageQuads · StageShotResponse · PlaybackClock
            Graph/        순수 함수 — 좌표·히트·탄젠트·스냅·키 연산·선택·클립보드·도프 행
-           Presets/      프리셋 모션 9종
            Settings/     ToolSettings(%APPDATA%/ked-motion-tool/settings.json)
    └─► Mt.App (그리기와 입력)
            MainWindow    셸 — 모션·하이어아키·인스펙터 탭·툴바·전역 단축키·설정/단축키 창
@@ -60,11 +58,10 @@ tools/  prefab-to-stage-rig.py(유니티 프리팹 → 무대 뼈대 JSON) · pr
 
 | 파일 | 스키마 | 주인 | 비고 |
 |---|---|---|---|
-| `*.motion-authoring.json` | `motion-authoring/2` | 이 툴 | 모션·채널·키·탄젠트·씬(`scenes[]`)·리그 덤프 참조(경로+해시)·초상 참조. 옛 `/1`은 읽힌다(채널 `mode` 버림, `defaultMode` → 재생 기준) |
+| `*.motion-authoring.json` | `motion-authoring/2` | 이 툴 | 모션·채널·키·탄젠트·씬(`scenes[]`)·리그 덤프 참조(경로+해시). 옛 `/1`은 읽힌다(채널 `mode` 버림, `defaultMode` → 재생 기준) |
 | `motions.json` | `motions/2` | 무대 런타임 규약 | 모션 이름·길이·`end`(restore/commit)·채널(노드×종류×성분 키). 정규 직렬화(§7)라 diff가 안정. 옛 `/1`은 읽힌다 |
 | `ExportedTuning/rig-schemas.json` | 유니티 덤프 | 런타임 | 노드 id·parent·앵커·피벗·크기. 내장본은 `Mt.Authoring/Defaults/ExportedTuning` |
-| `ExportedTuning/base-resolution.json` · `presets/depth.json` · `presets/focus-tuning.json` | 유니티 덤프 | 런타임 | 무대 크기 · 깊이 커브 · focus 보존 표 |
-| `presets/controllers.json` | `controllers/1` | 리거(이 툴) | 손잡이 표. 내장본 `Defaults/controllers.json` |
+| `ExportedTuning/base-resolution.json` · `presets/depth.json` | 유니티 덤프 | 런타임 | 무대 크기 · 깊이 커브 |
 | `Defaults/stage-skeleton.json` | 툴 내부 | 이 툴 | `PresentataionUIRoot.prefab`에서 뽑은 85노드 무대 뼈대. `tools/prefab-to-stage-rig.py`로 재생성 |
 | `settings.json` | 툴 내부 | 사용자 | `%APPDATA%/ked-motion-tool/` |
 

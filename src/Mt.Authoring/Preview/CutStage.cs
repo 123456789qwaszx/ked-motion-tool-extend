@@ -27,8 +27,8 @@ public static class CutStage
     /// <see cref="CameraPan"/>의 x·y = 밀기(px), <see cref="CameraZoom"/>의 x = 당기기. 그래서 카메라가 **같은 타임라인의 트랙**이 된다 — 자리 채널에 키를 놓으면 카메라가 움직인다.
     /// 키가 없는 동안은 컷에 적힌 카메라 값(<see cref="CutAsset.Camera"/>)으로 선다.
     /// </summary>
-    public const string CameraPan = CameraRig.PanNode;
-    public const string CameraZoom = CameraRig.ZoomNode;
+    public const string CameraPan = "Camera_Pan";
+    public const string CameraZoom = "Camera_Zoom";
 
     /// <summary>카메라의 점인가 — 하이어아키의 오브젝트가 아니다(그리지도 집지도 않는다).</summary>
     public static bool IsCameraNode(string? nodeId) => nodeId is CameraPan or CameraZoom;

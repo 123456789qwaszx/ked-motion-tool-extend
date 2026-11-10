@@ -47,20 +47,6 @@ public sealed partial class MotionEditor
     public void SetBaseResolution(string? path)
         => Mutate(MotionChangeKind.Document, () => Document.BaseResolution = path is null ? null : new FileReference { Path = path });
 
-    /// <summary>호환용 — 활성 씬의 선택 오브젝트가 없으니 첫 오브젝트(c1)의 초상으로 둔다.</summary>
-    public void SetPreviewPortrait(string? path)
-    {
-        SceneAsset scene = RequireScene(null);
-        SceneObject? first = scene.Objects.FirstOrDefault();
-
-        if (first is null)
-        {
-            return;
-        }
-
-        SetObjectPortrait(scene.Name, first.Id, path);
-    }
-
     // ── 씬 ────────────────────────────────────────────────────────────
 
     private SceneAsset RequireScene(string? name)
@@ -127,56 +113,7 @@ public sealed partial class MotionEditor
         SceneAsset scene = RequireScene(sceneName);
         SceneObject o = RequireObject(scene, id);
 
-        // 붙은 것도 같은 칸에서 사라진다 — 없는 부모를 가리키며 남지 않게.
-        Mutate(MotionChangeKind.Scene, () =>
-        {
-            scene.Objects.RemoveAll(c => string.Equals(c.AttachTo, id, StringComparison.Ordinal));
-            scene.Objects.Remove(o);
-        });
-    }
-
-    /// <summary>
-    /// 오브젝트를 다른 오브젝트의 노드에 붙인다(<c>PLAN-parts.md</c> P2) — 부모가 움직이면 따라간다. parent가 null이면 뗀다.
-    /// 한 단계만: 붙은 것에는 못 붙이고, 무언가가 붙어 있는 오브젝트는 다른 데 못 붙는다. 노드가 그 리그에 있는지는 편집기가 모른다(없으면 부모의 루트에 선다).
-    /// </summary>
-    public void AttachObject(string? sceneName, string id, string? parent, string? node = SceneObject.DefaultAttachNode)
-    {
-        SceneAsset scene = RequireScene(sceneName);
-        SceneObject o = RequireObject(scene, id);
-
-        if (parent is null)
-        {
-            Mutate(MotionChangeKind.Scene, () =>
-            {
-                o.AttachTo = null;
-                o.AttachNode = null;
-            });
-            return;
-        }
-
-        SceneObject target = RequireObject(scene, parent);
-
-        if (string.Equals(id, parent, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("오브젝트를 제 자신에 붙일 수 없다.");
-        }
-
-        if (target.AttachTo is not null)
-        {
-            throw new InvalidOperationException($"'{parent}'는 이미 '{target.AttachTo}'에 붙어 있다 — 붙은 것에는 또 붙이지 않는다.");
-        }
-
-        if (scene.Objects.Any(c => string.Equals(c.AttachTo, id, StringComparison.Ordinal)))
-        {
-            throw new InvalidOperationException($"'{id}'에 붙은 것이 있다 — 먼저 떼어야 다른 데 붙일 수 있다.");
-        }
-
-        string? at = string.IsNullOrEmpty(node) ? null : node;
-        Mutate(MotionChangeKind.Scene, () =>
-        {
-            o.AttachTo = parent;
-            o.AttachNode = at;
-        });
+        Mutate(MotionChangeKind.Scene, () => scene.Objects.Remove(o));
     }
 
     /// <summary>이름(id) 바꾸기.</summary>
@@ -198,15 +135,7 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException($"오브젝트 '{newId}'가 이미 있다.");
         }
 
-        Mutate(MotionChangeKind.Scene, () =>
-        {
-            o.Id = newId;
-
-            foreach (SceneObject attached in scene.Objects.Where(c => string.Equals(c.AttachTo, id, StringComparison.Ordinal)))
-            {
-                attached.AttachTo = newId; // 붙은 것이 따라온다
-            }
-        });
+        Mutate(MotionChangeKind.Scene, () => o.Id = newId);
     }
 
     /// <summary>
@@ -227,13 +156,8 @@ public sealed partial class MotionEditor
             RotationZ = source.RotationZ,
             ScaleX = source.ScaleX,
             ScaleY = source.ScaleY,
-            Portrait = source.Portrait,
             Visible = source.Visible,
-            Place = source.Place,
-            PlaceFocus = source.PlaceFocus,
             Skin = source.Skin,
-            AttachTo = source.AttachTo, // 붙은 것을 복제하면 같은 데 붙는다(부모를 복제해도 붙은 것은 따라 복제되지 않는다)
-            AttachNode = source.AttachNode,
         };
 
         int at = scene.Objects.IndexOf(source) + 1;
@@ -299,19 +223,6 @@ public sealed partial class MotionEditor
         });
     }
 
-    /// <summary>배역 키 — 기준점 표의 그 배역 값을 쓴다. 빈 글·null이면 지운다(표의 기본값). 앞뒤 빈칸은 버린다.</summary>
-    public void SetObjectCharacter(string? sceneName, string id, string? character)
-    {
-        SceneAsset scene = RequireScene(sceneName);
-        SceneObject o = RequireObject(scene, id);
-        string? key = string.IsNullOrWhiteSpace(character) ? null : character.Trim();
-
-        if (o.Character != key)
-        {
-            Mutate(MotionChangeKind.Scene, () => o.Character = key);
-        }
-    }
-
     /// <summary>레이어(far · back · mid · front · close).</summary>
     public void SetObjectLayer(string? sceneName, string id, string layer)
     {
@@ -369,34 +280,6 @@ public sealed partial class MotionEditor
         if (o.Stage != stage)
         {
             Mutate(MotionChangeKind.Scene, () => o.Stage = stage);
-        }
-    }
-
-    /// <summary>자리(place) — 화면 지점 × focus 프리셋. screenPoint가 null이면 place 없음. 이름은 코어 어휘여야 한다.</summary>
-    public void SetObjectPlace(string? sceneName, string id, string? screenPoint, string? focusPreset = null)
-    {
-        SceneAsset scene = RequireScene(sceneName);
-        SceneObject o = RequireObject(scene, id);
-        string? point = string.IsNullOrWhiteSpace(screenPoint) ? null : screenPoint.Trim();
-        string? focus = string.IsNullOrWhiteSpace(focusPreset) || focusPreset.Trim() == SceneObject.DefaultPlaceFocus ? null : focusPreset.Trim();
-
-        if (point is not null && !Preview.ScenePreview.ScreenPoints.Contains(point))
-        {
-            throw new InvalidOperationException($"화면 지점은 {string.Join("·", Preview.ScenePreview.ScreenPoints)} 중 하나다 ('{point}')");
-        }
-
-        if (focus is not null && !Preview.ScenePreview.FocusPresets.Contains(focus))
-        {
-            throw new InvalidOperationException($"focus 프리셋은 {string.Join("·", Preview.ScenePreview.FocusPresets)} 중 하나다 ('{focus}')");
-        }
-
-        if (o.Place != point || o.PlaceFocus != focus)
-        {
-            Mutate(MotionChangeKind.Scene, () =>
-            {
-                o.Place = point;
-                o.PlaceFocus = focus;
-            });
         }
     }
 
@@ -516,18 +399,6 @@ public sealed partial class MotionEditor
         }
     }
 
-    /// <summary>미리보기 초상(문서 기준 상대 경로). null이면 자리표시.</summary>
-    public void SetObjectPortrait(string? sceneName, string id, string? path)
-    {
-        SceneAsset scene = RequireScene(sceneName);
-        SceneObject o = RequireObject(scene, id);
-
-        if (o.Portrait != path)
-        {
-            Mutate(MotionChangeKind.Scene, () => o.Portrait = path);
-        }
-    }
-
     // ── 모션 ──────────────────────────────────────────────────────────
 
     public MotionAsset AddMotion(
@@ -637,49 +508,6 @@ public sealed partial class MotionEditor
         var channel = new ChannelAsset { Node = node, Kind = kind };
         Mutate(MotionChangeKind.Structure, () => motion.Channels.Add(channel));
         return channel;
-    }
-
-    /// <summary>
-    /// 채널 일부를 새 모션으로 떼어 낸다(한 번의 되돌리기) — 자리·깊이 컨트롤러(absolute)와 연기(relative)가 한 모션에 섞였을 때
-    /// 두 클립·두 커맨드로 나누는 길(motions/2: mode는 커맨드 인자 하나). 새 모션은 길이·끝·리그가 같고 재생 기준(relative/absolute)만 준 것.
-    /// 옮길 채널이 없거나 전부면 아무것도 안 하고 null.
-    /// </summary>
-    public MotionAsset? SplitMotion(string name, string newName, Func<ChannelAsset, bool> moveToNew, MotionChannelMode newPreviewMode)
-    {
-        ArgumentNullException.ThrowIfNull(moveToNew);
-        MotionAsset motion = Require(name);
-
-        if (!MotionNames.IsValid(newName))
-        {
-            throw new InvalidOperationException(MotionNames.RuleMessage(newName));
-        }
-
-        if (Document.Find(newName) is not null)
-        {
-            throw new InvalidOperationException($"모션 '{newName}'이 이미 있다 — 이름은 하나뿐이어야 한다.");
-        }
-
-        List<ChannelAsset> moving = motion.Channels.Where(moveToNew).ToList();
-
-        if (moving.Count == 0 || moving.Count == motion.Channels.Count)
-        {
-            return null;
-        }
-
-        var created = new MotionAsset { Name = newName, Rig = motion.Rig, Duration = motion.Duration, End = motion.End, PreviewMode = newPreviewMode };
-
-        Mutate(MotionChangeKind.Structure, () =>
-        {
-            foreach (ChannelAsset channel in moving)
-            {
-                motion.Channels.Remove(channel);
-                created.Channels.Add(channel);
-            }
-
-            Document.Motions.Insert(Document.Motions.IndexOf(motion) + 1, created);
-        });
-
-        return created;
     }
 
     public void RemoveChannel(string name, string node, MotionChannelKind kind)
@@ -1286,7 +1114,7 @@ public sealed partial class MotionEditor
     private List<(Action Undo, Action Redo)>? _batchSides;
 
     /// <summary>
-    /// 여러 명령을 되돌리기 한 번으로 묶는다(프리셋 추가처럼 모션·채널·키를 한꺼번에). 안에서 던지면 문서를 묶기 전으로 되돌리고
+    /// 여러 명령을 되돌리기 한 번으로 묶는다(모션·채널·키를 한꺼번에). 안에서 던지면 문서를 묶기 전으로 되돌리고
     /// 기록에 남기지 않는다. 아무것도 안 바뀌었으면(같은 값만 넣었으면) 기록도 다시하기 삭제도 없다. 중첩은 바깥 묶음에 든다.
     /// 묶음 안에서 <see cref="RecordExternal"/>로 올린 손은 같은 칸에 붙는다.
     /// </summary>

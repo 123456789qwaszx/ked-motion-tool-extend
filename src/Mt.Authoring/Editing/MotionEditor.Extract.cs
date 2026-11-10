@@ -13,7 +13,7 @@ public sealed partial class MotionEditor
     /// <item>자리: 고른 것들의 가운데가 새 세트의 가운데가 되고, 인스턴스가 그 자리에 선다 — 화면에서 보이는 자리는 그대로다.</item>
     /// <item>그림: 그 오브젝트들의 스킨 칸이 새 세트의 스킨으로 옮겨진다.</item>
     /// <item>키: 그 오브젝트들의 채널(과 재생 블록)이 새 세트의 애니메이션(<c>새세트_이름</c>)으로 옮겨지고, 원래 애니메이션에는 그것을 처음부터 트는 재생 블록이 선다 — 재생은 그대로다.</item>
-    /// <item>가리키던 것: 이 세트를 품은 다른 세트의 경로 채널, 씬 오브젝트의 붙는 노드가 새 경로(<c>인스턴스.이름</c>)를 따라온다.</item>
+    /// <item>가리키던 것: 이 세트를 품은 다른 세트의 경로 채널이 새 경로(<c>인스턴스.이름</c>)를 따라온다.</item>
     /// </list>
     /// 고른 것들의 맨 위는 같은 부모 밑이어야 한다(자리를 한 기준으로 옮긴다).
     /// </summary>
@@ -162,14 +162,6 @@ public sealed partial class MotionEditor
                 foreach (ChannelAsset channel in motion.Channels)
                 {
                     channel.Node = ThroughInstance(motion.Rig, channel.Node, kind, moved, instance);
-                }
-            }
-
-            foreach (SceneAsset scene in Document.Scenes)
-            {
-                foreach (SceneObject o in scene.Objects.Where(o => o.AttachNode is { } attach && Moves(attach) && scene.ParentOf(o)?.Rig == kind))
-                {
-                    o.AttachNode = instance + RigAssetCodec.PathSeparator + o.AttachNode;
                 }
             }
         });

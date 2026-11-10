@@ -26,7 +26,6 @@ public class SceneTests
 
         editor.AddSceneObject(null, "fx", "screenEffect", SceneLayers.Far);
         editor.SetObjectPlacement(null, "s1", 120f, -30f, 5f, 1.2f, 0.9f);
-        editor.SetObjectPortrait(null, "s1", "assets/harin.png");
         editor.SetObjectVisible(null, "fx", false);
 
         string json = MotionDocumentJson.Write(editor.Document);
@@ -37,7 +36,6 @@ public class SceneTests
         Assert.Equal(new[] { "s1", "fx" }, back.Objects.Select(o => o.Id));
         Assert.Equal(120f, back.Objects[0].PositionX);
         Assert.Equal(0.9f, back.Objects[0].ScaleY);
-        Assert.Equal("assets/harin.png", back.Objects[0].Portrait);
         Assert.False(back.Objects[1].Visible);
         Assert.Contains("\"layer\": \"far\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\"prefix\"", json, StringComparison.Ordinal); // 계산 전용 속성은 파일에 없다
@@ -76,7 +74,7 @@ public class SceneTests
         scene.Objects.Add(new SceneObject { Id = "nope", Rig = "robot" });
         var missing = new List<SceneObject>();
 
-        RectNodeTree tree = ScenePreview.Build(RigFile, scene, _ => 0.8f, missing);
+        RectNodeTree tree = ScenePreview.Build(RigFile, scene, missing);
 
         Assert.True(tree.Contains("s1/CharacterPortraitSprite_Image"));
         Assert.True(tree.Contains("fx/__root"));
@@ -90,10 +88,6 @@ public class SceneTests
         Assert.Equal(1.5f, tree.GetState("s1/CharSlot_Scale").LocalScale.X);
         Assert.Equal(2f, tree.GetState("s1/CharSlot_Scale").LocalScale.Y);
         Assert.Equal(1f, tree.GetState("s1/CharSlot_Scale").LocalScale.Z); // z는 그대로
-
-        // 초상 사이징(종횡비 0.8)은 접두사 밑에서도 입혀진다.
-        Vec2 image = tree.GetRectSize("s1/CharacterPortraitSprite_Image");
-        Assert.True(image.X > 0 && image.Y > 0);
     }
 
     [Fact]
@@ -129,17 +123,15 @@ public class SceneTests
         var scene = new SceneAsset();
         scene.Objects.Add(new SceneObject { Id = "s1", Rig = "character", Layer = SceneLayers.Mid });
         scene.Objects.Add(new SceneObject { Id = "s2", Rig = "character", Layer = SceneLayers.Far });
-        RectNodeTree tree = ScenePreview.Build(RigFile, scene, null, null, depth);
+        RectNodeTree tree = ScenePreview.Build(RigFile, scene, null, depth);
 
         Assert.Equal(midScale, tree.GetState("s1/CharSlot_DepthScale").LocalScale.X, 4);
         Assert.Equal(farScale, tree.GetState("s2/CharSlot_DepthScale").LocalScale.X, 4);
-        // DepthY는 focus 보존이 정한다 — 초점(VisualOffset)이 배율 중심과 겹치면 레이어가 달라도 0일 수 있다. 값은 아래에서 코어와 대조한다.
 
-        // 깊이 축에도 focus 보존이 들어가므로 날 커브 값과는 다를 수 있다 — 같은 코어 함수로 다시 접은 값과 같다.
+        // 같은 코어 함수(기준점 표 없이)로 다시 접은 값과 같다.
         var state = new StageState(new RectSpace(RigFile.Dto.capturedUnderParentSize.ToVec2(), Vec2.Half));
         RigSchemaLoader.AddRigTo(state.Nodes, RigFile.Dto.rigs.First(r => r.rigKind == "character"), "s1/");
         state.RegisterSlot("s1");
-        PortraitLayout.ApplySizing(state.Nodes, PortraitLayout.PlaceholderAspect, "s1/");
         Assert.True(SetDepthStageReduction.TryReduce(state, "s1", "", "mid", "bust", depth.Level, null, out StageNodeClaim y, out _, out _));
         Assert.Equal(y.Value.Y, tree.GetState("s1/CharSlot_DepthY").AnchoredPosition.Y, 3);
 
@@ -270,7 +262,6 @@ public class SceneTests
         Assert.Contains("character", BuiltinTuning.RigSchemas.RigKinds);
         Assert.Equal(1920f, BuiltinTuning.BaseResolution.X);
         Assert.True(BuiltinTuning.Depth.TryResolveLayer("mid", out _, out _));
-        Assert.NotEmpty(BuiltinTuning.Focus.Body.entries); // 내장 focus 표 — 툴은 배역 없이 base + bust만 쓴다
         RigSchemaRigDto stage = BuiltinTuning.StageRig;
         Assert.Equal(85, stage.nodes.Count);
         Assert.All(stage.nodes, n => Assert.Equal(1f, n.localScale.x));
@@ -289,8 +280,8 @@ public class SceneTests
         SceneAsset scene = editor.Document.ActiveSceneAsset!;
         Assert.Throws<InvalidOperationException>(() => editor.AddSceneObject(null, "s3", "character", SceneLayers.Mid, stage: "stage07"));
 
-        RectNodeTree plain = ScenePreview.Build(RigFile, scene, null, null, BuiltinTuning.Depth, BuiltinTuning.Focus);
-        RectNodeTree staged = ScenePreview.Build(RigFile, scene, null, null, BuiltinTuning.Depth, BuiltinTuning.Focus, BuiltinTuning.StageRig);
+        RectNodeTree plain = ScenePreview.Build(RigFile, scene, null, BuiltinTuning.Depth);
+        RectNodeTree staged = ScenePreview.Build(RigFile, scene, null, BuiltinTuning.Depth, BuiltinTuning.StageRig);
 
         Assert.Equal("stage/Stage00Depth_Mid_Content", staged.GetParentKey("s1/__root"));
         Assert.Equal("stage/Stage01Depth_Far_Content", staged.GetParentKey("s2/__root"));
@@ -321,7 +312,7 @@ public class SceneTests
         editor.AddSceneObject(null, "far", "character", SceneLayers.Far);
         editor.SetCamera(null, 20f, 100f, 0f); // 배율 2, pan +100
         SceneAsset scene = editor.Document.ActiveSceneAsset!;
-        RectNodeTree tree = ScenePreview.Build(RigFile, scene, null, null, null, null, BuiltinTuning.StageRig);
+        RectNodeTree tree = ScenePreview.Build(RigFile, scene, null, null, BuiltinTuning.StageRig);
 
         Assert.Equal(2f, tree.GetState("stage/StageZoom_Root").LocalScale.X, 4);
         Assert.Equal(100f, tree.GetState("stage/StagePan_Root").AnchoredPosition.X, 4);
@@ -339,53 +330,14 @@ public class SceneTests
     }
 
     [Fact]
-    public void 자리_있는_오브젝트도_카메라_pan_zoom을_따라_움직인다()
+    public void 내장_깊이_커브로_세우면_실제_게임_프리팹의_DepthScale과_같다()
     {
-        // place는 런타임에서 커맨드 순간 한 번 풀리는 것 — 그 뒤의 shot은 무대째 움직여야 한다. 샷을 먼저 넣으면 place가 pan을 되감는다.
-        var editor = new MotionEditor(new MotionDocument()); // 새 문서 = 캐릭터 s1 하나짜리 기본 씬
-        editor.SetObjectPlace(null, "s1", "center");
-        RectNodeTree rest = ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!, null, null, null, null, BuiltinTuning.StageRig);
-        Vec2 placed = rest.TransformPoint("s1/CharSlot_Track", Vec3.Zero).XY;
-
-        editor.SetCamera(null, 0f, 100f, -40f);
-        RectNodeTree panned = ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!, null, null, null, null, BuiltinTuning.StageRig);
-        Vec2 moved = panned.TransformPoint("s1/CharSlot_Track", Vec3.Zero).XY;
-        Assert.Equal(placed.X + 100f, moved.X, 2);
-        Assert.Equal(placed.Y - 40f, moved.Y, 2);
-
-        editor.SetCamera(null, 20f, 0f, 0f); // 배율 2 — 자리 점이 원점에서 두 배 멀어진다
-        RectNodeTree zoomed = ScenePreview.Build(RigFile, editor.Document.ActiveSceneAsset!, null, null, null, null, BuiltinTuning.StageRig);
-        Vec2 scaled = zoomed.TransformPoint("s1/CharSlot_Track", Vec3.Zero).XY;
-        Assert.Equal(placed.X * 2f, scaled.X, 2);
-        Assert.Equal(placed.Y * 2f, scaled.Y, 2);
-    }
-
-    [Fact]
-    public void 내장_깊이와_focus_표로_세우면_실제_게임_프리팹의_DepthY_DepthScale과_같다()
-    {
-        // 게임 진행 중 PresentataionUIRoot 프리팹(Stage00 Mid, 배역 오프셋 없음): CharSlot_DepthY (0, −580.56) · DepthScale 1.708.
+        // 게임 진행 중 PresentataionUIRoot 프리팹(Stage00 Mid): CharSlot_DepthScale 1.708. 기준점 표가 없으니 DepthY는 움직이지 않는다(제 원점을 중심으로 커진다).
         var editor = new MotionEditor(new MotionDocument());
         SceneAsset scene = editor.Document.ActiveSceneAsset!;
-        RectNodeTree tree = ScenePreview.Build(RigFile, scene, null, null, BuiltinTuning.Depth, BuiltinTuning.Focus, BuiltinTuning.StageRig);
+        RectNodeTree tree = ScenePreview.Build(RigFile, scene, null, BuiltinTuning.Depth, BuiltinTuning.StageRig);
 
         Assert.Equal(1.708f, tree.GetState("s1/CharSlot_DepthScale").LocalScale.X, 3);
-        Assert.Equal(-580.56f, tree.GetState("s1/CharSlot_DepthY").AnchoredPosition.Y, 1);
-        Assert.Equal(0f, tree.GetState("s1/CharSlot_Track_Focus").AnchoredPosition.X, 3); // place 없음
-
-        // place(left, bust): focus 점이 화면 왼쪽 지점(−0.24·1920)에 온다 — 코어 place 폴드.
-        editor.SetObjectPlace(null, "s1", "left");
-        Assert.Throws<InvalidOperationException>(() => editor.SetObjectPlace(null, "s1", "middle"));
-        Assert.Throws<InvalidOperationException>(() => editor.SetObjectPlace(null, "s1", "left", "nose"));
-        RectNodeTree placed = ScenePreview.Build(RigFile, scene, null, null, BuiltinTuning.Depth, BuiltinTuning.Focus, BuiltinTuning.StageRig);
-        Assert.Equal(-0.24f * 1920f, placed.GetState("s1/CharSlot_Track_Focus").AnchoredPosition.X, 1);
-        Assert.Equal(-580.56f, placed.GetState("s1/CharSlot_DepthY").AnchoredPosition.Y, 1); // 깊이 → place 순서라 DepthY는 그대로(게임과 같다)
-        Assert.NotEqual(0f, placed.GetState("s1/CharSlot_Track_Focus").AnchoredPosition.Y);
-
-        editor.SetObjectPlace(null, "s1", "left", "face");
-        Assert.Equal("face", scene.Find("s1")!.PlaceFocus);
-        editor.SetObjectPlace(null, "s1", null);
-        Assert.Null(scene.Find("s1")!.Place);
-        string json = MotionDocumentJson.Write(editor.Document);
-        Assert.DoesNotContain("\"place\"", json, StringComparison.Ordinal);
+        Assert.Equal(0f, tree.GetState("s1/CharSlot_DepthY").AnchoredPosition.Y, 3);
     }
 }

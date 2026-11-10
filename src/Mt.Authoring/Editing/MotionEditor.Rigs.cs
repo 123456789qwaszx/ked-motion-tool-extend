@@ -6,8 +6,8 @@ namespace Mt.Authoring.Editing;
 // 툴에서 정의하는 리그의 명령(PLAN-parts.md §9) — 각각 되돌리기 한 칸.
 public sealed partial class MotionEditor
 {
-    /// <summary>캐릭터 리그·카메라의 가짜 리그·무대 뼈대는 툴에서 정의하지 않는다.</summary>
-    private static readonly string[] ReservedRigKinds = { SceneObject.DefaultRig, Preview.CameraRig.RigKind, "stage" };
+    /// <summary>캐릭터 리그·무대 뼈대는 툴에서 정의하지 않는다.</summary>
+    private static readonly string[] ReservedRigKinds = { SceneObject.DefaultRig, "stage" };
 
     private static readonly Regex RigKindRule = new("^[a-zA-Z][a-zA-Z0-9_]*$", RegexOptions.Compiled);
 
@@ -149,7 +149,7 @@ public sealed partial class MotionEditor
     }
 
     /// <summary>
-    /// 노드의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 자식의 부모, 그 리그의 모션 채널, 스킨의 조각 칸, 그 리그에 붙은 오브젝트의 붙는 노드.
+    /// 노드의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 자식의 부모, 그 리그의 모션 채널, 스킨의 조각 칸.
     /// </summary>
     public void RenameRigNode(string kind, string id, string newId)
     {
@@ -221,14 +221,6 @@ public sealed partial class MotionEditor
                 if (skin.Setups.Remove(id, out SkinPartSetup? setup))
                 {
                     skin.Setups[name] = setup;
-                }
-            }
-
-            foreach (SceneAsset scene in Document.Scenes)
-            {
-                foreach (SceneObject o in scene.Objects.Where(o => o.AttachNode == id && scene.ParentOf(o)?.Rig == kind))
-                {
-                    o.AttachNode = name;
                 }
             }
         });

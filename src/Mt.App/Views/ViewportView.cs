@@ -16,9 +16,9 @@ using Mt.Authoring.Rig;
 namespace Mt.App.Views;
 
 /// <summary>
-/// 뷰포트 — 리그 덤프로 세운 트리 위에 초상 한 장을 올리고 모션을 재생한다.
+/// 뷰포트 — 리그로 세운 트리 위에 오브젝트를 그리고 모션을 재생한다.
 ///
-/// 포즈는 <see cref="MotionPreview"/>(코어 수학), 자리는 <see cref="PortraitLayout"/>(런타임 사이징)이다 —
+/// 포즈는 <see cref="MotionPreview"/>(코어 수학), 자리는 <see cref="StageQuads"/>다 —
 /// 여기에는 그리기·시계·입력만 있다. 무대는 기준 해상도 크기이고 컨트롤 안에 레터박스로 맞춘다.
 /// 깊이는 mid(DepthScale 1) 고정이고 카메라는 없다 — v1 범위.
 ///
@@ -60,12 +60,10 @@ public sealed class ViewportView : Control
     private string? _motionName;
     private RigSchemaFile? _rig;
     private DepthTuningFile? _depth;
-    private FocusTuningFile? _focus;
     // 무대 뼈대(PresentataionUIRoot). 리그가 있으면 내장 뼈대를 쓴다 — 카메라·패럴랙스가 이 트리에 들어간다.
     private RigSchemaRigDto? _stage;
     // 씬 전체의 시작 상태(오브젝트마다 슬롯 접두사). 모션은 선택 오브젝트에만 얹는다.
     private RectNodeTree? _template;
-    private readonly Dictionary<string, Bitmap?> _portraits = new();
 
     /// <summary>조각 그림 — (오브젝트 id, 조각 노드 id) → 비트맵. 스킨이 그림을 준 조각만 든다(파일을 못 읽었으면 null — 자리표시).</summary>
     // 스킨의 그림 — 문서 기준 경로 → 비트맵. 어느 스킨의 어느 장을 그릴지는 그릴 때 고른다(입은 스킨 · 그림 넘기기).
@@ -382,7 +380,7 @@ public sealed class ViewportView : Control
 
     public IReadOnlyList<SceneObject> SceneObjects => Scene?.Objects ?? (IReadOnlyList<SceneObject>)Array.Empty<SceneObject>();
 
-    /// <summary>선택 오브젝트 — 매니퓰레이터·모션 미리보기·초상 바꾸기의 대상.</summary>
+    /// <summary>선택 오브젝트 — 매니퓰레이터·모션 미리보기의 대상.</summary>
     public string? SelectedObjectId
     {
         get => _selectedObjectId;
@@ -414,7 +412,7 @@ public sealed class ViewportView : Control
     /// <summary>이 오브젝트에 지금 모션을 입혀 볼 수 있나(rigKind가 같거나 채널 노드가 전부 있으면).</summary>
     public bool CanWear(SceneObject o) => _rig is not null && Motion is { } motion && ScenePreview.CanWear(_rig, o, motion);
 
-    /// <summary>오브젝트의 그림(초상) 사각형 — 루트 공간. 그림 노드가 없는 리그면 루트 rect. 트리가 없으면 null.</summary>
+    /// <summary>오브젝트의 사각형 — 루트 공간(<see cref="QuadOf"/>). 트리가 없으면 null.</summary>
     public Quad? ObjectQuad(string objectId)
     {
         RectNodeTree? pose = PoseAt(_clock.Time);
@@ -428,7 +426,7 @@ public sealed class ViewportView : Control
         return QuadOf(pose, o);
     }
 
-    /// <summary>포즈 위의 오브젝트 사각형(루트 공간) — 초상이 있으면 보이는 그림, 없으면 루트 rect.</summary>
+    /// <summary>포즈 위의 오브젝트 사각형(루트 공간) — 첫 조각, 첫 색 사각형, 그것도 없으면 윤곽(<see cref="OutlineKeyOf"/>).</summary>
     private Quad? QuadOf(RectNodeTree pose, SceneObject o)
     {
         // 조각으로 그려지는 오브젝트는 첫 조각의 사각형이 고르는 자리다.
@@ -440,19 +438,15 @@ public sealed class ViewportView : Control
         // 색 오브젝트뿐인 세트 — 첫 색 사각형.
         if (RigParts.ColorsOf(_rig, o.Rig).Keys.FirstOrDefault(n => pose.Contains(o.KeyOf(n))) is { } colored)
         {
-            return PortraitLayout.RectQuad(pose, o.KeyOf(colored));
+            return StageQuads.RectQuad(pose, o.KeyOf(colored));
         }
 
-        string? image = ScenePreview.ImageKeyOf(pose, o);
-        return image is not null
-            ? PortraitLayout.VisualQuad(pose, image, AspectOf(o))
-            : pose.Contains(ScenePreview.RootKeyOf(o)) ? PortraitLayout.RectQuad(pose, ScenePreview.RootKeyOf(o)) : null;
+        return OutlineKeyOf(pose, o) is { } outline ? StageQuads.RectQuad(pose, outline) : null;
     }
 
-    private float AspectOf(SceneObject o)
-        => _portraits.TryGetValue(o.Id, out Bitmap? bitmap) && bitmap is { PixelSize: { Width: > 0, Height: > 0 } }
-            ? bitmap.PixelSize.Width / (float)bitmap.PixelSize.Height
-            : PortraitLayout.PlaceholderAspect;
+    /// <summary>그림도 색도 없는 오브젝트의 윤곽 노드 — 덤프 리그의 그림 자리, 없으면 루트. 그 리그가 안 섰으면 null.</summary>
+    private static string? OutlineKeyOf(RectNodeTree pose, SceneObject o)
+        => ScenePreview.OutlineKeyOf(pose, o) ?? (pose.Contains(ScenePreview.RootKeyOf(o)) ? ScenePreview.RootKeyOf(o) : null);
 
     private double SnapTime(double seconds) => SnapEnabled ? TimeSnap.Snap(seconds, SnapStep) : seconds;
 
@@ -661,8 +655,7 @@ public sealed class ViewportView : Control
     {
         MotionAsset? motion = Motion;
 
-        // 카메라 모션에는 캐릭터의 포즈를 키하지 않는다 — 카메라 값은 SetCameraValue로.
-        if (_editor is null || motion is null || CameraRig.IsCamera(motion))
+        if (_editor is null || motion is null)
         {
             return;
         }
@@ -799,7 +792,7 @@ public sealed class ViewportView : Control
 
         string key = Prefix + node;
 
-        if (_editor is null || motion is null || CameraRig.IsCamera(motion) || _template is null || pose is null || !pose.Contains(key) || axes.Count == 0)
+        if (_editor is null || motion is null || _template is null || pose is null || !pose.Contains(key) || axes.Count == 0)
         {
             return;
         }
@@ -973,34 +966,7 @@ public sealed class ViewportView : Control
             .ToList();
     }
 
-    /// <summary>카메라 모션을 보는 중일 때 지금 시각의 카메라 값(zoom·pan). 카메라 모션이 아니면 null.</summary>
-    public CameraSettings? CameraValue()
-    {
-        return Motion is { } motion && CameraRig.IsCamera(motion) && Scene is { } scene
-            ? CameraRig.Pose(scene.Camera, motion, _clock.Time, motion.PreviewMode, _flags.IsMuted)
-            : null;
-    }
-
-    /// <summary>
-    /// 카메라 값을 지금 시각에 키한다(마야 채널 박스에 값을 넣은 것) — 그 성분의 키 하나, 되돌리기 한 칸.
-    /// <paramref name="node"/>는 <see cref="CameraRig.PanNode"/>(x·y) 또는 <see cref="CameraRig.ZoomNode"/>(x). 재생 기준이 상대값이면 씬의 카메라와의 차가 키 값이다.
-    /// </summary>
-    public void SetCameraValue(string node, Axis axis, float value)
-    {
-        if (_editor is null || Motion is not { } motion || !CameraRig.IsCamera(motion) || Scene is not { } scene)
-        {
-            return;
-        }
-
-        float start = node == CameraRig.ZoomNode ? scene.Camera.Zoom : axis == Axis.X ? scene.Camera.PanX : scene.Camera.PanY;
-        float time = (float)Math.Max(0, SnapTime(_clock.Time));
-        _editor.KeyComponents(motion.Name, node, MotionChannelKind.Position, time, new[] { (axis, CameraRig.KeyValueFor(motion.PreviewMode, start, value)) }, DefaultTangent);
-    }
-
     public bool HasRig => _template is not null;
-
-    /// <summary>선택 오브젝트의 초상 종횡비(없으면 자리표시).</summary>
-    public float Aspect => SelectedObject is { } o ? AspectOf(o) : PortraitLayout.PlaceholderAspect;
 
     // ── 바인딩 ────────────────────────────────────────────────────────
 
@@ -1051,18 +1017,10 @@ public sealed class ViewportView : Control
     /// <summary>카메라가 트리(뼈대의 Zoom/Pan 노드)에 들어가 있나. 뼈대가 없으면 보기 변환으로 입힌다(같은 식).</summary>
     public bool CameraInTree => _stage is not null;
 
-    /// <summary>presets/depth.json — 레이어를 깊이(DepthY·DepthScale)로. null이면 레이어는 그리는 순서만.</summary>
+    /// <summary>presets/depth.json — 레이어를 깊이(DepthScale)로. null이면 레이어는 그리는 순서만.</summary>
     public void SetDepth(DepthTuningFile? depth)
     {
         _depth = depth;
-        RebuildTemplate();
-        InvalidateVisual();
-    }
-
-    /// <summary>presets/focus.json — focus 오프셋(base + bust)이 깊이·place 폴드에 들어간다.</summary>
-    public void SetFocus(FocusTuningFile? focus)
-    {
-        _focus = focus;
         RebuildTemplate();
         InvalidateVisual();
     }
@@ -1074,24 +1032,6 @@ public sealed class ViewportView : Control
 
     /// <summary>루트 공간 → 컨트롤 좌표(카메라 적용). 테스트가 쓴다.</summary>
     public Point ToScreen(Vec2 root) => ToControl(root);
-
-    /// <summary>선택 오브젝트의 초상 비트맵(호환용). null이면 자리표시 사각형.</summary>
-    public void SetPortrait(Bitmap? portrait)
-    {
-        if (SelectedObject is { } o)
-        {
-            SetPortrait(o.Id, portrait);
-        }
-    }
-
-    /// <summary>오브젝트의 초상 비트맵. 종횡비는 비트맵에서 온다.</summary>
-    public void SetPortrait(string objectId, Bitmap? portrait)
-    {
-        ArgumentNullException.ThrowIfNull(objectId);
-        _portraits[objectId] = portrait;
-        RebuildTemplate();
-        InvalidateVisual();
-    }
 
     /// <summary>스킨의 그림 비트맵 — 문서 기준 경로로. 못 읽었으면 null을 넣는다(자리표시로 그려진다).</summary>
     public void SetImage(string image, Bitmap? bitmap)
@@ -1164,7 +1104,7 @@ public sealed class ViewportView : Control
             return null;
         }
 
-        Quad rect = PortraitLayout.RectQuad(pose, key);
+        Quad rect = StageQuads.RectQuad(pose, key);
         SkinAsset? worn = WornBy(o);
         Bitmap? image = worn is not null ? ImageOf(worn, node) : null;
 
@@ -1219,10 +1159,9 @@ public sealed class ViewportView : Control
         return new Quad(origin, origin + ux * fitW, origin + ux * fitW + uy * fitH, origin + uy * fitH);
     }
 
-    public void ClearPortraits()
+    public void ClearImages()
     {
         _images.Clear();
-        _portraits.Clear();
         RebuildTemplate();
         InvalidateVisual();
     }
@@ -1282,7 +1221,7 @@ public sealed class ViewportView : Control
         // 컷 — 맨 위 오브젝트마다 제 깊이의 틀에 선다(카메라와 깊이는 포즈를 잡은 뒤 넣는다 — StageCut).
         _template = ShownCut is { } cut
             ? CutStage.Build(_rig, cut, scene.Objects[0].Prefix)
-            : ScenePreview.Build(_rig, scene, AspectOf, null, _depth, _focus, _stage);
+            : ScenePreview.Build(_rig, scene, null, _depth, _stage);
     }
 
     /// <summary>
@@ -1442,14 +1381,6 @@ public sealed class ViewportView : Control
             return null;
         }
 
-        // 카메라 모션 — 씬의 카메라 값에 모션을 얹어 무대의 카메라 노드를 다시 세운다. 캐릭터는 시작 상태로 선다.
-        if (CameraRig.IsCamera(motion) && Scene is { } cameraScene)
-        {
-            RectNodeTree tree = _template.Clone();
-            StageShotResponse.Apply(tree, CameraRig.Pose(cameraScene.Camera, motion!, seconds, motion!.PreviewMode, _flags.IsMuted));
-            return tree;
-        }
-
         return motion is not null && SelectedObject is { } o && CanWear(o)
             ? ScenePreview.Pose(_template, o, motion, seconds, _flags.IsMuted, alphas)
             : _template.Clone();
@@ -1527,7 +1458,7 @@ public sealed class ViewportView : Control
     /// </summary>
     public float? AlphaValue(string? node)
     {
-        if (!CanTakeAlpha(node) || Motion is not { } motion || CameraRig.IsCamera(motion))
+        if (!CanTakeAlpha(node) || Motion is null)
         {
             return null;
         }
@@ -1541,7 +1472,7 @@ public sealed class ViewportView : Control
     /// </summary>
     public void SetAlphaValue(string node, float value)
     {
-        if (_editor is null || !CanTakeAlpha(node) || Motion is not { } motion || CameraRig.IsCamera(motion) || _template is null)
+        if (_editor is null || !CanTakeAlpha(node) || Motion is not { } motion || _template is null)
         {
             return;
         }
@@ -1550,8 +1481,8 @@ public sealed class ViewportView : Control
         _editor.KeyComponents(motion.Name, node, MotionChannelKind.Alpha, (float)Math.Max(0, SnapTime(_clock.Time)), new[] { (Axis.X, Math.Clamp(key, 0f, 1f)) }, DefaultTangent);
     }
 
-    /// <summary>지금 시각의 초상 사각형(루트 공간). 리그가 없으면 null.</summary>
-    public Quad? CurrentPortraitQuad()
+    /// <summary>지금 시각의 선택 오브젝트 사각형(루트 공간). 리그가 없으면 null.</summary>
+    public Quad? CurrentObjectQuad()
     {
         return SelectedObject is { } o ? ObjectQuad(o.Id) : null;
     }
@@ -1579,7 +1510,7 @@ public sealed class ViewportView : Control
     {
         Rect stage = StageRect;
         Vec2 shot = CameraInTree ? root : root * CameraScale + CameraPan;
-        Vec2 canvas = PortraitLayout.ToCanvas(shot, _stageSize);
+        Vec2 canvas = StageQuads.ToCanvas(shot, _stageSize);
         double scale = stage.Width / _stageSize.X;
         return new Point(stage.X + canvas.X * scale, stage.Y + canvas.Y * scale);
     }
@@ -1627,12 +1558,6 @@ public sealed class ViewportView : Control
         DrawOutside(context, stage);
         context.DrawRectangle(StagePen, stage);
         DrawRecentEvents(context, stage);
-
-        if (CameraRig.IsCamera(motion) && CameraValue() is { } shot)
-        {
-            DrawLabel(context, $"카메라 모션 {motion!.Name} · zoom {shot.Zoom:0.##} · pan {shot.PanX:0.#}, {shot.PanY:0.#}", new Point(stage.X + 8, stage.Y + 6));
-            return;
-        }
 
         // 배치 모드 — 키를 놓는 손잡이가 아니라 고른 오브젝트의 사각형과 원점.
         if (IsLayoutMode)
@@ -1791,7 +1716,7 @@ public sealed class ViewportView : Control
 
                 if (colors.TryGetValue(node, out string? fill) && IsSetNodeShown(node) && Color.TryParse(fill, out Color color))
                 {
-                    Quad rect = PortraitLayout.RectQuad(pose, key);
+                    Quad rect = StageQuads.RectQuad(pose, key);
 
                     using (context.PushOpacity(alpha))
                     {
@@ -1823,65 +1748,19 @@ public sealed class ViewportView : Control
             return;
         }
 
-        string? imageKey = ScenePreview.ImageKeyOf(pose, o);
-
-        if (imageKey is null)
+        // 그림도 색도 없는 오브젝트 — 윤곽과 이름.
+        if (OutlineKeyOf(pose, o) is not { } outlineKey)
         {
-            // 그림 노드가 없는 리그(배경 등): 루트 rect 윤곽과 이름.
-            string rootKey = ScenePreview.RootKeyOf(o);
-
-            if (!pose.Contains(rootKey))
-            {
-                return;
-            }
-
-            Quad root = PortraitLayout.RectQuad(pose, rootKey);
-            Point a = ToControl(root.BottomLeft);
-            Point b = ToControl(root.BottomRight);
-            Point c = ToControl(root.TopRight);
-            Point d = ToControl(root.TopLeft);
-            context.DrawGeometry(null, selected ? SelectedObjectPen : ObjectOutlinePen, new PolylineGeometry(new[] { a, b, c, d, a }, true));
-            DrawLabel(context, $"{o.Id} ({o.Rig})", new Point(Math.Min(a.X, d.X) + 4, Math.Min(c.Y, d.Y) + 4));
             return;
         }
 
-        Quad quad = PortraitLayout.VisualQuad(pose, imageKey, AspectOf(o));
-        using IDisposable faded = context.PushOpacity(EffectiveAlpha(pose, imageKey, o.Prefix, _drawAlphas)); // 초상에 알파 모션이 얹혔으면
-        Point topLeft = ToControl(quad.TopLeft);
-        Point topRight = ToControl(quad.TopRight);
-        Point bottomLeft = ToControl(quad.BottomLeft);
-        Point bottomRight = ToControl(quad.BottomRight);
-        _portraits.TryGetValue(o.Id, out Bitmap? portrait);
-
-        if (portrait is null)
-        {
-            var outline = new PolylineGeometry(new[] { topLeft, topRight, bottomRight, bottomLeft, topLeft }, true);
-            context.DrawGeometry(PlaceholderFill, PlaceholderPen, outline);
-            context.DrawLine(PlaceholderPen, topLeft, bottomRight);
-            context.DrawLine(PlaceholderPen, topRight, bottomLeft);
-        }
-        else
-        {
-            // 이미지 로컬 (0,0)-(w,h) → 화면 사각형 네 점. 직교 투영 아래서 평면 사각형의 변환은 아핀이라 세 점이면 정확하다.
-            double w = portrait.PixelSize.Width;
-            double h = portrait.PixelSize.Height;
-            var matrix = new Matrix(
-                (topRight.X - topLeft.X) / w, (topRight.Y - topLeft.Y) / w,
-                (bottomLeft.X - topLeft.X) / h, (bottomLeft.Y - topLeft.Y) / h,
-                topLeft.X, topLeft.Y);
-
-            using (context.PushTransform(matrix))
-            {
-                context.DrawImage(portrait, new Rect(0, 0, w, h));
-            }
-        }
-
-        if (selected)
-        {
-            context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(new[] { topLeft, topRight, bottomRight, bottomLeft, topLeft }, true));
-        }
-
-        DrawLabel(context, o.Id, new Point(Math.Min(topLeft.X, bottomLeft.X) + 4, Math.Min(topLeft.Y, topRight.Y) + 4));
+        Quad root = StageQuads.RectQuad(pose, outlineKey);
+        Point a = ToControl(root.BottomLeft);
+        Point b = ToControl(root.BottomRight);
+        Point c = ToControl(root.TopRight);
+        Point d = ToControl(root.TopLeft);
+        context.DrawGeometry(null, selected ? SelectedObjectPen : ObjectOutlinePen, new PolylineGeometry(new[] { a, b, c, d, a }, true));
+        DrawLabel(context, $"{o.Id} ({o.Rig})", new Point(Math.Min(a.X, d.X) + 4, Math.Min(c.Y, d.Y) + 4));
     }
 
     private void DrawAxes(DrawingContext context, RectNodeTree pose)
@@ -1891,7 +1770,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        (Vec2 origin, Vec2 xEnd, Vec2 yEnd) = PortraitLayout.Axes(pose, key, 80f);
+        (Vec2 origin, Vec2 xEnd, Vec2 yEnd) = StageQuads.Axes(pose, key, 80f);
         Point o = ToControl(origin);
         context.DrawLine(XAxisPen, o, ToControl(xEnd));
         context.DrawLine(YAxisPen, o, ToControl(yEnd));
@@ -1963,7 +1842,7 @@ public sealed class ViewportView : Control
     /// <summary>매니퓰레이터의 중심과 x·y 팔 끝(컨트롤 좌표, 팔 길이는 화면 고정). 팔 방향은 노드의 축, 중심은 <see cref="GizmoAnchor"/>.</summary>
     private (Point Center, Point XEnd, Point YEnd) GizmoPoints(RectNodeTree pose)
     {
-        (Vec2 origin, Vec2 xAxis, Vec2 yAxis) = PortraitLayout.Axes(pose, SelectedKey!, 100f);
+        (Vec2 origin, Vec2 xAxis, Vec2 yAxis) = StageQuads.Axes(pose, SelectedKey!, 100f);
         Vec2 anchor = GizmoAnchor(pose, SelectedKey!);
         Point center = ToControl(anchor);
         return (center, Along(center, ToControl(anchor + (xAxis - origin))), Along(center, ToControl(anchor + (yAxis - origin))));
@@ -2058,8 +1937,7 @@ public sealed class ViewportView : Control
             }
         }
 
-        // 카메라 모션에는 캐릭터의 포즈를 키하지 않는다.
-        if (!CameraRig.IsCamera(Motion) && TryStartManipulation(position))
+        if (TryStartManipulation(position))
         {
             Pause();
             e.Pointer.Capture(this);
@@ -2074,7 +1952,7 @@ public sealed class ViewportView : Control
         }
     }
 
-    /// <summary>클릭 자리의 오브젝트(앞 레이어 우선). 초상 사각형 안이면 맞은 것.</summary>
+    /// <summary>클릭 자리의 오브젝트(앞 레이어 우선). 오브젝트의 사각형 안이면 맞은 것.</summary>
     private bool TryPickObject(Point position, out string objectId)
     {
         objectId = "";
@@ -2294,7 +2172,7 @@ public sealed class ViewportView : Control
     public void SetComponent(string node, MotionChannelKind kind, Axis axis, float value)
         => SetComponents(node, kind, new[] { (axis, value) });
 
-    /// <summary>여러 성분을 한 번에(깊이 컨트롤러의 X·Y 배율처럼). 바뀐 성분만 키·키 없는 포즈가 된다.</summary>
+    /// <summary>여러 성분을 한 번에. 바뀐 성분만 키·키 없는 포즈가 된다.</summary>
     public void SetComponents(string node, MotionChannelKind kind, IReadOnlyList<(Axis Axis, float Value)> values)
     {
         ArgumentNullException.ThrowIfNull(values);
@@ -2302,7 +2180,7 @@ public sealed class ViewportView : Control
         RectNodeTree? pose = CurrentPose();
         string key = Prefix + node;
 
-        if (motion is null || CameraRig.IsCamera(motion) || pose is null || !pose.Contains(key) || MotionRules.ForbiddenNodes.Contains(node))
+        if (motion is null || pose is null || !pose.Contains(key) || MotionRules.ForbiddenNodes.Contains(node))
         {
             return;
         }
@@ -2527,7 +2405,7 @@ public sealed class ViewportView : Control
                     continue;
                 }
 
-                Quad quad = (node.hasImage ? PartQuadOf(pose, o, node.id) : null) ?? PortraitLayout.RectQuad(pose, key);
+                Quad quad = (node.hasImage ? PartQuadOf(pose, o, node.id) : null) ?? StageQuads.RectQuad(pose, key);
                 var polygon = new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft }.Select(c => ToControl(c)).Select(p => new Pixel(p.X, p.Y)).ToList();
 
                 if (GraphHitTest.Contains(polygon, at))
@@ -2735,7 +2613,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        Quad quad = PartQuadOf(pose, o, id) ?? PortraitLayout.RectQuad(pose, o.KeyOf(id));
+        Quad quad = PartQuadOf(pose, o, id) ?? StageQuads.RectQuad(pose, o.KeyOf(id));
         context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(
             new[] { ToControl(quad.TopLeft), ToControl(quad.TopRight), ToControl(quad.BottomRight), ToControl(quad.BottomLeft), ToControl(quad.TopLeft) }, true));
         Point origin = ToControl(pose.TransformPoint(o.KeyOf(id), Vec3.Zero).XY);
@@ -2757,7 +2635,7 @@ public sealed class ViewportView : Control
 
         foreach (RigNodeAsset node in rig.Nodes.Where(n => pose.Contains(o.KeyOf(n.Id))))
         {
-            Quad q = PortraitLayout.RectQuad(pose, o.KeyOf(node.Id));
+            Quad q = StageQuads.RectQuad(pose, o.KeyOf(node.Id));
             points.AddRange(new[] { q.BottomLeft, q.BottomRight, q.TopLeft, q.TopRight });
         }
 

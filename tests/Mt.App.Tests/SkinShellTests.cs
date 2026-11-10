@@ -38,10 +38,10 @@ public class SkinShellTests
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 SceneObject Badge() => editor.Document.ActiveSceneAsset!.Find("e1")!;
 
-                // 캐릭터를 고르면 스킨 칸이 없다 — 초상 한 장의 리그다.
+                // 캐릭터를 고르면 스킨 칸이 없다 — 조각이 없는 리그다.
                 window.Viewport.SelectedObjectId = "s1";
                 Assert.False(window.SkinFormState.Visible);
-                Assert.NotNull(window.Viewport.CurrentPortraitQuad());
+                Assert.NotNull(window.Viewport.CurrentObjectQuad());
                 Quad character = window.Viewport.ObjectQuad("s1")!.Value;
 
                 // 조각 리그를 고르면 스킨 칸이 선다. 스킨이 없으면 조각은 하나도 안 그려진다.
@@ -106,86 +106,6 @@ public class SkinShellTests
     }
 
     [Fact]
-    public void 붙는_리그를_만들면_부모_밑에_서서_따라가고_부모의_모션에도_따라간다()
-    {
-        HeadlessUi.Run(() =>
-        {
-            MainWindow window = NewWindow();
-            window.Show();
-
-            try
-            {
-                window.Session.LoadRig(PartsRigFixture.WriteDump(TestDocuments.FixturePath("rig-schemas.json")));
-                MotionEditor editor = window.Session.Editor;
-                SceneAsset Scene() => editor.Document.ActiveSceneAsset!;
-                Assert.Contains(PartsRigFixture.RigKind, window.AttachableRigs);
-                Assert.DoesNotContain("character", window.AttachableRigs);
-
-                // 붙는 리그 만들기(하이어아키 메뉴와 같은 길) — 만들고 붙이는 것이 한 칸, 만든 것이 골라진다.
-                long revision = editor.Revision;
-                string id = window.CreateAttachedFromMenu(PartsRigFixture.RigKind, "s1");
-                Assert.Equal("badge1", id);
-                Assert.Equal(revision + 1, editor.Revision);
-                Assert.Equal(("s1", SceneObject.DefaultAttachNode), (Scene().Find(id)!.AttachTo, Scene().Find(id)!.AttachNode));
-                Assert.Equal(id, window.Viewport.SelectedObjectId);
-                Assert.Equal(2, window.HierarchyObjectCount);
-                Assert.True(window.SkinFormState.Visible);
-
-                // 스킨을 입히고 조각 하나에 그림 — 캐릭터 머리 근처가 아니라 붙는 노드의 가운데에 선다(자리는 오프셋으로 옮긴다).
-                window.AddSkinFromForm();
-                editor.SetSkinPart("skin", "Badge_Part1", "art/sweat.png");
-                Quad rest = window.Viewport.PartQuad(id, "Badge_Part1")!.Value;
-
-                // 부모를 옮기면 따라간다 — 캐릭터의 그림이 간 만큼(깊이 배율이 곱해진 화면 거리) 그대로.
-                float characterRest = window.Viewport.ObjectQuad("s1")!.Value.Center.X;
-                editor.SetObjectPlacement(null, "s1", 150f, 0f, 0f, 1f, 1f);
-                float characterMoved = window.Viewport.ObjectQuad("s1")!.Value.Center.X - characterRest;
-                Assert.True(characterMoved > 100f);
-                Assert.Equal(rest.Center.X + characterMoved, window.Viewport.PartQuad(id, "Badge_Part1")!.Value.Center.X, 1);
-                float depthScale = characterMoved / 150f; // 슬롯 계층의 깊이 배율 — 붙은 리그도 그 아래라 같이 곱해진다
-                editor.Undo();
-
-                // 캐릭터의 모션(슬롯 이동)에는 붙은 것이 따라가고, 붙은 리그의 모션(튀어나옴)은 제 조각을 움직인다.
-                editor.AddMotion("pop", PartsRigFixture.RigKind, 0.5f, MotionEnd.Commit, MotionChannelMode.Absolute);
-                editor.AddChannel("pop", "Badge_Body", MotionChannelKind.Position);
-                editor.SetKeys("pop", "Badge_Body", MotionChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 60f) });
-                editor.AddMotion("step", "character", 0.5f, MotionEnd.Commit, MotionChannelMode.Absolute);
-                editor.AddChannel("step", "CharSlot_Track_X", MotionChannelKind.Position);
-                editor.SetKeys("step", "CharSlot_Track_X", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 100f) });
-
-                Assert.Equal(0, window.ProblemRowsShown);
-
-                window.SelectMotion("step");
-                window.Viewport.SelectedObjectId = "s1";
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                window.Viewport.ScrubTo(0.5);
-                Quad stepped = window.Viewport.PartQuad(id, "Badge_Part1")!.Value;
-                Assert.Equal(rest.Center.X + 100f * depthScale, stepped.Center.X, 1); // 캐릭터가 간 만큼
-                Assert.Equal(rest.Center.Y, stepped.Center.Y, 1);
-
-                window.SelectMotion("pop");
-                window.Viewport.SelectedObjectId = id;
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                window.Viewport.ScrubTo(0.5);
-                Quad popped = window.Viewport.PartQuad(id, "Badge_Part1")!.Value;
-                Assert.Equal(rest.Center.X, popped.Center.X, 1);
-                Assert.Equal(rest.Center.Y + 60f * depthScale, popped.Center.Y, 1);  // 제 모션만큼(깊이 배율 아래)
-
-                // 부모를 지우면 붙은 것도 같이 — 한 칸.
-                window.SelectMotion("step");
-                editor.RemoveSceneObject(null, "s1");
-                Assert.Empty(Scene().Objects);
-                editor.Undo();
-                Assert.Equal(2, Scene().Objects.Count);
-            }
-            finally
-            {
-                window.Close();
-            }
-        });
-    }
-
-    [Fact]
     public void 불투명도_칸에_값을_넣으면_알파_채널의_키가_되고_조각이_그만큼_흐려진다()
     {
         HeadlessUi.Run(() =>
@@ -197,7 +117,7 @@ public class SkinShellTests
             {
                 window.Session.LoadRig(PartsRigFixture.WriteDump(TestDocuments.FixturePath("rig-schemas.json")));
                 MotionEditor editor = window.Session.Editor;
-                string id = window.CreateAttachedFromMenu(PartsRigFixture.RigKind, "s1");
+                string id = window.PlaceSetFromMenu(PartsRigFixture.RigKind);
                 window.AddSkinFromForm();
                 editor.SetSkinPart("skin", "Badge_Part1", "art/sweat.png");
                 editor.AddMotion("vanish", PartsRigFixture.RigKind, 1f, MotionEnd.Commit);
@@ -290,7 +210,7 @@ public class SkinShellTests
             {
                 MotionEditor editor = window.Session.Editor;
                 editor.AddRig(PartsRigFixture.Rig());
-                string id = window.CreateAttachedFromMenu(PartsRigFixture.RigKind, "s1");
+                string id = window.PlaceSetFromMenu(PartsRigFixture.RigKind);
                 editor.AddMotion("bob", PartsRigFixture.RigKind, 0.4f);
                 editor.AddChannel("bob", "Badge_Body", MotionChannelKind.Position);
                 editor.SetKeys("bob", "Badge_Body", MotionChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 10f), TestDocuments.Key(0.4f, 0f) });
@@ -325,7 +245,7 @@ public class SkinShellTests
     }
 
     [Fact]
-    public void 하이어아키의_세트_놓기는_캐릭터에_붙이지_않고_장면에_세운다()
+    public void 하이어아키의_세트_놓기는_세트를_장면에_오브젝트로_세운다()
     {
         HeadlessUi.Run(() =>
         {
@@ -338,12 +258,11 @@ public class SkinShellTests
                 editor.AddRig(PartsRigFixture.Rig());
                 SceneAsset Scene() => editor.Document.ActiveSceneAsset!;
 
-                // 세트 놓기 ▸ (세트) — 오브젝트 하나가 한 칸에 서고 골라진다. 어디에도 안 붙는다.
+                // 세트 놓기 ▸ (세트) — 오브젝트 하나가 한 칸에 서고 골라진다.
                 long revision = editor.Revision;
                 string placed = window.PlaceSetFromMenu(PartsRigFixture.RigKind);
                 Assert.Equal(revision + 1, editor.Revision);
                 Assert.Equal(PartsRigFixture.RigKind, Scene().Find(placed)!.Rig);
-                Assert.Null(Scene().ParentOf(Scene().Find(placed)!));
                 Assert.Equal(placed, window.Viewport.SelectedObjectId);
                 Assert.True(window.Viewport.CurrentPose()!.Contains($"{placed}/Badge_Part1"));
                 Assert.Equal(0, window.ProblemRowsShown);
@@ -359,7 +278,7 @@ public class SkinShellTests
     }
 
     [Fact]
-    public void 문서가_정의한_리그는_덤프에_없어도_붙여_세우고_저장하고_다시_열어도_선다()
+    public void 문서가_정의한_리그는_덤프에_없어도_장면에_세우고_저장하고_다시_열어도_선다()
     {
         HeadlessUi.Run(() =>
         {
@@ -369,19 +288,17 @@ public class SkinShellTests
             try
             {
                 MotionEditor editor = window.Session.Editor;
-                Assert.DoesNotContain(PartsRigFixture.RigKind, window.AttachableRigs);
+                Assert.DoesNotContain(PartsRigFixture.RigKind, window.Session.Rig!.RigKinds);
 
-                // 문서에 리그를 정의하면 세션의 리그에 합쳐지고 "붙는 리그 만들기" 메뉴에 선다.
+                // 문서에 리그를 정의하면 세션의 리그에 합쳐진다.
                 editor.AddRig(PartsRigFixture.Rig());
                 Assert.Contains(PartsRigFixture.RigKind, window.Session.Rig!.RigKinds);
-                Assert.Contains(PartsRigFixture.RigKind, window.AttachableRigs);
 
-                // 붙는 리그 만들기 — 오브젝트 + 붙이기가 되돌리기 한 칸.
+                // 세트 놓기 — 되돌리기 한 칸.
                 long revision = editor.Revision;
-                string id = window.CreateAttachedFromMenu(PartsRigFixture.RigKind, "s1");
+                string id = window.PlaceSetFromMenu(PartsRigFixture.RigKind);
                 Assert.Equal(revision + 1, editor.Revision);
                 Assert.True(window.Viewport.CurrentPose()!.Contains($"{id}/Badge_Part1"));       // 뷰포트에 섰다
-                Assert.Equal("s1/CharSlot_Scale", window.Viewport.CurrentPose()!.GetParentKey($"{id}/__root"));
                 Assert.Equal(0, window.ProblemRowsShown);
 
                 // 스킨 칸이 서고(조각 넷), 스킨을 입혀 조각을 그린다.
@@ -425,49 +342,6 @@ public class SkinShellTests
                 window.Session.Open(saved);
                 Assert.Contains(PartsRigFixture.RigKind, window.Session.Rig!.RigKinds);
                 Assert.True(window.Viewport.CurrentPose()!.Contains($"{id}/Badge_Part1"));
-            }
-            finally
-            {
-                window.Close();
-            }
-        });
-    }
-
-    [Fact]
-    public void 씬_탭의_배역_칸에_키를_적으면_한_칸으로_들어가고_붙은_오브젝트에서는_잠긴다()
-    {
-        HeadlessUi.Run(() =>
-        {
-            MainWindow window = NewWindow();
-            window.Show();
-
-            try
-            {
-                window.Session.LoadRig(PartsRigFixture.WriteDump(TestDocuments.FixturePath("rig-schemas.json")));
-                MotionEditor editor = window.Session.Editor;
-                string id = window.CreateAttachedFromMenu(PartsRigFixture.RigKind, "s1");
-                window.InspectorTab = 1; // 씬 탭
-                window.Viewport.SelectedObjectId = "s1";
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.True(window.ObjectCharacterBox.IsEnabled);
-                Assert.Equal("", window.ObjectCharacterBox.Text);
-
-                long revision = editor.Revision;
-                window.ObjectCharacterBox.Focus();
-                window.ObjectCharacterBox.Text = "bandi";
-                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-                Assert.Equal("bandi", editor.Document.ActiveSceneAsset!.Find("s1")!.Character);
-                Assert.Equal(revision + 1, editor.Revision);
-
-                editor.Undo();
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.Null(editor.Document.ActiveSceneAsset!.Find("s1")!.Character);
-                Assert.Equal("", window.ObjectCharacterBox.Text);
-
-                // 붙은 것은 부모의 배역을 따른다 — 칸이 잠긴다.
-                window.Viewport.SelectedObjectId = id;
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.False(window.ObjectCharacterBox.IsEnabled);
             }
             finally
             {
@@ -595,7 +469,7 @@ public class SkinShellTests
             {
                 window.Session.LoadRig(PartsRigFixture.WriteDump(TestDocuments.FixturePath("rig-schemas.json")));
                 MotionEditor editor = window.Session.Editor;
-                string id = window.CreateAttachedFromMenu(PartsRigFixture.RigKind, "s1");
+                string id = window.PlaceSetFromMenu(PartsRigFixture.RigKind);
                 window.AddSkinFromForm();
                 window.InspectorTab = 1; // 씬 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();

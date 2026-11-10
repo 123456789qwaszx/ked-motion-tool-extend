@@ -20,7 +20,6 @@ public class RigAssetTests
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(PartsRigFixture.Rig());
         editor.AddSceneObject(null, "e1", PartsRigFixture.RigKind);
-        editor.AttachObject(null, "e1", "s1");
         return editor;
     }
 
@@ -39,9 +38,8 @@ public class RigAssetTests
         Assert.Equal(new[] { "Badge_Body", "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, rig.AlphaNodeIds[PartsRigFixture.RigKind].OrderBy(n => n, StringComparer.Ordinal));
         Assert.Contains("Badge_Anchor", rig.NodeIds[PartsRigFixture.RigKind]);
 
-        // 씬에 서고(캐릭터의 슬롯 끝에 붙어), 조각은 정의한 크기다.
+        // 씬에 서고, 조각은 정의한 크기다.
         RectNodeTree tree = ScenePreview.Build(rig, editor.Document.ActiveSceneAsset!);
-        Assert.Equal("s1/CharSlot_Scale", tree.GetParentKey("e1/__root"));
         Assert.Equal("e1/Badge_Body", tree.GetParentKey("e1/Badge_Part2"));
         Assert.Equal(PartsRigFixture.PartSize, tree.GetRectSize("e1/Badge_Part1").X, 3);
 
@@ -55,7 +53,7 @@ public class RigAssetTests
         editor.AddMotion("pop", PartsRigFixture.RigKind, 0.2f);
         editor.AddChannel("pop", "Badge_Body", MotionChannelKind.Alpha);
         editor.SetKeys("pop", "Badge_Body", MotionChannelKind.Alpha, Axis.X, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.2f, 1f) });
-        Assert.Empty(MotionValidator.Validate(editor.Document, both.NodeIds, null, both.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, both.NodeIds, both.AlphaNodeIds));
         Assert.NotEmpty(MotionValidator.Validate(editor.Document, Dump.NodeIds)); // 덤프만으로는 모르는 리그다
     }
 
@@ -79,7 +77,6 @@ public class RigAssetTests
 
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(PartsRigFixture.Rig()));                       // 이미 있다
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(PartsRigFixture.Rig("character")));            // 덤프가 원본인 리그
-        Assert.Throws<InvalidOperationException>(() => editor.AddRig(PartsRigFixture.Rig("camera")));
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(PartsRigFixture.Rig("1bad")));
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(new RigAsset { Kind = "x", Nodes = { new RigNodeAsset { Id = "A", Parent = "B" }, new RigNodeAsset { Id = "B" } } })); // 부모가 뒤에
         Assert.Throws<InvalidOperationException>(() => editor.AddRig(new RigAsset { Kind = "x", Nodes = { new RigNodeAsset { Id = "A" }, new RigNodeAsset { Id = "A" } } }));
@@ -100,7 +97,7 @@ public class RigAssetTests
         // 지우면 그 리그의 오브젝트는 남고(검증이 알린다) 씬은 던지지 않고 선다.
         editor.RemoveRig(PartsRigFixture.RigKind);
         var missing = new List<SceneObject>();
-        ScenePreview.Build(RigAssets.Compose(Dump, editor.Document), editor.Document.ActiveSceneAsset!, null, missing);
+        ScenePreview.Build(RigAssets.Compose(Dump, editor.Document), editor.Document.ActiveSceneAsset!, missing);
         Assert.Equal("e1", Assert.Single(missing).Id);
     }
 
@@ -235,7 +232,7 @@ public class RigAssetTests
     }
 
     [Fact]
-    public void 노드의_이름을_바꾸면_채널과_스킨과_붙는_노드가_따라온다()
+    public void 노드의_이름을_바꾸면_채널과_스킨이_따라온다()
     {
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(PartsRigFixture.Rig(parts: 2));
@@ -336,7 +333,7 @@ public class RigAssetTests
 
         // 어느 쪽이든 규칙(처음과 끝에 키)이 그대로 선다.
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 채널이 없는 오브젝트·0초는 아무 일도 없다(기록 없음).
         revision = editor.Revision;
@@ -396,7 +393,7 @@ public class RigAssetTests
         Assert.Equal(revision + 1, editor.Revision);
         Assert.Null(editor.Document.Find("in")!.FindChannel("Badge_Part2", MotionChannelKind.Alpha));
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
     }
 
     // ── 세트가 세트를 품는다(PLAN-set.md S9) ───────────────────────────
@@ -473,7 +470,7 @@ public class RigAssetTests
         editor.AddChannel("city_in", "car.Wheel", MotionChannelKind.Euler);
         editor.SetKeys("city_in", "car.Wheel", MotionChannelKind.Euler, Axis.Z, new[] { new KeyAsset { T = 0f, V = 0f, Tangent = TangentMode.Linear }, new KeyAsset { T = 1f, V = -360f, Tangent = TangentMode.Linear } });
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 산출물: 펼친 한 덩어리로 나간다(런타임은 품는다는 것을 모른다). 저작본은 참조만 적는다.
         string schemas = RigAssets.WriteSchemas(editor.Document, new Vec2(1920f, 1080f));
@@ -600,7 +597,7 @@ public class RigAssetTests
 
         // 산출물: 한 덩어리 모션으로 나간다 — 규칙을 지나고, 런타임은 재생 블록을 모른다.
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
         string exported = MotionsJson.Write(MotionExport.ToClips(editor.Document));
         Assert.Contains("car.Body", exported, StringComparison.Ordinal);
         Assert.DoesNotContain("plays", exported, StringComparison.Ordinal);
@@ -667,12 +664,12 @@ public class RigAssetTests
         MotionEditor editor = PlayEditor();
         editor.AddMotionPlay("city_in", "car", "roll", 1.5f); // 1.5 + 0.4 ≤ 2
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 품은 애니메이션을 길게(1초) — 바깥에서 막을 길이 없으니 검증이 알린다(막지는 않는다).
         editor.SetDuration("roll", 1f);
         editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 0f), Lin(1f, 100f) });
-        MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
         Assert.False(problem.Blocking);
         Assert.Equal("city_in", problem.MotionName);
         Assert.Contains("길이", problem.Message, StringComparison.Ordinal);
@@ -712,7 +709,7 @@ public class RigAssetTests
         }
 
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 원본을 고쳐도 더는 안 따라온다.
         editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 0f), Lin(0.4f, 10f) });
@@ -803,7 +800,7 @@ public class RigAssetTests
         }
 
         RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, composed.NodeIds, null, composed.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, composed.NodeIds, composed.AlphaNodeIds));
 
         // 막는 것: 있는 이름 · 부모가 다른 것들. 문서는 그대로다.
         revision = editor.Revision;
@@ -868,7 +865,7 @@ public class RigAssetTests
         Assert.Throws<KeyNotFoundException>(() => editor.SlideFromOutside("town_in", "Nope", StageSide.Left, 0f, 0.5f, stage));
         Assert.Equal(revision, editor.Revision);
         RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
     }
 
     [Fact]
