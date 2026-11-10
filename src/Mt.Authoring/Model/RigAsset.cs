@@ -59,6 +59,12 @@ public sealed class RigNodeAsset
     /// <summary>품은 세트에 입힐 스킨 — null이면 그 세트의 첫 스킨.</summary>
     public string? SetSkin { get; set; }
 
+    /// <summary>
+    /// 깊이 — 런타임의 <c>depthLevel</c>(수: far 0 · back 10 · mid 14 · front 16 · close 20은 그 눈금의 이름이다). **컷의 맨 위 오브젝트**만 뜻이 있다:
+    /// 무대의 어느 깊이에 서는가(멀수록 작게 보이고 카메라에 덜 따라 움직인다). null이면 mid. 밑의 오브젝트는 부모를 따른다.
+    /// </summary>
+    public float? Depth { get; set; }
+
     /// <summary>그림을 그리는 노드(조각)인가 — 스킨이 여기에 그림을 준다.</summary>
     public bool Image { get; set; }
 

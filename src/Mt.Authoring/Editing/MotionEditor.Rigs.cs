@@ -43,10 +43,10 @@ public sealed partial class MotionEditor
     /// <summary>리그를 지운다. 그 리그의 오브젝트·모션·스킨·이모지는 남는다 — 검증이 "덤프에 없는 리그"로 알린다.</summary>
     public void RemoveRig(string kind)
     {
-        RigAsset rig = RequireRig(kind);
+        RigAsset rig = RequireSet(kind);
 
         // 다른 세트가 품고 있으면 못 지운다 — 참조가 허공을 가리키게 두지 않는다.
-        if (Document.Rigs.FirstOrDefault(r => r.Nodes.Any(n => n.Set == kind)) is { } holder)
+        if (Document.AllRigs.FirstOrDefault(r => r.Nodes.Any(n => n.Set == kind)) is { } holder)
         {
             throw new InvalidOperationException($"세트 '{kind}'를 '{holder.Kind}'가 품고 있다 — 먼저 거기서 뺀다.");
         }
@@ -66,6 +66,11 @@ public sealed partial class MotionEditor
         if (Document.FindRig(setKind) is null)
         {
             throw new KeyNotFoundException($"세트 '{setKind}'가 문서에 없다.");
+        }
+
+        if (Document.FindCut(setKind) is not null)
+        {
+            throw new InvalidOperationException($"'{setKind}'는 컷이다 — 컷은 품을 수 없다(묶어서 다시 쓸 것은 세트로 뺀다).");
         }
 
         if (Holds(setKind, kind, new HashSet<string>(StringComparer.Ordinal)))
@@ -456,6 +461,19 @@ public sealed partial class MotionEditor
             return copy;
         }).ToList(),
     };
+
+    /// <summary>세트만 — 컷의 오브젝트 계층은 세트의 목록에 없다(만들기·지우기·이름은 컷의 명령으로).</summary>
+    private RigAsset RequireSet(string kind)
+    {
+        RigAsset rig = RequireRig(kind);
+
+        if (Document.FindCut(kind) is not null)
+        {
+            throw new InvalidOperationException($"'{kind}'는 컷이다 — 컷의 명령으로 고친다.");
+        }
+
+        return rig;
+    }
 
     private RigAsset RequireRig(string kind)
     {

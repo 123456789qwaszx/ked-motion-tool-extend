@@ -101,7 +101,27 @@ public sealed class MotionDocument
     }
 
     public RigAsset? FindRig(string? kind)
-        => kind is null ? null : Rigs.FirstOrDefault(r => string.Equals(r.Kind, kind, StringComparison.Ordinal));
+        => kind is null ? null : Rigs.FirstOrDefault(r => string.Equals(r.Kind, kind, StringComparison.Ordinal)) ?? FindCut(kind)?.Rig; // 컷의 오브젝트 계층도 같은 이름으로 찾는다
+
+    /// <summary>
+    /// 컷들(<c>PLAN-standalone.md</c> §6) — 씬 + 카메라 + 타임라인. 저작본에는 <see cref="CutsOrNull"/>로 실린다(없으면 안 적는다).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<CutAsset> Cuts { get; set; } = new();
+
+    [System.Text.Json.Serialization.JsonPropertyName("cuts")]
+    public List<CutAsset>? CutsOrNull
+    {
+        get => Cuts.Count == 0 ? null : Cuts;
+        set => Cuts = value ?? new List<CutAsset>();
+    }
+
+    public CutAsset? FindCut(string? name)
+        => name is null ? null : Cuts.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.Ordinal));
+
+    /// <summary>세트와 컷의 오브젝트 계층 전부 — 품은 곳을 찾거나 세울 때.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IEnumerable<RigAsset> AllRigs => Rigs.Concat(Cuts.Select(c => c.Rig));
 
     public MotionAsset? Find(string name)
         => Motions.FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.Ordinal));

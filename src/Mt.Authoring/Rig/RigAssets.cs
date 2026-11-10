@@ -19,7 +19,7 @@ public static class RigAssets
         ArgumentNullException.ThrowIfNull(dump);
         ArgumentNullException.ThrowIfNull(document);
         Vec2 stage = dump.Dto.capturedUnderParentSize.ToVec2();
-        return dump.With(document.Rigs.Select(r => RigAssetCodec.ToDto(r, stage, document.FindRig)));
+        return dump.With(document.AllRigs.Select(r => RigAssetCodec.ToDto(r, stage, document.FindRig)));
     }
 
     /// <summary>

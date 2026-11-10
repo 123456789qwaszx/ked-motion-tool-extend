@@ -67,7 +67,12 @@ public static class MotionDocumentJson
 
         document.EnsureDefaultScene();
 
-        foreach (RigAsset rig in document.Rigs)
+        foreach (CutAsset cut in document.Cuts)
+        {
+            cut.Camera ??= new CameraSettings();
+        }
+
+        foreach (RigAsset rig in document.AllRigs)
         {
             rig.Nodes ??= new List<RigNodeAsset>();
         }

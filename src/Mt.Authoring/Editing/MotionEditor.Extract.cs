@@ -83,7 +83,7 @@ public sealed partial class MotionEditor
             }
 
             rig.Nodes.Insert(at, new RigNodeAsset { Id = instance, Parent = parent, X = cx, Y = cy, Set = name, Alpha = true });
-            Document.Rigs.Insert(Document.Rigs.IndexOf(rig), inner); // 품긴 세트가 앞에 — 목록에서 "작은 것부터"
+            Document.Rigs.Insert(Math.Max(0, Document.Rigs.IndexOf(rig)), inner); // 품긴 세트가 앞에(컷에서 뺐으면 맨 앞) — 목록에서 "작은 것부터"
 
             // 그림 — 그 오브젝트들의 스킨 칸을 새 세트의 스킨으로.
             foreach (SkinAsset skin in Document.Skins.Where(s => s.Rig == kind).ToList())
@@ -184,7 +184,7 @@ public sealed partial class MotionEditor
     /// </summary>
     public void RenameRig(string kind, string newKind)
     {
-        RigAsset rig = RequireRig(kind);
+        RigAsset rig = RequireSet(kind);
 
         if (string.Equals(kind, newKind?.Trim(), StringComparison.Ordinal))
         {
@@ -212,7 +212,7 @@ public sealed partial class MotionEditor
                 RenameSkin(kind, name);
             }
 
-            foreach (RigAsset holder in Document.Rigs.Where(r => r.Find(kind) is { } instance && instance.Set == name && r.Find(name) is null).ToList())
+            foreach (RigAsset holder in Document.AllRigs.Where(r => r.Find(kind) is { } instance && instance.Set == name && r.Find(name) is null).ToList())
             {
                 if (!Document.Motions.Any(m => m.Rig == holder.Kind && m.Channels.Any(c => c.Node == name)))
                 {
@@ -243,7 +243,7 @@ public sealed partial class MotionEditor
                 emoji.Rig = name;
             }
 
-            foreach (RigNodeAsset node in Document.Rigs.SelectMany(r => r.Nodes).Where(n => n.Set == kind))
+            foreach (RigNodeAsset node in Document.AllRigs.SelectMany(r => r.Nodes).Where(n => n.Set == kind))
             {
                 node.Set = name;
             }
