@@ -1386,4 +1386,52 @@ public class SkinShellTests
             }
         });
     }
+
+    [Fact]
+    public void 층_표를_가져오면_그림_한_묶음이_세트의_오브젝트와_스킨으로_한_칸에_선다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                DirectoryInfo? root = new(AppContext.BaseDirectory);
+
+                while (root is not null && !File.Exists(Path.Combine(root.FullName, "KedMotionTool.sln")))
+                {
+                    root = root.Parent;
+                }
+
+                string sheet = Path.Combine(root!.FullName, "examples", "transitions", "station", "art", "layers.tsv");
+                Assert.Empty(window.ImportLayerSheetFromForm(sheet)); // 연 세트가 없으면 아무 일도 없다
+                window.NewSetFromForm();
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // 한 칸에: 바탕색 + 층 열 장, 스킨까지. 뷰포트의 세트에 바로 선다.
+                long revision = editor.Revision;
+                IReadOnlyList<string> created = window.ImportLayerSheetFromForm(sheet);
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal(10, created.Count);
+                RigAsset rig = editor.Document.FindRig("set")!;
+                Assert.Equal("#10262B", rig.Find("Backdrop")!.Color);
+                Assert.Equal((1920f, 1080f, true), (rig.Find("arches")!.Width, rig.Find("arches")!.Height, rig.Find("arches")!.Image));
+                Assert.Equal("set", window.Viewport.SetSkin);
+                Assert.EndsWith("art/06_sign.png", editor.Document.FindSkin("set")!.Parts["sign"], StringComparison.Ordinal);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(created, window.Viewport.DrawnParts(window.Viewport.SelectedObject!));
+
+                // 되돌리면 통째로 사라진다(처음의 Body만 남는다).
+                editor.Undo();
+                Assert.Equal(new[] { "Body" }, editor.Document.FindRig("set")!.Nodes.Select(n => n.Id));
+                Assert.Null(editor.Document.FindSkin("set"));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

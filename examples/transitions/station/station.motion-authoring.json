@@ -1,0 +1,1879 @@
+{
+  "schema": "motion-authoring/2",
+  "motions": [
+    {
+      "name": "station_in",
+      "rig": "station",
+      "duration": 1.2,
+      "end": "commit",
+      "previewMode": "relative",
+      "channels": [
+        {
+          "node": "Backdrop",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 4,
+                "outTangent": 4,
+                "tangent": "linear",
+                "broken": false
+              },
+              {
+                "t": 0.25,
+                "v": 1,
+                "inTangent": 4,
+                "outTangent": 0,
+                "tangent": "linear",
+                "broken": true
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "linear",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "arches",
+          "kind": "scale",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0.55,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.15,
+                "v": 0.55,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.75,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          },
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0.55,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.15,
+                "v": 0.55,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.75,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "arches",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.15,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.45,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "floor",
+          "kind": "position",
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": -520,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.2,
+                "v": -520,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.7,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "pillars_left",
+          "kind": "position",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": -820,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.3,
+                "v": -820,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "pillars_right",
+          "kind": "position",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 820,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.3,
+                "v": 820,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "train",
+          "kind": "position",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": -900,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.5,
+                "v": -900,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.1,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "sign",
+          "kind": "position",
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 360,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.6,
+                "v": 360,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.95,
+                "v": -18,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1.1,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "light",
+          "kind": "scale",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0.3,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.5,
+                "v": 0.3,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.15,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          },
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0.3,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.5,
+                "v": 0.3,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.15,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "light",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.5,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_sun",
+          "kind": "scale",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.8,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.92,
+                "v": 1.2,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          },
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.8,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.92,
+                "v": 1.2,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_sun",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.8,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.90000004,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_leaf",
+          "kind": "scale",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.02,
+                "v": 1.2,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1.1,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          },
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.02,
+                "v": 1.2,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1.1,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_leaf",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_cell",
+          "kind": "scale",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.12,
+                "v": 1.2,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          },
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.12,
+                "v": 1.2,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_cell",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.1,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 1.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "t": 0.25,
+          "name": "covered"
+        }
+      ]
+    },
+    {
+      "name": "station_hold",
+      "rig": "station",
+      "duration": 2,
+      "end": "restore",
+      "previewMode": "relative",
+      "channels": [
+        {
+          "node": "microbe_sun",
+          "kind": "position",
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 16,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_sun",
+          "kind": "euler",
+          "z": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 20,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_leaf",
+          "kind": "position",
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 0.7,
+                "v": -12,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1.4,
+                "v": 8,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_leaf",
+          "kind": "euler",
+          "z": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": -7,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_cell",
+          "kind": "position",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 26,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "light",
+          "kind": "scale",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 1.07,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              }
+            ]
+          },
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 1,
+                "v": 1.07,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              },
+              {
+                "t": 2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "auto",
+                "broken": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "station_out",
+      "rig": "station",
+      "duration": 0.9,
+      "end": "commit",
+      "previewMode": "relative",
+      "channels": [
+        {
+          "node": "microbe_sun",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_leaf",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "microbe_cell",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.2,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "sign",
+          "kind": "position",
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.35,
+                "v": 360,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 360,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "train",
+          "kind": "position",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.05,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.5,
+                "v": -900,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": -900,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "pillars_left",
+          "kind": "position",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.15,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.65,
+                "v": -820,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": -820,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "pillars_right",
+          "kind": "position",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.15,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.65,
+                "v": 820,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 820,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "floor",
+          "kind": "position",
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.25,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.7,
+                "v": -520,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": -520,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "arches",
+          "kind": "scale",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.8,
+                "v": 1.7,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 1.7,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          },
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.8,
+                "v": 1.7,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 1.7,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "arches",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.45,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.8,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "light",
+          "kind": "scale",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.8,
+                "v": 2.4,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 2.4,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          },
+          "y": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.2,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.8,
+                "v": 2.4,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 2.4,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "light",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.5,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.85,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "flat",
+                "broken": false
+              }
+            ]
+          }
+        },
+        {
+          "node": "Backdrop",
+          "kind": "alpha",
+          "x": {
+            "keys": [
+              {
+                "t": 0,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": 0,
+                "tangent": "linear",
+                "broken": false
+              },
+              {
+                "t": 0.5,
+                "v": 1,
+                "inTangent": 0,
+                "outTangent": -2.5000002,
+                "tangent": "linear",
+                "broken": true
+              },
+              {
+                "t": 0.9,
+                "v": 0,
+                "inTangent": -2.5000002,
+                "outTangent": -2.5000002,
+                "tangent": "linear",
+                "broken": false
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "name": "scene",
+      "camera": {
+        "zoom": 0,
+        "panX": 0,
+        "panY": 0
+      },
+      "objects": [
+        {
+          "id": "s1",
+          "rig": "character",
+          "stage": "stage00",
+          "layer": "mid",
+          "positionX": 0,
+          "positionY": 0,
+          "rotationZ": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "visible": true
+        }
+      ]
+    }
+  ],
+  "activeScene": "scene",
+  "skins": [
+    {
+      "name": "station",
+      "rig": "station",
+      "parts": {
+        "arches": "art/01_arches.png",
+        "floor": "art/02_floor.png",
+        "light": "art/07_light.png",
+        "microbe_cell": "art/10_microbe_cell.png",
+        "microbe_leaf": "art/09_microbe_leaf.png",
+        "microbe_sun": "art/08_microbe_sun.png",
+        "pillars_left": "art/03_pillars_left.png",
+        "pillars_right": "art/04_pillars_right.png",
+        "sign": "art/06_sign.png",
+        "train": "art/05_train.png"
+      }
+    }
+  ],
+  "emojis": [
+    {
+      "name": "station",
+      "rig": "station",
+      "skin": "station",
+      "screen": true,
+      "enter": "station_in",
+      "hold": "station_hold",
+      "exit": "station_out",
+      "holdSeconds": 1,
+      "anchorNode": "Emoji_Anchor",
+      "offsetX": 0,
+      "offsetY": 0
+    }
+  ],
+  "rigs": [
+    {
+      "kind": "station",
+      "nodes": [
+        {
+          "id": "Backdrop",
+          "parent": "",
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "color": "#10262B",
+          "image": false,
+          "alpha": true
+        },
+        {
+          "id": "arches",
+          "parent": "",
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "floor",
+          "parent": "",
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "pillars_left",
+          "parent": "",
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "pillars_right",
+          "parent": "",
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "train",
+          "parent": "",
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "sign",
+          "parent": "",
+          "x": 40.5,
+          "y": 359.5,
+          "width": 889,
+          "height": 249,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "light",
+          "parent": "",
+          "x": 130.5,
+          "y": -188.5,
+          "width": 921,
+          "height": 917,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "microbe_sun",
+          "parent": "",
+          "x": 341,
+          "y": 252,
+          "width": 242,
+          "height": 236,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "microbe_leaf",
+          "parent": "",
+          "x": -471,
+          "y": 320.5,
+          "width": 118,
+          "height": 319,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        },
+        {
+          "id": "microbe_cell",
+          "parent": "",
+          "x": -520.5,
+          "y": -237,
+          "width": 239,
+          "height": 114,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "image": true,
+          "alpha": true
+        }
+      ]
+    }
+  ]
+}

@@ -112,11 +112,26 @@ public partial class MainWindow
                 _session.SetStatus($"그림 가져오기 실패: {exception.Message}");
             }
         });
+        Button importLayers = SmallButton("층 표 가져오기…", async (_, _) =>
+        {
+            try
+            {
+                if (SelectedSet is not null && await PickOpenAsync("층 표 (layers.tsv)", new FilePickerFileType("층 표") { Patterns = new[] { "*.tsv" } }) is { } path)
+                {
+                    Guard("층 표 가져오기", () => ImportLayerSheet(path));
+                }
+            }
+            catch (Exception exception)
+            {
+                _session.SetStatus($"층 표 가져오기 실패: {exception.Message}");
+            }
+        });
+        ToolTip.SetTip(importLayers, "그림 한 묶음을 한 번에 — 층 표(layers.tsv: 파일 ⇥ 왼쪽 ⇥ 위 ⇥ 너비 ⇥ 높이, 뒤에서 앞으로)를 읽어 층마다 그림 오브젝트를 그 자리에 세우고 스킨에 그림을 준다. 표의 설명 줄에 #RRGGBB가 있으면 맨 뒤에 그 색의 바탕이 선다. 되돌리기 한 번");
         ToolTip.SetTip(import, "PNG를 연 세트의 그림 오브젝트로 — 이름은 파일 이름에서, 크기는 그림의 크기, 지금 입혀 보는 스킨에 그림이 들어간다(스킨이 없으면 만든다). 되돌리기 한 번. 뷰포트에 파일을 끌어다 놓아도 된다");
         ToolTip.SetTip(add, "빈 세트(오브젝트 Body 하나)를 만들어 연다 — 이름 set, set_2…. 하이어아키에서 우클릭해 오브젝트를 더한다");
         ToolTip.SetTip(remove, "연 세트를 지운다. 그 세트의 애니메이션·스킨·연출은 남고 문제 목록이 알린다(되돌리기 한 번)");
         ToolTip.SetTip(close, "세트를 닫고 씬으로 돌아간다");
-        LeftPanel.Children.Insert(2, new WrapPanel { Orientation = Orientation.Horizontal, Children = { add, remove, close, import, SmallButton("rigs.json…", OnExportRigsClick) } });
+        LeftPanel.Children.Insert(2, new WrapPanel { Orientation = Orientation.Horizontal, Children = { add, remove, close, import, importLayers, SmallButton("rigs.json…", OnExportRigsClick) } });
     }
 
     /// <summary>"씬" 탭에 서는 칸 — 세트를 열고 그 오브젝트(노드)를 골랐을 때의 이름·부모·자리·크기.</summary>
@@ -379,6 +394,31 @@ public partial class MainWindow
         _viewport.SetSkin = skin;
         SelectSetNode(id);
         return id;
+    }
+
+    /// <summary>테스트 손잡이 — "층 표 가져오기…"에서 파일을 고른 것과 같다.</summary>
+    internal IReadOnlyList<string> ImportLayerSheetFromForm(string path) => ImportLayerSheet(path);
+
+    /// <summary>층 표를 연 세트로 들인다 — 입혀 보는 스킨에(없으면 세트의 이름으로 만든다). 들인 뒤 보기를 세트에 맞춘다.</summary>
+    private IReadOnlyList<string> ImportLayerSheet(string path)
+    {
+        if (SelectedSet is not { } kind)
+        {
+            return Array.Empty<string>();
+        }
+
+        string skin = _viewport.SetSkin ?? kind;
+
+        for (int i = 2; _viewport.SetSkin is null && _session.Editor.Document.FindSkin(skin) is { } taken && taken.Rig != kind; i++)
+        {
+            skin = $"{kind}_{i.ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        IReadOnlyList<string> created = _session.ImportLayers(kind, path, skin);
+        _viewport.SetSkin = skin;
+        RefreshAssets();
+        Avalonia.Threading.Dispatcher.UIThread.Post(_viewport.FitToSet);
+        return created;
     }
 
     /// <summary>PNG의 픽셀 크기 — 머리(IHDR)만 읽는다(그림을 풀지 않는다). PNG가 아니거나 못 읽으면 null(본의 크기로 선다).</summary>

@@ -223,6 +223,20 @@ public sealed class DocumentSession
     }
 
     /// <summary>스킨의 조각 그림을 파일로 정한다 — 경로는 문서 기준 상대로 적힌다. null이면 그 조각을 비운다.</summary>
+    /// <summary>
+    /// 층 표(<c>layers.tsv</c>)를 세트로 들인다 — 표 옆의 그림들이 오브젝트 여럿 + 스킨으로, 한 칸에(<c>PLAN-set.md</c> S6). 그림 경로는 문서 기준으로 적힌다.
+    /// </summary>
+    public IReadOnlyList<string> ImportLayers(string kind, string sheetPath, string skin)
+    {
+        ArgumentNullException.ThrowIfNull(sheetPath);
+        LayerSheet sheet = LayerSheet.Load(sheetPath);
+        string folder = Path.GetDirectoryName(Path.GetFullPath(sheetPath)) ?? "";
+        // 표의 파일 하나를 문서 기준 경로로 바꿔 그 폴더를 얻는다(저장 전의 문서면 절대 경로로 남는다).
+        string probe = RelativeToDocument(Path.Combine(folder, "x")).Replace('\\', '/');
+        string relative = probe.Length > 1 ? probe[..^2] : "";
+        return Editor.ImportLayers(kind, sheet, relative, skin, StageSize);
+    }
+
     public void SetSkinPart(string skin, string node, string? path)
         => Editor.SetSkinPart(skin, node, string.IsNullOrEmpty(path) ? null : RelativeToDocument(path));
 
