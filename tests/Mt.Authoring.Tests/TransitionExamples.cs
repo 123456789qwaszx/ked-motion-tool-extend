@@ -353,17 +353,17 @@ internal static class TransitionExamples
         Fade(editor, In, "light_band", D, 0.2f, 0.9f, 0f, 1f);
         string[] rising = { "seabed_far", "pillars_far", "pillars_mid", "seabed_near" };
 
+        // "화면 밖에서 들어온다" — 얼마나 내려야 화면 밖인지는 편집기가 센다(층의 자리와 크기에서).
         foreach (string layer in rising)
         {
-            Slide(editor, In, layer, Axis.Y, D, 0.2f, 0.75f, -760f, 0f);
+            editor.SlideFromOutside(In, layer, StageSide.Bottom, 0.2f, 0.55f, Stage);
         }
 
         editor.StaggerNodes(In, rising, 0.1f);
-        Slide(editor, In, "trunk_left", Axis.X, D, 0.5f, 1.0f, -420f, 0f);
-        Slide(editor, In, "trunk_right", Axis.X, D, 0.55f, 1.05f, 420f, 0f);
-        Slide(editor, In, "fish_school", Axis.X, D, 0.6f, 1.3f, 900f, 0f);
-        Slide(editor, In, "ray", Axis.X, D, 0.7f, 1.35f, -900f, 0f);
-        editor.HideUntilTurn(In, "ray"); // 화면 밖까지 못 나가는 자리라 제 차례 전에는 숨긴다
+        editor.SlideFromOutside(In, "trunk_left", StageSide.Left, 0.5f, 0.5f, Stage);
+        editor.SlideFromOutside(In, "trunk_right", StageSide.Right, 0.55f, 0.5f, Stage);
+        editor.SlideFromOutside(In, "fish_school", StageSide.Right, 0.6f, 0.7f, Stage);
+        editor.SlideFromOutside(In, "ray", StageSide.Left, 0.7f, 0.65f, Stage);
         Fade(editor, In, "stars", D, 0.8f, 1.3f, 0f, 1f);
         editor.AddMotionPlay(In, "orb", "orb_pop", 0.85f);
         editor.HideUntilTurn(In, "orb");
@@ -415,9 +415,10 @@ internal static class TransitionExamples
         Scale(editor, "seed_in", "orb", K(0f, 0.3f), K(0.4f, 1.1f), F(0.6f, 1f));
         Scale(editor, "seed_in", "orb_swirl", F(0f, 0.3f), F(0.6f, 1f));
         Curve(editor, "seed_in", "orb_swirl", MotionChannelKind.Euler, Axis.Z, F(0f, -160f), F(0.6f, 0f));
-        editor.AddMotion("seed_sway", "seed", 1.5f, MotionEnd.Restore, Rel);
-        Curve(editor, "seed_sway", "orb_swirl", MotionChannelKind.Euler, Axis.Z, K(0f, 0f), K(0.75f, 28f), K(1.5f, 0f));
-        Scale(editor, "seed_sway", "orb", K(0f, 1f), K(0.75f, 1.05f), K(1.5f, 1f));
+        // 한 방향으로 계속 돈다 — 유지(commit)라 바퀴마다 쌓이고(두 번이면 두 바퀴), 되풀이 머묾(복원)의 끝에서 처음으로 돌아가도 한 바퀴의 배수라 이어져 보인다.
+        editor.AddMotion("seed_spin", "seed", 1.5f, MotionEnd.Commit, Rel);
+        Curve(editor, "seed_spin", "orb_swirl", MotionChannelKind.Euler, Axis.Z, L(0f, 0f), L(1.5f, -360f));
+        Scale(editor, "seed_spin", "orb", K(0f, 1f), K(0.75f, 1.05f), K(1.5f, 1f));
 
         // 수정 — 수정과 그 빛.
         editor.ExtractRigNodes(Heredity, new[] { "crystals", "crystals_light" }, "crystal");
@@ -460,10 +461,10 @@ internal static class TransitionExamples
 
         editor.StaggerNodes(In, leaves, 0.07f);
 
-        // ── 머묾(3초, 되풀이) — 씨앗이 흔들리고 수정이 반짝인다(각각 두 번).
+        // ── 머묾(3초, 되풀이) — 씨앗의 소용돌이가 두 바퀴 돌고 수정이 두 번 반짝인다.
         const string Hold = "heredity_hold";
         editor.AddMotion(Hold, Heredity, 3f, MotionEnd.Restore, Rel);
-        editor.AddMotionPlay(Hold, "seed", "seed_sway", 0f, repeat: 2);
+        editor.AddMotionPlay(Hold, "seed", "seed_spin", 0f, repeat: 2);
         editor.AddMotionPlay(Hold, "crystal", "crystal_glint", 0f, repeat: 2);
 
         for (int i = 0; i < leaves.Length; i++)

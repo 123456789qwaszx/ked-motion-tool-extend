@@ -334,7 +334,7 @@
             "keys": [
               {
                 "t": 0,
-                "v": -760,
+                "v": -1080,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -342,7 +342,7 @@
               },
               {
                 "t": 0.2,
-                "v": -760,
+                "v": -1080,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -374,7 +374,7 @@
             "keys": [
               {
                 "t": 0,
-                "v": -760,
+                "v": -1080,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -382,7 +382,7 @@
               },
               {
                 "t": 0.3,
-                "v": -760,
+                "v": -1080,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -414,7 +414,7 @@
             "keys": [
               {
                 "t": 0,
-                "v": -760,
+                "v": -1080,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -422,7 +422,7 @@
               },
               {
                 "t": 0.4,
-                "v": -760,
+                "v": -1080,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -454,7 +454,7 @@
             "keys": [
               {
                 "t": 0,
-                "v": -760,
+                "v": -1080,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -462,7 +462,7 @@
               },
               {
                 "t": 0.5,
-                "v": -760,
+                "v": -1080,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -494,7 +494,7 @@
             "keys": [
               {
                 "t": 0,
-                "v": -420,
+                "v": -307,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -502,7 +502,7 @@
               },
               {
                 "t": 0.5,
-                "v": -420,
+                "v": -307,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -534,7 +534,7 @@
             "keys": [
               {
                 "t": 0,
-                "v": 420,
+                "v": 300,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -542,7 +542,7 @@
               },
               {
                 "t": 0.55,
-                "v": 420,
+                "v": 300,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -574,7 +574,7 @@
             "keys": [
               {
                 "t": 0,
-                "v": 900,
+                "v": 770,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -582,7 +582,7 @@
               },
               {
                 "t": 0.6,
-                "v": 900,
+                "v": 770,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -614,7 +614,7 @@
             "keys": [
               {
                 "t": 0,
-                "v": -900,
+                "v": -1303,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
@@ -622,14 +622,14 @@
               },
               {
                 "t": 0.7,
-                "v": -900,
+                "v": -1303,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",
                 "broken": false
               },
               {
-                "t": 1.35,
+                "t": 1.3499999,
                 "v": 0,
                 "inTangent": 0,
                 "outTangent": 0,
@@ -639,46 +639,6 @@
               {
                 "t": 1.4,
                 "v": 0,
-                "inTangent": 0,
-                "outTangent": 0,
-                "tangent": "flat",
-                "broken": false
-              }
-            ]
-          }
-        },
-        {
-          "node": "ray",
-          "kind": "alpha",
-          "x": {
-            "keys": [
-              {
-                "t": 0,
-                "v": 0,
-                "inTangent": 0,
-                "outTangent": 0,
-                "tangent": "flat",
-                "broken": false
-              },
-              {
-                "t": 0.7,
-                "v": 0,
-                "inTangent": 0,
-                "outTangent": 0,
-                "tangent": "flat",
-                "broken": false
-              },
-              {
-                "t": 0.8,
-                "v": 1,
-                "inTangent": 0,
-                "outTangent": 0,
-                "tangent": "flat",
-                "broken": false
-              },
-              {
-                "t": 1.4,
-                "v": 1,
                 "inTangent": 0,
                 "outTangent": 0,
                 "tangent": "flat",

@@ -1982,4 +1982,53 @@ public class SkinShellTests
             }
         });
     }
+
+    [Fact]
+    public void 하이어아키_메뉴의_화면_밖에서_들어온다는_지금_시각부터_자리_키를_놓는다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                MotionEditor editor = window.Session.Editor;
+                window.NewSetFromForm();
+                window.SelectSetNode(null);
+                window.AddColorNodeFromForm(); // Color1 — 400×300, 무대 가운데
+                editor.AddMotion("set_in", "set", 1f, MotionEnd.Commit);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+                // 애니메이션을 고르지 않았으면 할 일이 없다.
+                Assert.Null(window.SlideSetNodeFromMenu("Color1", StageSide.Left, leaving: false));
+
+                // 0.25초에서 "왼쪽에서" — 한 칸. 무대의 반(960) + 너비의 반(200) = 1160만큼 왼쪽에서 0.5초 동안 들어온다.
+                window.SelectMotion("set_in");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.Graph.CurrentTime = 0.25;
+                long revision = editor.Revision;
+                Assert.Equal(-1160f, window.SlideSetNodeFromMenu("Color1", StageSide.Left, leaving: false));
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.Equal(new[] { (0f, -1160f), (0.25f, -1160f), (0.75f, 0f), (1f, 0f) },
+                    editor.Document.Find("set_in")!.FindChannel("Color1", MotionChannelKind.Position)!.X!.Keys.Select(k => (k.T, k.V)));
+                Assert.Equal(0, window.ProblemRowsShown);
+
+                // 뷰포트: 0.1초에는 무대 밖(왼쪽), 끝에는 제자리.
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                float X(double t)
+                {
+                    window.Graph.CurrentTime = t;
+                    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                    return window.Viewport.CurrentPose()!.TransformPoint("set/Color1", Vec3.Zero).X;
+                }
+
+                Assert.Equal(-1160f, X(0.1) - X(1.0), 0);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
 }

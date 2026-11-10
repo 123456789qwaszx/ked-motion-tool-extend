@@ -844,4 +844,62 @@ public class RigAssetTests
         Assert.Equal(new[] { "Ground", "Sun", "Ray", "Glow", "Tree" }, editor.Document.FindRig("town")!.Nodes.Select(n => n.Id));
         Assert.Empty(editor.Document.Find("town_in")!.Plays);
     }
+
+    // ── 화면 밖에서 들어온다 · 떨어진 오브젝트를 함께 뺀다 ───────────────
+
+    [Fact]
+    public void 화면_밖에서_들어오는_거리는_오브젝트의_사각형이_무대_밖으로_다_나가는_만큼이다()
+    {
+        var stage = new Vec2(1920f, 1080f);
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(new RigAsset { Kind = "town", Nodes = { new RigNodeAsset { Id = "Group", X = 100f, Y = -50f, Alpha = true } } });
+        editor.AddRigNode("town", "Sun", null, image: true);
+        editor.UpdateRigNode("town", "Sun", new RigNodeAsset { X = 300f, Y = 200f, Width = 100f, Height = 100f, Image = true, Alpha = true });
+        editor.AddRigNode("town", "Leaf", "Group", image: true);
+        editor.UpdateRigNode("town", "Leaf", new RigNodeAsset { X = 10f, Y = 20f, Width = 60f, Height = 80f, Rotation = 30f, Image = true, Alpha = true });
+        editor.AddMotion("town_in", "town", 1f, MotionEnd.Commit);
+
+        // 왼쪽에서: 무대의 반(960) + 자리(300) + 너비의 반(50) = 1310만큼 왼쪽에서 출발한다. 0.2초부터 0.5초 동안 — 앞뒤로는 가만히. 한 칸.
+        long revision = editor.Revision;
+        Assert.Equal(-1310f, editor.SlideFromOutside("town_in", "Sun", StageSide.Left, 0.2f, 0.5f, stage));
+        Assert.Equal(revision + 1, editor.Revision);
+        Assert.Equal(new[] { (0f, -1310f), (0.2f, -1310f), (0.7f, 0f), (1f, 0f) }, editor.Document.Find("town_in")!.FindChannel("Sun", MotionChannelKind.Position)!.X!.Keys.Select(k => (k.T, k.V)));
+
+        // 위에서: 540 − 200 + 50 = 390. 나가는 것은 거꾸로(제자리 → 밖), 끝까지면 끝 키 하나로.
+        Assert.Equal(390f, editor.SlideFromOutside("town_in", "Sun", StageSide.Top, 0.6f, 0.5f, stage, leaving: true));
+        Assert.Equal(new[] { (0f, 0f), (0.6f, 0f), (1f, 390f) }, editor.Document.Find("town_in")!.FindChannel("Sun", MotionChannelKind.Position)!.Y!.Keys.Select(k => (k.T, k.V)));
+
+        // 부모의 자리를 더하고, 돈 오브젝트는 감싸는 원으로 넉넉히: 960 − (100 + 10) + √(30² + 40²) = 900.
+        Assert.Equal(900f, editor.SlideFromOutside("town_in", "Leaf", StageSide.Right, 0f, 0.5f, stage));
+
+        // 절대값 애니메이션이면 가만히 선 자리에 얹는다(300 − 1310 → 300).
+        editor.AddMotion("abs_in", "town", 1f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.SlideFromOutside("abs_in", "Sun", StageSide.Left, 0f, 1f, stage);
+        Assert.Equal(new[] { -1010f, 300f }, editor.Document.Find("abs_in")!.FindChannel("Sun", MotionChannelKind.Position)!.X!.Keys.Select(k => k.V));
+
+        // 길이 밖의 시작 · 없는 오브젝트는 막힌다.
+        revision = editor.Revision;
+        Assert.Throws<InvalidOperationException>(() => editor.SlideFromOutside("town_in", "Sun", StageSide.Left, 1f, 0.5f, stage));
+        Assert.Throws<KeyNotFoundException>(() => editor.SlideFromOutside("town_in", "Nope", StageSide.Left, 0f, 0.5f, stage));
+        Assert.Equal(revision, editor.Revision);
+        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, null, rig.AlphaNodeIds));
+    }
+
+    [Fact]
+    public void 떨어져_있는_오브젝트도_같은_부모_밑이면_한_세트로_빼진다()
+    {
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddRig(new RigAsset { Kind = "town" });
+
+        foreach (string id in new[] { "A", "B", "C", "D" })
+        {
+            editor.AddRigNode("town", id, null, image: true);
+        }
+
+        // A와 C(사이에 B) — 첫 것의 자리에 인스턴스가 서고, 새 세트 안의 순서는 원래 순서다.
+        Assert.Equal("pair", editor.ExtractRigNodes("town", new[] { "C", "A" }, "pair"));
+        Assert.Equal(new[] { "pair", "B", "D" }, editor.Document.FindRig("town")!.Nodes.Select(n => n.Id));
+        Assert.Equal(new[] { "A", "C" }, editor.Document.FindRig("pair")!.Nodes.Select(n => n.Id));
+    }
 }

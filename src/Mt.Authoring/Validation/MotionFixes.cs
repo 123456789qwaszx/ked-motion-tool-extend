@@ -9,9 +9,6 @@ namespace Mt.Authoring.Validation;
 /// <summary>규칙 위반을 한 번에 고치는 돕는 손(계획 2.4). 각각 편집기 명령 하나 = 되돌리기 하나.</summary>
 public enum MotionFix
 {
-    /// <summary>마지막 키 값을 중립값으로(restore 경고).</summary>
-    LastKeysToNeutral,
-
     /// <summary>첫 키를 시각 0으로 옮긴다.</summary>
     FirstKeysToZero,
 
@@ -20,9 +17,6 @@ public enum MotionFix
 
     /// <summary>길이를 가장 늦은 키에 맞춘다.</summary>
     DurationToLastKey,
-
-    /// <summary>끝 규칙을 commit으로.</summary>
-    EndToCommit,
 
     /// <summary>이름을 규칙(소문자·숫자·_)에 맞게, 겹치지 않게 고친다. 빈 이름은 motion.</summary>
     NameToValid,
@@ -41,11 +35,9 @@ public static class MotionFixes
 {
     public static string Label(MotionFix fix) => fix switch
     {
-        MotionFix.LastKeysToNeutral => "마지막 키를 중립값으로",
         MotionFix.FirstKeysToZero => "첫 키를 0초로",
         MotionFix.EndKeysToDuration => "끝 키를 길이로 옮기기",
         MotionFix.DurationToLastKey => "길이를 마지막 키에 맞추기",
-        MotionFix.EndToCommit => "종료 처리를 유지(commit)로",
         MotionFix.NameToValid => "이름 고치기 (소문자·숫자·_)",
         MotionFix.KeyAtDuration => "길이 자리에 키 넣기",
         MotionFix.PreviewModeToAbsolute => "재생 기준을 절대값(absolute)으로",
@@ -72,11 +64,6 @@ public static class MotionFixes
         if (m.Contains("첫 키 시각이 0이 아니다", StringComparison.Ordinal))
         {
             return new[] { MotionFix.FirstKeysToZero };
-        }
-
-        if (m.Contains("restore인데 마지막 키 값이 중립값", StringComparison.Ordinal))
-        {
-            return new[] { MotionFix.LastKeysToNeutral, MotionFix.EndToCommit };
         }
 
         if (m.Contains(MotionValidator.AbsoluteControllerWarning, StringComparison.Ordinal))
@@ -141,23 +128,12 @@ public static class MotionFixes
                 return true;
             }
 
-            case MotionFix.EndToCommit:
-                if (motion.End == MotionEnd.Commit)
-                {
-                    return false;
-                }
-
-                editor.SetEnd(motionName, MotionEnd.Commit);
-                return true;
-
             default:
             {
                 var edits = new List<(CurveRef Curve, IEnumerable<KeyAsset> Keys)>();
 
                 foreach (ChannelAsset channel in motion.Channels)
                 {
-                    float neutral = MotionMath.Neutral(channel.Kind);
-
                     foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
                     {
                         if (channel.Get(axis) is not { } curve || curve.Keys.Count == 0)
@@ -166,7 +142,7 @@ public static class MotionFixes
                         }
 
                         List<KeyAsset> keys = curve.Keys.Select(Clone).ToList();
-                        bool changed = ApplyToCurve(fix, keys, motion, neutral);
+                        bool changed = ApplyToCurve(fix, keys, motion);
 
                         if (changed)
                         {
@@ -186,22 +162,13 @@ public static class MotionFixes
         }
     }
 
-    private static bool ApplyToCurve(MotionFix fix, List<KeyAsset> keys, MotionAsset motion, float neutral)
+    private static bool ApplyToCurve(MotionFix fix, List<KeyAsset> keys, MotionAsset motion)
     {
         KeyAsset first = keys[0];
         KeyAsset last = keys[^1];
 
         switch (fix)
         {
-            case MotionFix.LastKeysToNeutral:
-                if (Math.Abs(last.V - neutral) <= MotionRules.Tolerance)
-                {
-                    return false;
-                }
-
-                last.V = neutral;
-                return true;
-
             case MotionFix.FirstKeysToZero:
                 if (Math.Abs(first.T) <= MotionRules.Tolerance)
                 {

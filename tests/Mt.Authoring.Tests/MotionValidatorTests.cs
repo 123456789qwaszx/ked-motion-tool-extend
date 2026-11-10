@@ -92,7 +92,6 @@ public class MotionFixesTests
     public void 문구에서_돕는_손을_고른다()
     {
         Assert.Equal(new[] { MotionFix.EndKeysToDuration, MotionFix.DurationToLastKey, MotionFix.KeyAtDuration }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: 마지막 키 시각이 길이와 다르다 (0.5 ≠ 1)")));
-        Assert.Equal(new[] { MotionFix.LastKeysToNeutral, MotionFix.EndToCommit }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: restore인데 마지막 키 값이 중립값 0이 아니다 (5) — 끝에서 시작값으로 튄다. 남기려면 commit", Blocking: false)));
         Assert.Empty(MotionFixes.Suggest(new MotionProblem("a", "같은 이름이 둘이다")));
     }
 
@@ -113,7 +112,7 @@ public class MotionFixesTests
     }
 
     [Fact]
-    public void 길이를_마지막_키에_맞추기_그리고_restore_마지막_키_경고는_막지_않고_돕는_손이_있다()
+    public void 길이를_마지막_키에_맞추기_그리고_키의_값은_복원의_끝이_중립값이_아니어도_알리지_않는다()
     {
         var editor = new MotionEditor(Fixtures.NodBowDocument());
         editor.SetDuration("nod", 0.5f);
@@ -124,26 +123,12 @@ public class MotionFixesTests
         editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 0, new KeyAsset { T = 0f, V = 3f });
         Assert.Empty(MotionValidator.Validate(editor.Document));
 
-        // restore인데 마지막 키가 남는다 — 경고(내보내기는 된다).
+        // 복원(restore)이 중립값이 아닌 데서 끝나도 알리지 않는다 — 끝에서 시작값으로 돌아가는 것은 작가의 뜻이다. 그대로 나간다.
         editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 2, new KeyAsset { T = 0.6f, V = 5f });
-        MotionProblem warning = Assert.Single(MotionValidator.Validate(editor.Document));
-        Assert.False(warning.Blocking);
-        Assert.Contains("튄다", warning.Message, StringComparison.Ordinal);
-        Assert.Empty(MotionValidator.Blocking(MotionValidator.Validate(editor.Document)));
+        Assert.Empty(MotionValidator.Validate(editor.Document));
         Assert.True(MotionExport.TryExport(editor.Document, null, out string json, out IReadOnlyList<MotionProblem> blocking));
         Assert.Empty(blocking);
         Assert.Contains("\"v\": 5", json, StringComparison.Ordinal);
-
-        Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.LastKeysToNeutral));
-        Assert.Empty(MotionValidator.Validate(editor.Document));
-
-        Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.EndToCommit));
-        Assert.Equal(MotionEnd.Commit, editor.Document.Find("nod")!.End);
-        Assert.False(MotionFixes.Apply(editor, "nod", MotionFix.EndToCommit));
-
-        // commit이면 마지막 키가 무엇이든 경고가 없다.
-        editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 2, new KeyAsset { T = 0.6f, V = 5f });
-        Assert.Empty(MotionValidator.Validate(editor.Document));
     }
 
     [Fact]
@@ -167,11 +152,7 @@ public class MotionFixesTests
         Assert.True(MotionFixes.Apply(shorter, "nod", MotionFix.KeyAtDuration));
         keys = Y.Resolve(shorter.Document.Find("nod")!)!.Keys;
         Assert.Equal(new[] { 0f, 0.3f, 0.5f }, keys.Select(k => (float)Math.Round(k.T, 4)));
-        // 길이를 줄이면 새 끝 키는 곡선 위 값이라 중립값이 아니다 — 길이 문제는 사라지고 restore 경고만 남는다(다음 돕는 손의 몫).
-        MotionProblem remaining = Assert.Single(MotionValidator.Validate(shorter.Document));
-        Assert.False(remaining.Blocking);
-        Assert.Contains("중립값", remaining.Message, StringComparison.Ordinal);
-        Assert.True(MotionFixes.Apply(shorter, "nod", MotionFix.LastKeysToNeutral));
+        // 길이를 줄이면 새 끝 키는 곡선 위 값이라 중립값이 아니다 — 그래도 문제가 없다(값은 알리지 않는다).
         Assert.Empty(MotionValidator.Validate(shorter.Document));
     }
 

@@ -19,9 +19,9 @@ public sealed record MotionProblem(string MotionName, string Message, bool Block
 /// 편집 중 계속 돌리는 검증. 규칙은 코어 <see cref="MotionRules"/> 한 벌뿐이다 — 런타임 로더와 Unity 내보내기가
 /// 같은 규칙을 쓰므로 "툴에서는 되는데 재생에서 사라지는" 모션이 안 생긴다. 문구도 코어의 것을 그대로 보인다.
 ///
-/// 여기서 더 보는 것은 문서 수준(같은 이름 둘, 리그 덤프에 없는 rigKind)과 **경고** 하나다:
-/// restore인데 마지막 키가 중립값이 아니면 재생이 끝에서 시작값을 되써 튄다 — 규칙(motions/2)은 막지 않으므로
-/// 경고로만 보이고 내보내기는 된다. 첫 키가 중립값이 아닌 것은 알리지 않는다 — "지금 값 +140에서 시작"은 뜻이다.
+/// 여기서 더 보는 것은 문서 수준(같은 이름 둘, 리그 덤프에 없는 rigKind)이다.
+/// 키의 **값**은 알리지 않는다 — 첫 키가 중립값이 아닌 것("지금 값 +140에서 시작")도, 복원(restore)이 중립값이 아닌 데서 끝나는 것(끝에서 시작값으로 돌아간다 —
+/// 한 방향으로 계속 도는 되풀이 머묾)도 작가의 뜻이다. (복원의 끝 값을 경고하던 것은 2026-11-10 소유자 결정으로 없앴다.)
 /// </summary>
 public static class MotionValidator
 {
@@ -126,26 +126,6 @@ public static class MotionValidator
         }
 
         // 경고는 모양 규칙과 무관하게 본다 — 고치는 순서를 작가가 고른다.
-
-        if (motion.End == MotionEnd.Restore)
-        {
-            for (int i = 0; i < motion.Channels.Count; i++)
-            {
-                ChannelAsset channel = motion.Channels[i];
-                float neutral = MotionMath.Neutral(channel.Kind);
-
-                foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
-                {
-                    if (channel.Get(axis) is { Keys.Count: > 0 } curve && Math.Abs(curve.Keys[^1].V - neutral) > MotionRules.Tolerance)
-                    {
-                        problems.Add(new MotionProblem(
-                            motion.Name,
-                            $"채널 {i}: {axis}: restore인데 마지막 키 값이 중립값 {neutral}이 아니다 ({curve.Keys[^1].V}) — 끝에서 시작값으로 튄다. 남기려면 commit",
-                            Blocking: false));
-                    }
-                }
-            }
-        }
 
         // 자리·깊이 컨트롤러는 absolute로 재생한다(결정 D1·그룹 mode). relative 미리보기면 자리가 누적돼 보인다 — 경고.
         if (motion.PreviewMode == MotionChannelMode.Relative && controllers?.Rig(motion.Rig) is { } table)

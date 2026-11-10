@@ -139,10 +139,10 @@
       ]
     },
     {
-      "name": "seed_sway",
+      "name": "seed_spin",
       "rig": "seed",
       "duration": 1.5,
-      "end": "restore",
+      "end": "commit",
       "previewMode": "relative",
       "channels": [
         {
@@ -153,25 +153,17 @@
               {
                 "t": 0,
                 "v": 0,
-                "inTangent": 0,
-                "outTangent": 0,
-                "tangent": "auto",
-                "broken": false
-              },
-              {
-                "t": 0.75,
-                "v": 28,
-                "inTangent": 0,
-                "outTangent": 0,
-                "tangent": "auto",
+                "inTangent": -240,
+                "outTangent": -240,
+                "tangent": "linear",
                 "broken": false
               },
               {
                 "t": 1.5,
-                "v": 0,
-                "inTangent": 0,
-                "outTangent": 0,
-                "tangent": "auto",
+                "v": -360,
+                "inTangent": -240,
+                "outTangent": -240,
+                "tangent": "linear",
                 "broken": false
               }
             ]
@@ -1317,7 +1309,7 @@
       "plays": [
         {
           "node": "seed",
-          "motion": "seed_sway",
+          "motion": "seed_spin",
           "at": 0,
           "repeat": 2
         },

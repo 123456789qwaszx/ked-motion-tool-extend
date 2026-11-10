@@ -173,7 +173,28 @@ public partial class MainWindow
     /// <summary>테스트 손잡이 — 세트 이름 칸, 하이어아키 메뉴의 "새 세트로 빼기"(그 오브젝트부터 last까지의 형제들).</summary>
     internal TextBox SetNameBox => _setName;
 
-    internal string? ExtractSetNodesFromMenu(string first, string? last = null) => ExtractSetNodes(first, last ?? first);
+    internal string? ExtractSetNodesFromMenu(string first, params string[] others) => ExtractSetNodes(new[] { first }.Concat(others).ToList());
+
+    /// <summary>테스트 손잡이 — 하이어아키 메뉴의 "화면 밖에서 들어온다 / 밖으로 나간다"(지금 시각부터 0.5초).</summary>
+    internal float? SlideSetNodeFromMenu(string node, StageSide side, bool leaving) => SlideSetNode(node, side, leaving);
+
+    /// <summary>들어오고 나가는 데 걸리는 시간(초) — 메뉴의 기본. 키를 끌어 늘리거나 줄인다.</summary>
+    private const float SlideSeconds = 0.5f;
+
+    private float? SlideSetNode(string node, StageSide side, bool leaving)
+    {
+        if (_graph.Motion is not { } motion)
+        {
+            return null;
+        }
+
+        float start = (float)Math.Clamp(_graph.CurrentTime, 0, Math.Max(0, motion.Duration - 0.05));
+        float distance = _session.Editor.SlideFromOutside(motion.Name, node, side, start, SlideSeconds, _session.StageSize, leaving);
+        _session.SetStatus($"{node}: {start:0.##}초부터 {SlideSeconds:0.##}초 동안 무대 {SideName(side)} {(leaving ? "밖으로 나간다" : "밖에서 들어온다")}({Math.Abs(distance):0}px).");
+        return distance;
+    }
+
+    private static string SideName(StageSide side) => side switch { StageSide.Left => "왼쪽", StageSide.Right => "오른쪽", StageSide.Top => "위", _ => "아래" };
 
     internal string? AddSetNodeFromForm(bool image) => AddSetNode(image);
 
@@ -498,25 +519,17 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// 하이어아키에서 고른 오브젝트부터 <paramref name="last"/>까지의 형제들(과 그 밑)을 새 세트로 뺀다 — 이름은 첫 오브젝트에서(세트 이름 칸에서 고친다).
+    /// 하이어아키에서 고른 오브젝트들(같은 부모 밑 — 떨어져 있어도 된다)과 그 밑을 새 세트로 뺀다 — 이름은 첫 오브젝트에서(세트 이름 칸에서 고친다).
     /// 자리·그림·키를 데리고 가고 그 자리에 인스턴스가 선다. 보이는 것은 그대로다.
     /// </summary>
-    private string? ExtractSetNodes(string first, string last)
+    private string? ExtractSetNodes(IReadOnlyList<string> ids)
     {
-        if (EditedRig is not { } rig || rig.Find(first) is not { } start)
+        if (EditedRig is not { } rig || ids.Count == 0 || rig.Find(ids[0]) is null)
         {
             return null;
         }
 
-        List<string> siblings = rig.Nodes.Where(n => n.Parent == start.Parent).Select(n => n.Id).ToList();
-        int from = siblings.IndexOf(first);
-        int to = siblings.IndexOf(last);
-
-        if (to < from)
-        {
-            return null;
-        }
-
+        string first = ids[0];
         string stem = first.ToLowerInvariant();
         string kind = stem;
 
@@ -525,10 +538,10 @@ public partial class MainWindow
             kind = $"{stem}_{i.ToString(CultureInfo.InvariantCulture)}";
         }
 
-        string instance = _session.Editor.ExtractRigNodes(rig.Kind, siblings.GetRange(from, to - from + 1), kind);
+        string instance = _session.Editor.ExtractRigNodes(rig.Kind, ids, kind);
         RefreshSets();
         SelectSetNode(instance);
-        _session.SetStatus($"오브젝트 {to - from + 1}개를 새 세트 '{kind}'로 뺐다 — 그 자리에 인스턴스 '{instance}'가 섰다. 세트 '{kind}'를 열어 이름을 고치거나 안쪽을 고친다.");
+        _session.SetStatus($"오브젝트 {ids.Count}개를 새 세트 '{kind}'로 뺐다 — 그 자리에 인스턴스 '{instance}'가 섰다. 세트 '{kind}'를 열어 이름을 고치거나 안쪽을 고친다.");
         return instance;
     }
 
@@ -923,6 +936,21 @@ public partial class MainWindow
             _hierarchyMenu.Items.Add(stagger);
 
             // 제 차례 전에는 숨긴다 — 가만히 선 자세는 "다 보이는" 것이라, 늦게 나오는 오브젝트를 숨겨 두는 불투명도 키를 대신 놓는다.
+            // 화면 밖에서 들어오고 나간다 — 얼마나 옮겨야 화면 밖인지를 대신 센다(지금 시각부터 0.5초).
+            foreach (bool leaving in new[] { false, true })
+            {
+                var slide = new MenuItem { Header = leaving ? "화면 밖으로 나간다 (지금 시각부터)" : "화면 밖에서 들어온다 (지금 시각부터)", FontSize = 11 };
+
+                foreach (StageSide side in new[] { StageSide.Left, StageSide.Right, StageSide.Top, StageSide.Bottom })
+                {
+                    StageSide capturedSide = side;
+                    bool capturedLeaving = leaving;
+                    Item(slide, SideName(side) + (!leaving ? "에서" : side is StageSide.Top or StageSide.Bottom ? "로" : "으로"), () => SlideSetNode(nodeId, capturedSide, capturedLeaving));
+                }
+
+                _hierarchyMenu.Items.Add(slide);
+            }
+
             Item(_hierarchyMenu, "제 차례 전까지 숨기기", () => HideSetNodeForTurn(nodeId, until: true));
             Item(_hierarchyMenu, "움직임을 마치면 숨기기", () => HideSetNodeForTurn(nodeId, until: false));
             Item(_hierarchyMenu, "전부: 제 차례 전까지 숨기기", () => HideSetNodeForTurn(null, until: true));
@@ -947,13 +975,25 @@ public partial class MainWindow
         {
             var extract = new MenuItem { Header = "새 세트로 빼기", FontSize = 11 };
             ToolTip.SetTip(extract, "고른 오브젝트들을 따로 세트로 뺀다 — 자리·그림·키를 데리고 가고, 그 자리에는 새 세트의 인스턴스가 서고, 애니메이션에는 그것을 트는 재생 블록이 선다. 보이는 것은 그대로다(되돌리기 한 번)");
-            Item(extract, "이것만 (밑의 오브젝트까지)", () => ExtractSetNodes(nodeId, nodeId));
-            List<string> following = rig.Nodes.Where(n => n.Parent == node.Parent).Select(n => n.Id).SkipWhile(n => n != nodeId).Skip(1).Take(12).ToList();
+            Item(extract, "이것만 (밑의 오브젝트까지)", () => ExtractSetNodes(new[] { nodeId }));
 
-            for (int i = 0; i < following.Count; i++)
+            // 함께 뺄 형제를 고른다 — 떨어져 있어도 된다(체크하고 "함께 뺀다"). 메뉴는 체크하는 동안 열려 있다.
+            List<string> siblings = rig.Nodes.Where(n => n.Parent == node.Parent && n.Id != nodeId).Select(n => n.Id).ToList();
+
+            if (siblings.Count > 0)
             {
-                string captured = following[i];
-                Item(extract, $"여기서 {captured}까지 ({i + 2}개)", () => ExtractSetNodes(nodeId, captured));
+                extract.Items.Add(new Separator());
+                var picks = new List<MenuItem>();
+
+                foreach (string sibling in siblings)
+                {
+                    var pick = new MenuItem { Header = sibling, FontSize = 11, ToggleType = MenuItemToggleType.CheckBox, StaysOpenOnClick = true };
+                    picks.Add(pick);
+                    extract.Items.Add(pick);
+                }
+
+                extract.Items.Add(new Separator());
+                Item(extract, "체크한 것과 함께 뺀다", () => ExtractSetNodes(new[] { nodeId }.Concat(picks.Where(p => p.IsChecked).Select(p => (string)p.Header!)).ToList()));
             }
 
             _hierarchyMenu.Items.Add(extract);
