@@ -437,13 +437,8 @@ public class SkinShellTests
                 Assert.Equal(0.7, window.Viewport.Clock.Duration, 4);
                 Assert.Equal(0, window.ProblemRowsShown);
 
-                // 리그 칸: 조각 수를 둘로 — 한 칸. 스킨 칸의 조각 줄도 따라 준다.
-                Assert.Equal(("4", "160", true), (window.RigPartBoxes.Count.Text, window.RigPartBoxes.Size.Text, window.RigPartBoxes.Editable));
-                TextBox count = window.RigPartBoxes.Count;
-                count.Focus();
-                count.Text = "2";
-                window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-                Assert.Equal(2, editor.Document.FindRig(RigTemplates.EmojiKind)!.Nodes.Count(n => n.Image));
+                // 조각이 넷인 본으로 섰다. 조각을 줄이면(편집기 명령) 뷰포트의 리그가 바로 따라온다.
+                editor.SetRigParts(RigTemplates.EmojiKind, 2, 160f);
                 Assert.False(window.Viewport.CurrentPose()!.Contains($"{id}/Emoji_Part3"));
                 editor.Undo();
                 Assert.True(window.Viewport.CurrentPose()!.Contains($"{id}/Emoji_Part3"));
@@ -607,7 +602,7 @@ public class SkinShellTests
     }
 
     [Fact]
-    public void 리그_편집기에서_노드를_짓고_고치면_뷰포트의_리그가_바로_따라온다()
+    public void 세트를_열면_그_세트만_보이고_하이어아키에서_오브젝트를_짓고_고친다()
     {
         HeadlessUi.Run(() =>
         {
@@ -617,65 +612,92 @@ public class SkinShellTests
             try
             {
                 MotionEditor editor = window.Session.Editor;
-                window.InspectorTab = 4; // 이모지 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-                // 덤프의 리그(캐릭터)는 못 고친다 — 목록이 비고 칸이 잠긴다.
-                Assert.Equal(("character", (string?)null, false), (window.RigEditorState.Rig, window.RigEditorState.Node, window.RigEditorState.Editable));
-                Assert.Empty(window.RigEditorState.Rows);
-                Assert.Null(window.AddRigNodeFromForm(image: true));
+                // 처음에는 세트가 없다 — 뷰포트는 문서의 씬(캐릭터 s1)을 보인다.
+                Assert.Empty(window.SetEditorState.Sets);
+                Assert.Null(window.Viewport.SetView);
+                Assert.NotNull(window.Viewport.Scene!.Find("s1"));
+                Assert.Null(window.AddSetNodeFromForm(image: true)); // 연 세트가 없으면 아무 일도 없다
 
-                // 새 리그 — 한 칸, 그 리그가 골라지고 노드 Body가 선다.
+                // 새 세트 — 한 칸. 목록에 서고, 열리고, 뷰포트와 하이어아키가 그 세트만 보인다.
                 long revision = editor.Revision;
-                Assert.Equal("rig", window.NewRigFromForm());
+                Assert.Equal("set", window.NewSetFromForm());
                 Assert.Equal(revision + 1, editor.Revision);
-                Assert.Equal(("rig", "Body", true), (window.RigEditorState.Rig, window.RigEditorState.Node, window.RigEditorState.Editable));
-                Assert.Equal(new[] { "· Body  α" }, window.RigEditorState.Rows);
+                Assert.Equal(new[] { "set" }, window.SetEditorState.Sets);
+                Assert.Equal(("set", "Body", true), (window.SetEditorState.Set, window.SetEditorState.Node, window.SetEditorState.Editable));
+                Assert.Equal("set", window.Viewport.SetView);
+                Assert.Equal(new[] { ViewportView.SetObjectId }, window.Viewport.SceneObjects.Select(o => o.Id));
+                Assert.Equal(1, window.HierarchyObjectCount);
+                Assert.True(window.Viewport.CurrentPose()!.Contains("set/Body"));
+                Assert.False(window.Viewport.CurrentPose()!.Contains("s1/CharSlot_Scale")); // 캐릭터는 안 선다
+                Assert.NotNull(editor.Document.ActiveSceneAsset!.Find("s1"));                // 문서의 씬은 그대로다
+                Assert.Null(editor.Document.ActiveSceneAsset!.Find(ViewportView.SetObjectId));
 
-                // 그림 노드 둘 — 고른 노드 밑에 선다. 목록은 들여쓰기로 계층을 보인다.
-                Assert.Equal("Part1", window.AddRigNodeFromForm(image: true));
-                window.SelectRigNode("Body");
-                Assert.Equal("Part2", window.AddRigNodeFromForm(image: true));
-                Assert.Equal(new[] { "· Body  α", "   ▣ Part1  α", "   ▣ Part2  α" }, window.RigEditorState.Rows);
+                // 그림 오브젝트 둘 — 고른 오브젝트 밑에 서고 뷰포트의 세트에 바로 선다.
+                Assert.Equal("Part1", window.AddSetNodeFromForm(image: true));
+                window.SelectSetNode("Body");
+                Assert.Equal("Part2", window.AddSetNodeFromForm(image: true));
+                Assert.Equal(new[] { ("Body", ""), ("Part1", "Body"), ("Part2", "Body") }, editor.Document.FindRig("set")!.Nodes.Select(n => (n.Id, n.Parent)));
+                Assert.True(window.Viewport.CurrentPose()!.Contains("set/Part2"));
 
-                // 캐릭터에 붙여 세우면 뷰포트의 리그에 그 노드들이 선다.
-                string id = window.CreateAttachedFromMenu("rig", "s1");
-                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.True(window.Viewport.CurrentPose()!.Contains($"{id}/Part2"));
-
-                // 칸에서 위치·크기를 고친다(Enter) — 한 칸, 뷰포트가 바로 따라온다.
-                window.SelectRigNode("Part2");
+                // 하이어아키에서 오브젝트를 고르면 "씬" 탭의 세트 칸이 그것을 본다. 칸에서 자리를 고친다(Enter) — 한 칸, 뷰포트가 따라온다.
+                window.InspectorTab = 1;
+                window.SelectInHierarchy(ViewportView.SetObjectId, "Part2");
+                Assert.Equal("Part2", window.SetEditorState.Node);
+                Assert.Equal("Part2", window.RigNodeBoxes.Id.Text);
                 revision = editor.Revision;
                 window.RigNodeBoxes.X.Focus();
                 window.RigNodeBoxes.X.Text = "40";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Equal(revision + 1, editor.Revision);
-                Assert.Equal(40f, editor.Document.FindRig("rig")!.Find("Part2")!.X);
+                Assert.Equal(40f, editor.Document.FindRig("set")!.Find("Part2")!.X);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.Equal(40f, window.Viewport.CurrentPose()!.GetState($"{id}/Part2").AnchoredPosition.X, 3);
+                Assert.Equal(40f, window.Viewport.CurrentPose()!.GetState("set/Part2").AnchoredPosition.X, 3);
 
-                // 이름 바꾸기 — 고른 노드가 새 이름을 따라간다.
+                // 이름 바꾸기 — 고른 것이 새 이름을 따라간다.
                 window.RigNodeBoxes.Id.Focus();
                 window.RigNodeBoxes.Id.Text = "Spark";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-                Assert.Equal("Spark", window.RigEditorState.Node);
-                Assert.NotNull(editor.Document.FindRig("rig")!.Find("Spark"));
+                Assert.Equal("Spark", window.SetEditorState.Node);
+                Assert.NotNull(editor.Document.FindRig("set")!.Find("Spark"));
 
-                // 순서와 삭제.
-                window.MoveRigNodeFromForm(-1);
-                Assert.Equal(new[] { "Body", "Spark", "Part1" }, editor.Document.FindRig("rig")!.Nodes.Select(n => n.Id));
-                window.RemoveRigNodeFromForm();
-                Assert.Equal(new[] { "Body", "Part1" }, editor.Document.FindRig("rig")!.Nodes.Select(n => n.Id));
-                Assert.Equal("Body", window.RigEditorState.Node);
+                // 순서와 지우기.
+                window.MoveSetNodeFromForm(-1);
+                Assert.Equal(new[] { "Body", "Spark", "Part1" }, editor.Document.FindRig("set")!.Nodes.Select(n => n.Id));
+                window.RemoveSetNodeFromForm();
+                Assert.Equal(new[] { "Body", "Part1" }, editor.Document.FindRig("set")!.Nodes.Select(n => n.Id));
+                Assert.Equal("Body", window.SetEditorState.Node);
 
-                // 리그를 만든 것까지 되돌리면 고른 리그가 풀린다.
-                while (editor.Document.FindRig("rig") is not null)
+                // 그 세트의 애니메이션(모션)을 고르면 세트가 연기한다 — 세트는 열린 채다.
+                editor.AddMotion("in", "set", 0.5f, MotionEnd.Commit, MotionChannelMode.Absolute);
+                editor.AddChannel("in", "Part1", MotionChannelKind.Position);
+                editor.SetKeys("in", "Part1", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 100f) });
+                window.SelectMotion("in");
+                Assert.Equal("set", window.SelectedSet);
+                window.Viewport.ScrubTo(0.5);
+                Assert.Equal(100f, window.Viewport.CurrentPose()!.GetState("set/Part1").AnchoredPosition.X, 2);
+
+                // 다른 리그의 모션을 고르면 세트를 떠나 씬으로 돌아간다.
+                editor.AddMotion("nod", "character", 0.6f);
+                window.SelectMotion("nod");
+                Assert.Null(window.SelectedSet);
+                Assert.Null(window.Viewport.SetView);
+                Assert.NotNull(window.Viewport.Scene!.Find("s1"));
+
+                // 다시 열었다가, 세트를 만든 것까지 되돌리면 목록에서 사라지고 씬으로 돌아간다.
+                window.SelectSet("set");
+                Assert.Equal("set", window.Viewport.SetView);
+                Assert.Null(window.SelectedMotion);
+
+                while (editor.Document.FindRig("set") is not null)
                 {
                     editor.Undo();
                 }
 
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.NotEqual("rig", window.RigEditorState.Rig);
+                Assert.Empty(window.SetEditorState.Sets);
+                Assert.Null(window.Viewport.SetView);
             }
             finally
             {

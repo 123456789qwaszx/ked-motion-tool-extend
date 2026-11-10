@@ -224,7 +224,66 @@ public sealed class ViewportView : Control
     /// <summary>뷰포트가 보여 주는 씬 — 문서의 활성 씬. 클립을 보는 중이면 그 클립의 시작 씬.</summary>
     public SceneAsset? Scene => _editor is null
         ? null
+        : SetScene() is { } set ? set
         : ShownClip is { } clip ? ClipPreview.SceneOf(_editor.Document, clip) ?? _editor.Document.ActiveSceneAsset : _editor.Document.ActiveSceneAsset;
+
+    // ── 세트 보기 (PLAN-set.md S1) ────────────────────────────────────
+
+    /// <summary>세트를 열었을 때 그 세트가 서는 오브젝트의 id — 문서의 씬에는 없다(보기 전용).</summary>
+    public const string SetObjectId = "set";
+
+    private string? _setView;
+    private SceneAsset? _setScene;
+
+    /// <summary>
+    /// 연 세트(rigKind) — 뷰포트와 하이어아키가 **그 세트만** 보인다: 문서의 씬 대신 그 세트 하나가 무대 가운데에 선 보기 전용 씬.
+    /// 그 리그의 모션을 고르면 이 오브젝트가 연기한다. null이면 문서의 씬.
+    /// </summary>
+    public string? SetView
+    {
+        get => _setView;
+        set
+        {
+            if (_setView == value)
+            {
+                return;
+            }
+
+            DiscardPending();
+            _setView = value;
+            _setScene = null;
+            RebuildTemplate();
+
+            if (value is not null)
+            {
+                SelectedObjectId = SetObjectId;
+            }
+            else if (Scene is { } scene && scene.Find(SelectedObjectId ?? "") is null)
+            {
+                SelectedObjectId = scene.Objects.FirstOrDefault()?.Id;
+            }
+
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>세트 보기의 씬 — 그 세트 하나. 그 리그의 첫 스킨을 입는다(그림이 보이게 — 스킨을 고르는 것은 배치 모드에서).</summary>
+    private SceneAsset? SetScene()
+    {
+        if (_setView is not { } kind || _editor is null)
+        {
+            return null;
+        }
+
+        string? skin = _editor.Document.Skins.FirstOrDefault(s => s.Rig == kind)?.Name;
+
+        if (_setScene is null || _setScene.Objects[0].Rig != kind || _setScene.Objects[0].Skin != skin)
+        {
+            _setScene = new SceneAsset { Name = kind, Objects = { new SceneObject { Id = SetObjectId, Rig = kind, Skin = skin } } };
+        }
+
+        return _setScene;
+    }
 
     public IReadOnlyList<SceneObject> SceneObjects => Scene?.Objects ?? (IReadOnlyList<SceneObject>)Array.Empty<SceneObject>();
 

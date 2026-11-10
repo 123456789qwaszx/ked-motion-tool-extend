@@ -87,20 +87,6 @@ public partial class MainWindow
         _emojiFields.Children.Add(Labeled("붙는 자리", _emojiLocator));
         panel.Children.Add(_emojiFields);
 
-        // 리그 — 툴이 정의한 리그면 조각의 수와 크기를 여기서 바꾼다(덤프의 리그는 런타임이 원본이라 못 바꾼다).
-        _rigFields.Children.Add(Header("리그"));
-        _rigFields.Children.Add(_rigSummary);
-        _rigFields.Children.Add(Labeled("조각 수", _rigPartCount));
-        _rigFields.Children.Add(Labeled("조각 크기", _rigPartSize));
-        _rigFields.Children.Add(SmallButton("rigs.json…", OnExportRigsClick));
-        BuildRigEditor(_rigFields);
-        panel.Children.Add(_rigFields);
-        ToolTip.SetTip(_rigPartCount, "이 리그의 조각(그림 노드) 수 — 1번부터 다시 세운다. 가장 조각이 많은 이모지에 맞춘다(안 쓰는 조각은 스킨이 그림을 안 주면 안 그려진다)");
-        ToolTip.SetTip(_rigPartSize, "조각 사각형의 한 변(px) — 그림이 이 안에 종횡비로 맞춰진다");
-        OnCommit(_rigPartCount, _ => CommitRigParts());
-        OnCommit(_rigPartSize, _ => CommitRigParts());
-
-        ToolTip.SetTip(_emojiName, "대본이 부르는 이름 — 빈칸 없는 글(한글도 된다)");
         ToolTip.SetTip(_emojiEnter, "뜰 때 한 번 도는 모션(튀어나옴). 유지(commit)면 그 자세에서 머묾이 시작한다");
         ToolTip.SetTip(_emojiHold, "머무는 동안 처음부터 되풀이하는 모션(까딱임·punch). 등장이 끝난 자세에서 시작하고 바퀴가 쌓이지 않는다. 끝에서 처음으로 튀는 머묾(흘러내렸다가 다시 위에서)은 끝 규칙을 '유지'로 둔다 — '복원' 모션은 중립값에서 끝나야 한다");
         ToolTip.SetTip(_emojiExit, "사라질 때 한 번 도는 모션(흐려짐). 머묾이 멈춘 그 자세에서 시작한다");
@@ -378,79 +364,6 @@ public partial class MainWindow
         return name;
     }
 
-    private readonly StackPanel _rigFields = new() { Spacing = 4 };
-    private readonly TextBlock _rigSummary = new() { FontSize = 10, Opacity = 0.75, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private readonly TextBox _rigPartCount = new() { FontSize = 11 };
-    private readonly TextBox _rigPartSize = new() { FontSize = 11 };
-
-    /// <summary>테스트 손잡이 — 리그 칸의 글(조각 수 · 조각 크기)과 고칠 수 있는가.</summary>
-    internal (TextBox Count, TextBox Size, bool Editable) RigPartBoxes => (_rigPartCount, _rigPartSize, _rigPartCount.IsEnabled);
-
-    /// <summary>지금 다루는 리그 — 고른 이모지의 것, 없으면 고른 오브젝트의 것.</summary>
-    private string? RigInFocus => _rigPicked is { } picked && _session.Editor.Document.FindRig(picked) is not null ? picked : CurrentEmoji?.Rig ?? _viewport.SelectedObject?.Rig;
-
-    private void CommitRigParts()
-    {
-        if (_refreshing || RigInFocus is not { } kind || _session.Editor.Document.FindRig(kind) is null)
-        {
-            return;
-        }
-
-        if (int.TryParse((_rigPartCount.Text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int count) && TryFloat(_rigPartSize.Text ?? "", out float size))
-        {
-            Guard("리그 조각", () => _session.Editor.SetRigParts(kind, count, size));
-        }
-    }
-
-    private void RefreshRigFields()
-    {
-        _refreshDepth++;
-
-        try
-        {
-            string? kind = RigInFocus;
-            RigAsset? rig = _session.Editor.Document.FindRig(kind);
-            _rigPartCount.IsEnabled = rig is not null;
-            _rigPartSize.IsEnabled = rig is not null;
-            _rigSummary.Text = kind is null ? "(이모지나 오브젝트를 고른다)"
-                : rig is not null ? $"{kind} — 툴에서 정의한 리그(노드 {rig.Nodes.Count}개). rigs.json으로 내보내 런타임이 세운다"
-                : $"{kind} — 덤프의 리그(런타임이 원본 — 여기서 못 고친다)";
-
-            if (!_rigPartCount.IsFocused)
-            {
-                _rigPartCount.Text = rig is null ? "" : rig.Nodes.Count(n => n.Image).ToString(CultureInfo.InvariantCulture);
-            }
-
-            if (!_rigPartSize.IsFocused)
-            {
-                _rigPartSize.Text = rig?.Nodes.FirstOrDefault(n => n.Image) is { } part ? part.Width.ToString("0.###", CultureInfo.InvariantCulture) : "";
-            }
-
-            RefreshRigEditor();
-        }
-        finally
-        {
-            _refreshDepth--;
-        }
-    }
-
-    private async void OnExportRigsClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            string? path = await PickSaveAsync("rigs.json 내보내기", "rigs.json", new FilePickerFileType("rigs.json") { Patterns = new[] { "*.json" } });
-
-            if (path is not null)
-            {
-                _session.ExportRigs(path);
-            }
-        }
-        catch (Exception exception)
-        {
-            _session.SetStatus($"리그 내보내기 실패: {exception.Message}");
-        }
-    }
-
     /// <summary>고른 정의를 고친다 — 모든 칸이 지나는 한 길(되돌리기 한 칸, 같은 값이면 흔적이 없다).</summary>
     private void WithEmoji(Action<EmojiAsset> change)
     {
@@ -589,7 +502,7 @@ public partial class MainWindow
         finally
         {
             _refreshDepth--;
-            RefreshRigFields();
+            RefreshSets();
         }
     }
 

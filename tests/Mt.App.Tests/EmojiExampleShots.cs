@@ -102,6 +102,15 @@ public class EmojiExampleShots
                 Shot("phase-edit");
                 window.EditEmojiPhase(null);
 
+                // 세트를 연다 — 뷰포트와 하이어아키가 그 세트만 보인다.
+                window.SelectSet("emoji");
+                window.InspectorTab = 1;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                window.SelectInHierarchy(Mt.App.Views.ViewportView.SetObjectId, "Emoji_Part1");
+                Shot("set-view");
+                window.SelectSet(null);
+                window.InspectorTab = 4;
+
                 window.SelectClip("emoji_demo");
 
                 foreach (double t in new[] { 0.6, 3.0, 7.5 })

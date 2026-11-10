@@ -1602,6 +1602,13 @@ public partial class MainWindow : Window
 
     private void BindMotion(string? name)
     {
+        // 세트 보기는 그 세트의 모션만 연기한다 — 클립·연출을 골랐거나 다른 리그의 모션을 골랐으면 세트를 닫는다.
+        if (SelectedSet is { } openSet && (name is null ? SelectedClip is not null || SelectedEmoji is not null : _session.Editor.Document.Find(name)?.Rig != openSet))
+        {
+            DeselectSet();
+            return; // DeselectSet이 다시 묶는다
+        }
+
         _followSelection = true; // 모션을 바꾸면 다시 따라간다
         _graph.Bind(_session.Editor, name);
         _dope.Controllers = _session.ControllersOf(name is null ? null : _session.Editor.Document.Find(name)?.Rig);
@@ -1812,6 +1819,7 @@ public partial class MainWindow : Window
         });
 
         BuildClipLeft();
+        BuildSetLeft();
     }
 
     /// <summary>
@@ -1977,6 +1985,7 @@ public partial class MainWindow : Window
 
         _viewport.ObjectSelected += (_, _) => RefreshObjects();
         panel.Children.Add(BuildSkinPanel());
+        panel.Children.Insert(0, BuildSetNodePanel()); // 세트를 열었으면 그 오브젝트의 칸이 맨 위다
         return panel;
     }
 
@@ -2263,7 +2272,8 @@ public partial class MainWindow : Window
             RefreshSkinPanel();
 
             SceneObject? selected = _viewport.SelectedObject;
-            bool has = selected is not null;
+            // 세트 보기의 오브젝트는 문서의 씬에 없다 — 씬의 칸(자리·층·오프셋)으로 고칠 것이 아니다.
+            bool has = selected is not null && _viewport.SetView is null;
 
             foreach (Control c in new Control[] { _objX, _objY, _objRot, _objSx, _objSy, _objVisible, _objId, _objLayer, _objStage, _objPlace })
             {
@@ -2657,6 +2667,13 @@ public partial class MainWindow : Window
             return item;
         }
 
+        // 세트 보기 — 씬의 메뉴(캐릭터 만들기·레이어·붙이기)가 아니라 세트의 오브젝트를 짓는 메뉴.
+        if (_viewport.SetView is not null)
+        {
+            AddSetMenu(target);
+            return;
+        }
+
         if (o is not null)
         {
             Item("이름 바꾸기", () =>
@@ -2826,6 +2843,13 @@ public partial class MainWindow : Window
     /// <summary>노드 항목: 그 오브젝트를 고르고, 채널 박스·매니퓰레이터의 노드를 그 노드로. 키 따라가기는 끈다(사용자가 직접 골랐다).</summary>
     private void SelectNodeInHierarchy(HierarchyNode node)
     {
+        // 세트 보기에서는 그 오브젝트가 "씬" 탭의 세트 칸에 뜬다.
+        if (_viewport.SetView is not null)
+        {
+            _rigNodeSelected = node.NodeId;
+            RefreshSetNodePanel();
+        }
+
         _viewport.SelectedObjectId = node.ObjectId;
         _followSelection = false;
         _viewport.SelectedNode = node.NodeId;
