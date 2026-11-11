@@ -180,11 +180,11 @@ public class CutTests
         return (editor, cut);
     }
 
-    private static RectNodeTree Staged(DocumentEditor editor, CutAsset cut, CameraSettings camera, DepthTuningFile? depth)
+    private static RectNodeTree Staged(DocumentEditor editor, CutAsset cut, CameraSettings camera)
     {
         editor.SetCutCamera(cut.Name, camera);
         RectNodeTree tree = CutStage.Build(Fixtures.SetOf(editor.Document), editor.Document.FindCut(cut.Name)!, "cut/")!;
-        CutStage.Apply(tree, editor.Document.FindCut(cut.Name)!, "cut/", depth);
+        CutStage.Apply(tree, editor.Document.FindCut(cut.Name)!, "cut/");
         return tree;
     }
 
@@ -192,27 +192,27 @@ public class CutTests
     public void 카메라를_밀면_먼_것은_덜_가까운_것은_더_따라오고_당기면_가까운_것이_더_커진다()
     {
         (DocumentEditor editor, CutAsset cut) = StageCut();
-        RectNodeTree rest = Staged(editor, cut, new CameraSettings(), null);
+        RectNodeTree rest = Staged(editor, cut, new CameraSettings());
         float X(RectNodeTree tree, string id) => tree.TransformPoint("cut/" + id, Vec3.Zero).X;
         float Width(RectNodeTree tree, string id) => tree.TransformPoint("cut/" + id, new Vec3(50f, 0f, 0f)).X - tree.TransformPoint("cut/" + id, new Vec3(-50f, 0f, 0f)).X;
 
-        // 카메라가 가만히 있고 깊이 커브가 없으면 지은 그대로 선다.
+        // 카메라가 가만히 있으면 자리는 지은 그대로다(깊이의 크기는 제 원점을 중심으로 줄고 는다).
         Assert.Equal((0f, 0f, 0f), (X(rest, "sky"), X(rest, "hero"), X(rest, "near")));
         Assert.Equal(100f, Width(rest, "hero"), 3);
         Assert.Equal(50f, X(rest, "arm"), 3); // 밑의 것은 부모를 따른다
 
         // 밀기 100 — mid는 그대로 100, far는 덜(100 × (1 − 0.04)), close는 더(100 × (1 + 0.2)). 층별 상수 그대로.
-        RectNodeTree panned = Staged(editor, cut, new CameraSettings { PanX = 100f }, null);
+        RectNodeTree panned = Staged(editor, cut, new CameraSettings { PanX = 100f });
         Assert.Equal(96f, X(panned, "sky"), 3);
         Assert.Equal(100f, X(panned, "hero"), 3);
         Assert.Equal(120f, X(panned, "near"), 3);
         Assert.Equal(150f, X(panned, "arm"), 3);
 
-        // 당기기 4(배율 1.2) — mid는 1.2배, far는 덜(1.2^(1 − 0.15)), close는 더(1.2^(1 + 0.16)).
-        RectNodeTree zoomed = Staged(editor, cut, new CameraSettings { Zoom = 4f }, null);
+        // 당기기 4(배율 1.2) — mid는 1.2배, far는 덜(1.2^(1 − 0.15)), close는 더(1.2^(1 + 0.16)). 깊이의 크기는 그 위에 곱해진다.
+        RectNodeTree zoomed = Staged(editor, cut, new CameraSettings { Zoom = 4f });
         Assert.Equal(120f, Width(zoomed, "hero"), 2);
-        Assert.Equal(100f * MathF.Pow(1.2f, 0.85f), Width(zoomed, "sky"), 2);
-        Assert.Equal(100f * MathF.Pow(1.2f, 1.16f), Width(zoomed, "near"), 2);
+        Assert.Equal(100f * MathF.Pow(1.2f, 0.85f) * CutStage.SizeAt(0f), Width(zoomed, "sky"), 2);
+        Assert.Equal(100f * MathF.Pow(1.2f, 1.16f) * CutStage.SizeAt(20f), Width(zoomed, "near"), 2);
 
         // 깊이가 눈금 사이(12 = back 10과 mid 14의 가운데)면 따르는 정도도 그 사이다 — 끊기지 않는다.
         (Vec2 pan, float zoom) = CutStage.ResponseAt(12f);
@@ -225,16 +225,15 @@ public class CutTests
     public void 깊이에_따라_크기가_달라지고_자리는_그대로이며_먼_것부터_그린다()
     {
         (DocumentEditor editor, CutAsset cut) = StageCut();
-        var depth = DepthTuningFile.Load(Fixtures.PathOf("presets/depth.json"));
         editor.UpdateObject("arrival", "sky", new ObjectAsset { X = 300f, Width = 100f, Height = 100f, Image = true, Alpha = true });
-        RectNodeTree tree = Staged(editor, cut, new CameraSettings(), depth);
+        RectNodeTree tree = Staged(editor, cut, new CameraSettings());
         float Width(string id) => tree.TransformPoint("cut/" + id, new Vec3(50f, 0f, 0f)).X - tree.TransformPoint("cut/" + id, new Vec3(-50f, 0f, 0f)).X;
 
         // mid는 지은 그대로, 먼 것은 작게, 가까운 것은 크게 — 깊이 커브.
         Assert.Equal(100f, Width("hero"), 3);
         Assert.True(Width("sky") < 99f, $"sky {Width("sky")}");
         Assert.True(Width("near") > 101f, $"near {Width("near")}");
-        Assert.Equal(1f, CutStage.SizeAt(14f, depth), 4);
+        Assert.Equal(1f, CutStage.SizeAt(14f), 4);
 
         // 제 원점을 중심으로 줄어든다 — 자리는 그대로다.
         Assert.Equal(300f, tree.TransformPoint("cut/sky", Vec3.Zero).X, 3);
@@ -269,7 +268,7 @@ public class CutTests
         float HeroX(double t)
         {
             RectNodeTree posed = TimelinePose.Pose(CutStage.Build(set, editor.Document.FindCut("arrival")!, "cut/")!, editor.Document.Find("arrival")!, t, null, "cut/");
-            CutStage.Apply(posed, editor.Document.FindCut("arrival")!, "cut/", null);
+            CutStage.Apply(posed, editor.Document.FindCut("arrival")!, "cut/");
             return posed.TransformPoint("cut/hero", Vec3.Zero).X;
         }
 
@@ -312,7 +311,7 @@ public class CutTests
             BuiltSets set = Fixtures.SetOf(editor.Document);
             CutAsset cut = editor.Document.FindCut("arrival")!;
             RectNodeTree posed = TimelinePose.Pose(CutStage.Build(set, cut, "cut/")!, editor.Document.Find("arrival")!, t, null, "cut/");
-            CutStage.Apply(posed, cut, "cut/", null);
+            CutStage.Apply(posed, cut, "cut/");
             return posed.TransformPoint("cut/" + node, new Vec3(10f, 0f, 0f)).XY;
         }
 
@@ -483,7 +482,6 @@ public class CutTests
     {
         DocumentEditor editor = RichCut();
         CutAsset cut = editor.Document.FindCut("arrival")!;
-        var depth = DepthTuningFile.Load(Fixtures.PathOf("presets/depth.json"));
         BuiltSets set = Fixtures.SetOf(editor.Document);
         Vec2 stage = set.Dto.stageSize.ToVec2();
         TimelineAsset timeline = editor.Document.Find("arrival")!;
@@ -501,10 +499,10 @@ public class CutTests
             // 툴: 타임라인을 얹고 카메라와 깊이를 넣는다(뷰포트가 하는 그대로).
             var alphas = new Dictionary<string, float>(StringComparer.Ordinal);
             RectNodeTree tool = TimelinePose.Pose(CutStage.Build(set, cut, "cut/")!, timeline, seconds, null, "cut/", alphas);
-            CutStage.Apply(tool, cut, "cut/", depth);
+            CutStage.Apply(tool, cut, "cut/");
 
             // 코어: 컷 파일의 그 프레임.
-            CutPose game = CutPlayer.Evaluate(file, frame, depth.Level);
+            CutPose game = CutPlayer.Evaluate(file, frame);
 
             foreach (CutObjectDto o in file.objects)
             {

@@ -15,11 +15,11 @@
 
 | 폴더 | 무엇 |
 |---|---|
-| `Cut/` | 컷 파일(`cut/1`)의 모양(`CutFileDto`) · 깊이와 카메라의 계산(`CutMath`) · 그 프레임의 모습(`CutPlayer`). 툴의 미리보기와 재생이 이 함수를 쓴다 |
+| `Cut/` | 컷 파일(`cut/1`)의 모양(`CutFileDto`) · 깊이와 카메라의 계산(`CutMath` — 깊이 커브는 여기의 상수다) · 그 프레임의 모습(`CutPlayer`). 툴의 미리보기와 재생이 이 함수를 쓴다 |
 | `Ease/` | 곡선의 키와 평가(`CurveKey` · `CurveFunctions`) |
 | `Primitives/` | `Vec2` · `Vec3` |
 | `State/` · `Transforms/` | 사각형 계층(`RectNodeTree` · `RectNodeState` · `RectSpace` · `RectChainMath`) — 유니티 RectTransform과 같은 규약의 좌표 계산 |
-| `Tuning/` | 계층을 적는 DTO와 그것을 트리로 세우는 해석(`RigSchemaDto` · `RigSchemaLoader`) · 깊이 커브(`DepthTuningDto`)와 눈금(`DepthLevelLabels`) |
+| `Tuning/` | 계층을 적는 DTO와 그것을 트리로 세우는 해석(`HierarchyDto` · `HierarchyLoader`) · 깊이의 눈금(`DepthLevelLabels`) |
 
 ## 걷어 낸 것 (2026-11-11)
 

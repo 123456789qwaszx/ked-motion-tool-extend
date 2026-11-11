@@ -57,7 +57,6 @@ public sealed class ViewportView : Control
     private DocumentEditor? _editor;
     private string? _timelineName;
     private BuiltSets? _set;
-    private DepthTuningFile? _depth;
     // 연 컷/세트의 시작 상태(노드 키는 set/ 접두사) — 포즈는 이것의 사본에 타임라인을 얹는다. 아무것도 안 열었으면 null.
     private RectNodeTree? _template;
 
@@ -926,14 +925,6 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    /// <summary>깊이 커브(presets/depth.json) — 컷의 맨 위 오브젝트가 제 깊이만큼 작아진다. null이면 깊이는 그리는 순서와 카메라에 따르는 정도만.</summary>
-    public void SetDepth(DepthTuningFile? depth)
-    {
-        _depth = depth;
-        RebuildTemplate();
-        InvalidateVisual();
-    }
-
     /// <summary>루트 공간 → 컨트롤 좌표. 테스트가 쓴다.</summary>
     public Point ToScreen(Vec2 root) => ToControl(root);
 
@@ -1134,7 +1125,7 @@ public sealed class ViewportView : Control
     {
         if (ShownCut is { } cut)
         {
-            CutStage.Apply(tree, cut, Prefix, _depth);
+            CutStage.Apply(tree, cut, Prefix);
         }
 
         return tree;

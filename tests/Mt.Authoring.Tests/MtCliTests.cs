@@ -142,7 +142,7 @@ public class MtCliTests
         Assert.Equal(new[] { (0f, 0f), (12f, 100f) }, card.keys.Select(k => (k.f, k.v)));
         Assert.Equal(100f / 12f, card.keys[0].o, 3); // 기울기는 프레임당
         CutTrackDto nod = file.tracks.Single(t => t.target == "hero.CharacterPortrait_Track_Move_Y" && t.what == "y");
-        Assert.Equal(-18f, CutPlayer.Evaluate(file, 6f + 7.2f, null!).Tree.GetState("hero.CharacterPortrait_Track_Move_Y").AnchoredPosition.Y, 2);
+        Assert.Equal(-18f, CutPlayer.Evaluate(file, 6f + 7.2f).Tree.GetState("hero.CharacterPortrait_Track_Move_Y").AnchoredPosition.Y, 2);
         Assert.Equal(0f, nod.keys[0].v);
         Assert.Equal(("sfx", "pop", 12f), (file.events[0].name, file.events[0].value, file.events[0].f));
 

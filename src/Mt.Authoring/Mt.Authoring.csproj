@@ -8,10 +8,6 @@
     <InternalsVisibleTo Include="Mt.Authoring.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 내장 기본값: 깊이 커브(presets/depth.json). -->
-    <EmbeddedResource Include="Defaults\**\*.json" LogicalName="Defaults/%(RecursiveDir)%(Filename)%(Extension)" />
-  </ItemGroup>
-  <ItemGroup>
     <!-- 코어 — 커브 계산 · 사각형 계층 · 컷의 재생(Cut/)은 이 한 벌만 쓴다. -->
     <ProjectReference Include="..\Ked.Presentation.Core\Ked.Presentation.Core.csproj" />
   </ItemGroup>

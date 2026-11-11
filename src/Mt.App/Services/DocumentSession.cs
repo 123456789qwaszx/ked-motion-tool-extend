@@ -125,9 +125,6 @@ public sealed class DocumentSession
         return true;
     }
 
-    /// <summary>깊이 커브(내장) — 컷의 깊이가 이것으로 크기를 정한다.</summary>
-    public DepthTuningFile Depth => BuiltinTuning.Depth;
-
     public string Status { get; private set; } = "";
 
     /// <summary>문서의 스킨들이 쓰는 그림 전부 — 문서 기준 경로 → 파일 경로(파일이 없으면 null: 자리표시로 그린다).</summary>

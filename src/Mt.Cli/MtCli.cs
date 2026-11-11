@@ -217,7 +217,7 @@ public static class MtCli
         if (document.FindCut(timeline.Set) is { } cut && CutStage.Build(set, cut, "") is { } staged)
         {
             RectNodeTree posed = TimelinePose.Pose(staged, timeline, time, null, "", alphas);
-            CutStage.Apply(posed, cut, "", BuiltinTuning.Depth);
+            CutStage.Apply(posed, cut, "");
             return posed;
         }
 

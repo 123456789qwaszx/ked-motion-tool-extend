@@ -475,8 +475,8 @@ public class CutShellTests
                 Assert.True(File.Exists(Path.Combine(folder, file.images.Single(t => t.target == "sign").keys[0].v)));
 
                 // 코어의 재생기가 그 파일을 그대로 읽는다 — 47프레임에는 원래 그림, 48프레임부터 바뀐 그림.
-                Assert.EndsWith("06_sign.png", Ked.Presentation.Core.CutPlayer.Evaluate(file, 47f, null).Image["sign"], StringComparison.Ordinal);
-                Assert.EndsWith("08_microbe_sun.png", Ked.Presentation.Core.CutPlayer.Evaluate(file, 48f, null).Image["sign"], StringComparison.Ordinal);
+                Assert.EndsWith("06_sign.png", Ked.Presentation.Core.CutPlayer.Evaluate(file, 47f).Image["sign"], StringComparison.Ordinal);
+                Assert.EndsWith("08_microbe_sun.png", Ked.Presentation.Core.CutPlayer.Evaluate(file, 48f).Image["sign"], StringComparison.Ordinal);
             }
             finally
             {

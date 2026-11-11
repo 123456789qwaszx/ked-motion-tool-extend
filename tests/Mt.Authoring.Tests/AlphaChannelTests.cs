@@ -89,7 +89,7 @@ public class AlphaChannelTests
         CutTrackDto track = Assert.Single(file.tracks);
         Assert.Equal(("card", "alpha"), (track.target, track.what));
         Assert.Equal(new[] { (0f, 1f), (12f, 0.25f) }, track.keys.Select(k => (k.f, k.v)));
-        Near(0.625f, CutPlayer.Evaluate(file, 6f, null!).Alpha["card"]);
+        Near(0.625f, CutPlayer.Evaluate(file, 6f).Alpha["card"]);
     }
 
     [Fact]

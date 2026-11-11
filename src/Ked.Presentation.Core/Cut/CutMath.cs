@@ -4,7 +4,7 @@ namespace Ked.Presentation.Core
     // 컷의 깊이 계산 — 실제 카메라와 깊이 없이 UI로 카메라를 흉내 내는 그 계산을 컷의 오브젝트에 준다.
     //
     // 맨 위 오브젝트의 깊이(depthLevel, 수)가 두 가지를 정한다:
-    //   · 크기 — 깊이 커브(depth.json의 level.scaleCurve). mid에서 지은 그대로, 멀수록 작게.
+    //   · 크기 — 깊이 커브(아래 SizeCurve). mid에서 지은 그대로, 멀수록 작게.
     //   · 카메라에 따르는 정도 — 밀면(pan) 먼 것은 덜·가까운 것은 더 따라오고, 당기면(zoom) 먼 것은 덜·가까운 것은 더 커진다.
     //     층별 상수를 깊이의 눈금 사이에서 곧게 이어 쓴다 — 수가 층 사이에 있어도 끊기지 않는다.
     // ─────────────────────────────────────────────────────────────────
@@ -54,13 +54,23 @@ namespace Ked.Presentation.Core
         /// <summary>카메라의 당기기(zoom)가 내는 배율 — 0이면 1(그대로).</summary>
         public static float CameraScale(float zoom) => 1f + zoom * ZoomToScaleFactor;
 
-        /// <summary>깊이에 따른 크기 — mid에서 1(지은 그대로), 멀수록 작게. 깊이 커브가 없으면 1.</summary>
-        public static float SizeAt(float level, DepthLevelTuningDto depth)
+        // 깊이 커브 — 깊이(수)에서 크기. 설계 구간은 far(0)~close(20)이고, 그 밖은 끝 두 키의 할선으로 잇는다(CurveFunctions.EvaluateUnclamped).
+        // 출발점은 런타임의 깊이 튜닝(2026-08-21)이었다 — 이제 이 저장소의 값이다.
+        private static readonly CurveKey[] SizeCurve =
         {
-            if (depth == null || !depth.TryResolve(level, out _, out float at) || !depth.TryResolve(DefaultDepth, out _, out float mid) || mid <= 1e-6f)
-                return 1f;
+            new CurveKey(0f, 0.86f, 0f, 0.052f),
+            new CurveKey(10f, 1.38f, 0.052f, 0.082f),
+            new CurveKey(20f, 2.2f, 0.082f, 0f),
+        };
 
-            return at / mid;
+        /// <summary>깊이에 따른 크기 — mid에서 1(지은 그대로), 멀수록 작게.</summary>
+        public static float SizeAt(float level) => CurveAt(level) / CurveAt(DefaultDepth);
+
+        // 크기의 하한 — 0이나 음수로 떨어지지 않게 한다.
+        private static float CurveAt(float level)
+        {
+            float raw = CurveFunctions.EvaluateUnclamped(SizeCurve, level);
+            return raw < 0.0001f ? 0.0001f : raw;
         }
     }
 }

@@ -1187,7 +1187,6 @@ public partial class MainWindow : Window
     {
         AssetRefreshCount++;
         _viewport.SetBuilt(_session.Built);
-        _viewport.SetDepth(_session.Depth);
         _viewport.StageSize = _session.StageSize;
         _viewport.ClearImages();
 

@@ -42,8 +42,8 @@ namespace Ked.Presentation.Core
         private const string PanKey = "~pan";
         private const string FramePrefix = "~frame/";
 
-        /// <summary>그 프레임의 모습. depth는 깊이 커브(없으면 깊이에 따른 크기를 주지 않는다).</summary>
-        public static CutPose Evaluate(CutFileDto cut, float frame, DepthLevelTuningDto depth)
+        /// <summary>그 프레임의 모습.</summary>
+        public static CutPose Evaluate(CutFileDto cut, float frame)
         {
             if (cut == null)
                 throw new ArgumentNullException(nameof(cut));
@@ -99,7 +99,7 @@ namespace Ked.Presentation.Core
                         .WithLocalScale(new Vec3(framing, framing, 1f)));
 
                     // 깊이의 크기 — 제 원점을 중심으로.
-                    float size = CutMath.SizeAt(level, depth);
+                    float size = CutMath.SizeAt(level);
                     sx *= size;
                     sy *= size;
                 }

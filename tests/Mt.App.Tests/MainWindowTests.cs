@@ -105,7 +105,7 @@ public class MainWindowTests
                 Assert.All(track.keys, k => Assert.Equal((0f, 0f), (k.i, k.o)));
 
                 // 코어의 재생도 그 모습이다.
-                Assert.Equal(-18f, CutPlayer.Evaluate(file, 7.2f, null!).Tree.GetState("hero.CharacterPortrait_Track_Move_Y").AnchoredPosition.Y, 3);
+                Assert.Equal(-18f, CutPlayer.Evaluate(file, 7.2f).Tree.GetState("hero.CharacterPortrait_Track_Move_Y").AnchoredPosition.Y, 3);
             }
             finally
             {

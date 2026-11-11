@@ -7,8 +7,6 @@ namespace Mt.Authoring.Tests;
 
 internal static class Fixtures
 {
-    public static string PathOf(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
-
     /// <summary>시험용 세트의 이름 — 그래프 산수 · 키 조작 · 도프 시트 · 편집기 명령의 시험이 이 세트의 애니메이션을 고친다.</summary>
     public const string Actor = "actor";
 

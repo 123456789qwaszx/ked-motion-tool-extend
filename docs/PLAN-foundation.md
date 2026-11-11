@@ -196,11 +196,16 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
 **권고하는 차례**: 가1 → 가2 → 가3 → 가4 → 나1 → 나2① → 나2② → 나3 → 나6. 가는 한 커밋에 묶어도 된다(작다).
 
 **진행.**
-- [x] **가1 · 가2**(`4b0e5d9` 자리 — 아래 기록) — 안 부르는 화면 손잡이와 연결된 곳 없는 그래프 기능(`CenterCurrentTime` · `ClearCurveSelection`)을 걷고, 테스트가 없던 화면 기능 셋(깊이의 키 · 이벤트 추가와 줄 · 제 차례 전까지 숨기기)에 헤드리스 테스트를 붙였다.
+- [x] **가1 · 가2**(`464f6eb`) — 안 부르는 화면 손잡이와 연결된 곳 없는 그래프 기능(`CenterCurrentTime` · `ClearCurveSelection`)을 걷고, 테스트가 없던 화면 기능 셋(깊이의 키 · 이벤트 추가와 줄 · 제 차례 전까지 숨기기)에 헤드리스 테스트를 붙였다.
   `EventRowCount` · `HideObjectForTurnFromMenu`는 걷지 않고 가2로 옮겼다(테스트가 그것을 쓴다).
-- [x] **가3 · 가4** — `RectNodeTree.TryGetState` · `BuildChainTo` · `DocumentEditor.RemoveKey`(테스트는 `RemoveKeys`로) · `DopeRow.Covers` · `TimeText.ToSeconds` · `FromSeconds` · `PlaybackClock.Loop`/`ViewportView.Loop`(호환용 — `Mode`를 쓴다)를 걷었다.
+- [x] **가3 · 가4**(`796cf47`) — `RectNodeTree.TryGetState` · `BuildChainTo` · `DocumentEditor.RemoveKey`(테스트는 `RemoveKeys`로) · `DopeRow.Covers` · `TimeText.ToSeconds` · `FromSeconds` · `PlaybackClock.Loop`/`ViewportView.Loop`(호환용 — `Mode`를 쓴다)를 걷었다.
   - **철회**: `RectSpace.Centered` · `RectNodeState.WithAnchors` · `WithPivot` · `WithSizeDelta`는 남긴다 — 코어 테스트가 사각형 계산(앵커 · 피벗)을 검증하려고 값을 짓는 도구다. "테스트만 부른다"는 걷을 까닭이 못 된다.
   - 옛 속성 테스트(`옛_문서의_걷어_낸_속성은_…`)는 F2-2에서 옛 판 테스트와 함께 이미 나가 있었다.
+- [x] **나1 깊이 커브를 코드로**(이 커밋) — 크기 커브의 키 셋을 코어 `CutMath`의 상수로 두고, 내장 JSON(`Defaults/ExportedTuning/presets/depth.json`, 유니티 덤프 모양) ·
+  `BuiltinTuning` · `DepthTuningFile` · 코어 `DepthTuningDto`(커브 DTO · 쓰지 않던 세로 커브) · 테스트 견본(`Fixtures/presets/depth.json`과 `Fixtures.PathOf`) · 뷰포트의 `SetDepth` · 세션의 `Depth`를 없앴다.
+  `CutPlayer.Evaluate(cut, frame)` · `CutStage.Apply(tree, cut, prefix)` · `SizeAt(level)`은 커브를 인자로 받지 않는다 — "커브가 없으면 크기 1"인 길이 사라졌다. 앱이 그리는 모습은 그대로다(전부터 내장 커브를 썼다).
+  컷 파일의 형식은 그대로이고, **재생에 컷 파일 하나면 된다**(STATUS §6의 "깊이 커브를 넘기는 약속"이 필요 없어졌다).
+  카메라만 따로 보던 테스트는 "커브 없음"을 전제로 했다 — 기대값에 그 깊이의 크기를 곱하게 고쳤다.
 
 ## 4. 차례의 까닭
 

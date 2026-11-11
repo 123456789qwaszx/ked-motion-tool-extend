@@ -9,7 +9,7 @@ namespace Mt.Authoring.Preview;
 ///
 /// 맨 위 오브젝트마다 **깊이**(depthLevel, 수)가 있고, 깊이가 두 가지를 정한다:
 /// <list type="bullet">
-/// <item><b>크기</b> — 깊이 커브(<see cref="DepthTuningFile"/>). mid(14)에서 지은 그대로, 멀수록 작게. 오브젝트의 제 원점을 중심으로 줄어든다(자리는 그대로다).</item>
+/// <item><b>크기</b> — 깊이 커브(코어 <see cref="CutMath.SizeAt"/>). mid(14)에서 지은 그대로, 멀수록 작게. 오브젝트의 제 원점을 중심으로 줄어든다(자리는 그대로다).</item>
 /// <item><b>카메라에 따르는 정도</b> — 밀면(pan) 먼 것은 덜·가까운 것은 더 따라오고, 당기면(zoom) 먼 것은 덜·가까운 것은 더 커진다.
 /// 층별 상수(<see cref="CutMath.ResponseAt"/>)를 깊이의 눈금(far 0 · back 10 · mid 14 · front 16 · close 20) 사이에서 이어 쓴다 — 수가 층 사이에 있어도 끊기지 않는다.</item>
 /// </list>
@@ -115,7 +115,7 @@ public static class CutStage
     /// 카메라와 깊이를 넣는다 — <see cref="Build"/>로 세워 포즈를 잡은 트리에 **한 번**(맨 위 오브젝트의 배율에 깊이의 배율을 곱하므로 두 번 넣으면 안 된다).
     /// </summary>
     /// <remarks>카메라와 깊이는 트리에 선 점에서 읽는다 — 타임라인의 키가 그 점을 움직였으면 그 값이다.</remarks>
-    public static void Apply(RectNodeTree tree, CutAsset cut, string prefix, DepthTuningFile? depth)
+    public static void Apply(RectNodeTree tree, CutAsset cut, string prefix)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(cut);
@@ -149,7 +149,7 @@ public static class CutStage
                 .WithAnchoredPosition(new Vec2(pan.X * panResponse.X, pan.Y * panResponse.Y))
                 .WithLocalScale(new Vec3(framing, framing, frame.LocalScale.Z)));
 
-            float size = SizeAt(level, depth);
+            float size = SizeAt(level);
 
             if (size != 1f)
             {
@@ -182,8 +182,8 @@ public static class CutStage
         return tree is not null && tree.Contains(key) ? tree.GetState(key).AnchoredPosition.X : node.Depth ?? DefaultDepth;
     }
 
-    /// <summary>깊이에 따른 크기 — mid에서 1(지은 그대로), 멀수록 작게. 깊이 커브가 없으면 1. 계산은 코어(<see cref="CutMath.SizeAt"/>) — 게임의 재생과 같은 함수다.</summary>
-    public static float SizeAt(float level, DepthTuningFile? depth) => CutMath.SizeAt(level, depth?.Level!);
+    /// <summary>깊이에 따른 크기 — mid에서 1(지은 그대로), 멀수록 작게. 계산은 코어(<see cref="CutMath.SizeAt"/>) — 컷 파일의 재생과 같은 함수다.</summary>
+    public static float SizeAt(float level) => CutMath.SizeAt(level);
 
     /// <summary>
     /// 깊이에 따라 카메라에 따르는 정도 — 눈금 사이는 곧게 잇고, 양 끝 밖은 끝의 값. 계산은 코어(<see cref="CutMath.ResponseAt"/>).

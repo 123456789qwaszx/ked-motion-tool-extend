@@ -21,9 +21,5 @@
     <ProjectReference Include="..\..\src\Mt.Cli\Mt.Cli.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- 견본: presets/depth.json(깊이 커브). -->
-    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
 
 </Project>
