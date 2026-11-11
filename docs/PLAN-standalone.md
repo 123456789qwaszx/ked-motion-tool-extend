@@ -260,7 +260,8 @@ C2b · C2c에서 정한 것:
 | `ked-motion-tool-extend`(여기) | 컷 — 씬 + 카메라 + 타임라인 | 툴 | 계속 |
 
 각 저장소의 `dev`에 계획서(`docs/PLAN-characterRig.md` · `docs/PLAN-screenTransition.md`)와 방향을 보이는 코드, `CLAUDE.md`가 있다 — 그쪽 일은 별도의 세션이 한다.
-화면 전환의 산출물은 컷 파일과 같은 계열에서 카메라와 깊이를 뺀 것(`transition/1`)으로 정했다 — 그쪽이 이 저장소의 `Ked.Presentation.Core/Cut/`을 가져다 쓴다.
+화면 전환의 산출물(`transition/1`)과 그 재생 코드는 그쪽의 것이다 — 이 저장소의 `Ked.Presentation.Core/Cut/`을 **가져다 쓰지 않는다**(2026-11-11에 고쳐 적음: 앞서 "가져다 쓴다"고 적은 것을 철회).
+**세 저장소는 서로 맞물리지 않는다** — 코드도 산출물도 주고받지 않고, 각자 독립된 툴로 간다(소유자, 2026-11-11).
 
 **이 저장소의 C7이 바뀐다.**
 - 예시 다섯(station · pillar · lapis · heredity · mercury)은 **화면 전환의 것**이다 — 컷으로 다시 짓지 않는다. 컷의 예시는 캐릭터·배경·소품·카메라가 있는 것으로 새로 짓는다.
