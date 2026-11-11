@@ -18,7 +18,7 @@ public class RigSchemaFileTests
         Assert.Contains("CharacterPortrait_Track_Move_Y", rig.NodeIds[Fixtures.Actor]);
         Assert.Contains("CharacterPortrait_SwayPivot", rig.NodeIds[Fixtures.Actor]);
         Assert.DoesNotContain("CharacterPortrait_SwayPivot", rig.NodeIds[PartsRigFixture.RigKind]);
-        Assert.True(rig.TryGetRig(Fixtures.Actor, out RigSchemaRigDto actor));
+        Assert.True(rig.TryGetRig(Fixtures.Actor, out HierarchyDto actor));
         Assert.Equal(26, actor.nodes.Count); // 오브젝트 25 + 루트
         Assert.False(rig.TryGetRig("nope", out _));
     }
@@ -42,7 +42,7 @@ public class RigSchemaFileTests
         RigSchemaFile empty = RigSchemaFile.Empty(new Vec2(1920f, 1080f));
 
         Assert.Empty(empty.RigKinds);
-        Assert.Equal(1920f, empty.Dto.capturedUnderParentSize.x);
-        Assert.Equal(1080f, empty.Dto.capturedUnderParentSize.y);
+        Assert.Equal(1920f, empty.Dto.stageSize.x);
+        Assert.Equal(1080f, empty.Dto.stageSize.y);
     }
 }

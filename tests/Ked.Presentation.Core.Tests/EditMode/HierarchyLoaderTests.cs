@@ -5,21 +5,21 @@ using NUnit.Framework;
 namespace Ked.Presentation.Core.Tests
 {
     /// <summary>
-    /// 덤프 → 트리 변환의 규율. 여기서는 합성 덤프를 쓴다.
+    /// 계층 → 트리 변환의 규율.
     /// </summary>
-    public sealed class RigSchemaLoaderTests
+    public sealed class HierarchyLoaderTests
     {
         private const float Eps = 1e-4f;
 
-        // ── 합성 덤프 ────────────────────────────────────────────────
+        // ── 견본 계층 ────────────────────────────────────────────────
 
         private static Float2Dto F2(float x, float y) => new() { x = x, y = y };
         private static Float3Dto F3(float x, float y, float z) => new() { x = x, y = y, z = z };
 
         /// <summary>스트레치 풀 기본값 노드. 필요한 필드만 덮어 쓴다.</summary>
-        private static RigSchemaNodeDto Node(string id, string parent)
+        private static HierarchyNodeDto Node(string id, string parent)
         {
-            return new RigSchemaNodeDto
+            return new HierarchyNodeDto
             {
                 id = id,
                 parent = parent,
@@ -30,85 +30,83 @@ namespace Ked.Presentation.Core.Tests
                 sizeDelta = F2(0f, 0f),
                 localScale = F3(1f, 1f, 1f),
                 localEulerAngles = F3(0f, 0f, 0f),
-                measuredRectSize = F2(0f, 0f),
             };
         }
 
         /// <summary>
-        /// 루트 + 자식 둘의 최소 리그. parent 표기는 실제 덤프 규약 그대로다:
+        /// 루트 + 자식 둘의 최소 계층. parent 표기의 규약:
         /// __root만 빈 문자열이고, 그 자식들은 "__root"를 명시한다.
         /// </summary>
-        private static RigSchemaRigDto SampleRig(string rigKind = "character")
+        private static HierarchyDto SampleHierarchy(string name = "character")
         {
-            RigSchemaNodeDto track = Node("Track", RigSchemaLoader.RootKey);
+            HierarchyNodeDto track = Node("Track", HierarchyLoader.RootKey);
             track.anchoredPosition = F2(10f, 0f);
 
-            RigSchemaNodeDto scale = Node("Scale", "Track");
+            HierarchyNodeDto scale = Node("Scale", "Track");
             scale.pivot = F2(0.5f, 0f);
             scale.localScale = F3(2f, 2f, 1f);
 
-            return new RigSchemaRigDto
+            return new HierarchyDto
             {
-                rigKind = rigKind,
-                sourcePrefab = "Assets/Sample.prefab",
-                nodes = new List<RigSchemaNodeDto>
+                name = name,
+                nodes = new List<HierarchyNodeDto>
                 {
-                    Node(RigSchemaLoader.RootKey, ""),
+                    Node(HierarchyLoader.RootKey, ""),
                     track,
                     scale,
                 },
             };
         }
 
-        private static RigSchemasFileDto SampleFile(params RigSchemaRigDto[] rigs)
+        private static HierarchyFileDto SampleFile(params HierarchyDto[] hierarchies)
         {
-            return new RigSchemasFileDto
+            return new HierarchyFileDto
             {
-                capturedUnderParentSize = F2(1920f, 1080f),
-                rigs = new List<RigSchemaRigDto>(rigs),
+                stageSize = F2(1920f, 1080f),
+                hierarchies = new List<HierarchyDto>(hierarchies),
             };
         }
 
         // ── 정상 경로 ────────────────────────────────────────────────
 
         [Test]
-        public void 덤프_순서대로_부모_자식_트리가_선다()
+        public void 적힌_순서대로_부모_자식_트리가_선다()
         {
-            RectNodeTree tree = RigSchemaLoader.BuildTree(SampleFile(SampleRig()), "character");
+            RectNodeTree tree = HierarchyLoader.BuildTree(SampleFile(SampleHierarchy()), "character");
 
             Assert.That(tree.Count, Is.EqualTo(3));
-            Assert.That(tree.GetParentKey(RigSchemaLoader.RootKey), Is.Null, "리그 루트는 루트 공간 직속");
-            Assert.That(tree.GetParentKey("Track"), Is.EqualTo(RigSchemaLoader.RootKey));
+            Assert.That(tree.GetParentKey(HierarchyLoader.RootKey), Is.Null, "계층의 루트는 루트 공간 직속");
+            Assert.That(tree.GetParentKey("Track"), Is.EqualTo(HierarchyLoader.RootKey));
             Assert.That(tree.GetParentKey("Scale"), Is.EqualTo("Track"));
         }
 
         [Test]
         public void 빈_parent만_루트_공간_직속이다()
         {
-            // 덤프 규약 두 겹을 구분해야 한다:
-            //   parent ""       → 루트 공간 직속 (리그 루트 자신)
-            //   parent "__root" → 리그 루트의 자식
-            // 둘을 같이 취급하면 리그 루트가 사슬에서 빠져 좌표가 조용히 어긋난다.
-            RectNodeTree tree = RigSchemaLoader.BuildTree(SampleFile(SampleRig()), "character");
+            // 계층의 규약 두 겹을 구분해야 한다:
+            //   parent ""       → 루트 공간 직속 (계층의 루트 자신)
+            //   parent "__root" → 계층의 루트의 자식
+            // 둘을 같이 취급하면 계층의 루트가 사슬에서 빠져 좌표가 조용히 어긋난다.
+            RectNodeTree tree = HierarchyLoader.BuildTree(SampleFile(SampleHierarchy()), "character");
 
-            Assert.That(tree.GetParentKey(RigSchemaLoader.RootKey), Is.Null);
-            Assert.That(tree.GetParentKey("Track"), Is.EqualTo(RigSchemaLoader.RootKey));
+            Assert.That(tree.GetParentKey(HierarchyLoader.RootKey), Is.Null);
+            Assert.That(tree.GetParentKey("Track"), Is.EqualTo(HierarchyLoader.RootKey));
         }
 
         [Test]
-        public void capturedUnderParentSize가_루트_공간이_된다()
+        public void stageSize가_루트_공간이_된다()
         {
-            RectNodeTree tree = RigSchemaLoader.BuildTree(SampleFile(SampleRig()), "character");
+            RectNodeTree tree = HierarchyLoader.BuildTree(SampleFile(SampleHierarchy()), "character");
 
             // 이게 어긋나면 스트레치 노드의 rect 크기가 전부 어긋난다.
             Assert.That(tree.RootSpace.Size, Is.EqualTo(new Vec2(1920f, 1080f)));
-            Assert.That(tree.RootSpace.Pivot, Is.EqualTo(Vec2.Half), "익스포터가 가운데 pivot 밑에서 캡처했다");
+            Assert.That(tree.RootSpace.Pivot, Is.EqualTo(Vec2.Half), "무대는 가운데 pivot이다");
         }
 
         [Test]
         public void 세운_트리의_좌표가_기대값이다()
         {
-            RectNodeTree tree = RigSchemaLoader.BuildTree(SampleFile(SampleRig()), "character");
+            RectNodeTree tree = HierarchyLoader.BuildTree(SampleFile(SampleHierarchy()), "character");
 
             // __root(스트레치 풀, 변위 0) → Track(+10, 0) → Scale(바닥 pivot)
             // 바닥 pivot이므로 Scale의 로컬 원점은 부모 바닥 = -540.
@@ -121,21 +119,21 @@ namespace Ked.Presentation.Core.Tests
         [Test]
         public void keyPrefix가_노드_키와_부모_참조_양쪽에_붙는다()
         {
-            RectNodeTree tree = RigSchemaLoader.BuildTree(SampleFile(SampleRig()), "character", "c1/");
+            RectNodeTree tree = HierarchyLoader.BuildTree(SampleFile(SampleHierarchy()), "character", "c1/");
 
-            Assert.That(tree.Contains("c1/" + RigSchemaLoader.RootKey), Is.True);
+            Assert.That(tree.Contains("c1/" + HierarchyLoader.RootKey), Is.True);
             Assert.That(tree.Contains("c1/Track"), Is.True);
             Assert.That(tree.Contains("Track"), Is.False, "접두사 없는 키가 남으면 안 된다");
 
             // 부모 참조에도 붙어야 사슬이 이어진다.
             Assert.That(tree.GetParentKey("c1/Scale"), Is.EqualTo("c1/Track"));
-            Assert.That(tree.GetParentKey("c1/Track"), Is.EqualTo("c1/" + RigSchemaLoader.RootKey));
+            Assert.That(tree.GetParentKey("c1/Track"), Is.EqualTo("c1/" + HierarchyLoader.RootKey));
         }
 
         [Test]
         public void ToState는_필드를_그대로_옮긴다()
         {
-            RigSchemaNodeDto node = Node("n", "");
+            HierarchyNodeDto node = Node("n", "");
             node.anchoredPosition = F2(1f, 2f);
             node.anchorMin = F2(0.25f, 0.1f);
             node.anchorMax = F2(0.75f, 0.9f);
@@ -144,7 +142,7 @@ namespace Ked.Presentation.Core.Tests
             node.localScale = F3(1.4f, 0.8f, 1f);
             node.localEulerAngles = F3(0f, 0f, 25f);
 
-            RectNodeState state = RigSchemaLoader.ToState(node);
+            RectNodeState state = HierarchyLoader.ToState(node);
 
             Assert.That(state.AnchoredPosition, Is.EqualTo(new Vec2(1f, 2f)));
             Assert.That(state.AnchorMin, Is.EqualTo(new Vec2(0.25f, 0.1f)));
@@ -156,11 +154,11 @@ namespace Ked.Presentation.Core.Tests
         }
 
         [Test]
-        public void 여러_리그_중_고른_것만_세운다()
+        public void 여러_계층_중_고른_것만_세운다()
         {
-            RigSchemasFileDto file = SampleFile(SampleRig("character"), SampleRig("background"));
+            HierarchyFileDto file = SampleFile(SampleHierarchy("character"), SampleHierarchy("background"));
 
-            RectNodeTree tree = RigSchemaLoader.BuildTree(file, "background");
+            RectNodeTree tree = HierarchyLoader.BuildTree(file, "background");
 
             Assert.That(tree.Count, Is.EqualTo(3));
         }
@@ -168,12 +166,12 @@ namespace Ked.Presentation.Core.Tests
         // ── 거부 규율 ────────────────────────────────────────────────
 
         [Test]
-        public void 모르는_rigKind는_있는_것을_나열하며_거부한다()
+        public void 모르는_이름은_있는_것을_나열하며_거부한다()
         {
-            RigSchemasFileDto file = SampleFile(SampleRig("character"), SampleRig("overlay"));
+            HierarchyFileDto file = SampleFile(SampleHierarchy("character"), SampleHierarchy("overlay"));
 
             ArgumentException ex = Assert.Throws<ArgumentException>(
-                () => RigSchemaLoader.BuildTree(file, "charater")); // 오타
+                () => HierarchyLoader.BuildTree(file, "charater")); // 오타
 
             // "비슷한 이름"으로 잇지 않는다. 대신 무엇이 있었는지 말한다.
             Assert.That(ex.Message, Does.Contain("character"));
@@ -181,38 +179,38 @@ namespace Ked.Presentation.Core.Tests
         }
 
         [Test]
-        public void 빈_덤프는_거부한다()
+        public void 빈_파일은_거부한다()
         {
             Assert.Throws<ArgumentNullException>(
-                () => RigSchemaLoader.BuildTree(null, "character"));
+                () => HierarchyLoader.BuildTree(null, "character"));
 
             Assert.Throws<ArgumentException>(
-                () => RigSchemaLoader.BuildTree(new RigSchemasFileDto(), "character"));
+                () => HierarchyLoader.BuildTree(new HierarchyFileDto(), "character"));
 
-            RigSchemasFileDto noSize = SampleFile(SampleRig());
-            noSize.capturedUnderParentSize = null;
+            HierarchyFileDto noSize = SampleFile(SampleHierarchy());
+            noSize.stageSize = null;
 
             Assert.Throws<ArgumentException>(
-                () => RigSchemaLoader.BuildTree(noSize, "character"));
+                () => HierarchyLoader.BuildTree(noSize, "character"));
         }
 
         [Test]
-        public void 노드가_없는_리그는_거부한다()
+        public void 노드가_없는_계층은_거부한다()
         {
-            RigSchemaRigDto empty = new() { rigKind = "character", nodes = new List<RigSchemaNodeDto>() };
+            HierarchyDto empty = new() { name = "character", nodes = new List<HierarchyNodeDto>() };
 
             Assert.Throws<ArgumentException>(
-                () => RigSchemaLoader.BuildTree(SampleFile(empty), "character"));
+                () => HierarchyLoader.BuildTree(SampleFile(empty), "character"));
         }
 
         [Test]
         public void id가_없는_노드는_거부한다()
         {
-            RigSchemaRigDto rig = SampleRig();
-            rig.nodes[1].id = "";
+            HierarchyDto hierarchy = SampleHierarchy();
+            hierarchy.nodes[1].id = "";
 
             ArgumentException ex = Assert.Throws<ArgumentException>(
-                () => RigSchemaLoader.BuildTree(SampleFile(rig), "character"));
+                () => HierarchyLoader.BuildTree(SampleFile(hierarchy), "character"));
 
             Assert.That(ex.Message, Does.Contain("[1]"), "몇 번째 노드인지 알려야 한다");
         }
@@ -222,11 +220,11 @@ namespace Ked.Presentation.Core.Tests
         {
             // System.Text.Json의 IncludeFields 누락이 이 모양으로 나타난다.
             // 조용히 0으로 채우면 좌표가 전부 원점으로 접힌 채 통과한다.
-            RigSchemaRigDto rig = SampleRig();
-            rig.nodes[2].pivot = null;
+            HierarchyDto hierarchy = SampleHierarchy();
+            hierarchy.nodes[2].pivot = null;
 
             ArgumentException ex = Assert.Throws<ArgumentException>(
-                () => RigSchemaLoader.BuildTree(SampleFile(rig), "character"));
+                () => HierarchyLoader.BuildTree(SampleFile(hierarchy), "character"));
 
             Assert.That(ex.Message, Does.Contain("Scale"));
             Assert.That(ex.Message, Does.Contain("character"));
@@ -235,12 +233,12 @@ namespace Ked.Presentation.Core.Tests
         [Test]
         public void 부모가_자식보다_뒤에_오면_거부한다()
         {
-            // 덤프 규약은 "부모 먼저"다. 어긋나면 트리가 조용히 반쪽으로 서는 대신 터진다.
-            RigSchemaRigDto rig = SampleRig();
-            (rig.nodes[1], rig.nodes[2]) = (rig.nodes[2], rig.nodes[1]);
+            // 계층의 규약은 "부모 먼저"다. 어긋나면 트리가 조용히 반쪽으로 서는 대신 터진다.
+            HierarchyDto hierarchy = SampleHierarchy();
+            (hierarchy.nodes[1], hierarchy.nodes[2]) = (hierarchy.nodes[2], hierarchy.nodes[1]);
 
             Assert.Throws<ArgumentException>(
-                () => RigSchemaLoader.BuildTree(SampleFile(rig), "character"));
+                () => HierarchyLoader.BuildTree(SampleFile(hierarchy), "character"));
         }
     }
 }

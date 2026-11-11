@@ -12,7 +12,7 @@ namespace Ked.Presentation.Core
     // 파일은 **다 펼쳐 구운 것**이다: 묶음(세트)은 오브젝트로 펼쳐져 있고(이름이 a.b), 묶음의 움직임은 키로 구워져 있다 —
     // 읽는 쪽은 오브젝트와 트랙만 알면 된다. 시각은 프레임(fps는 파일에 있다)이고 기울기도 프레임당 값이다.
     //
-    // 모양은 유니티 JsonUtility가 그대로 읽게 public 필드 + [Serializable]이다(RigSchemaDto와 같은 규약).
+    // 모양은 유니티 JsonUtility가 그대로 읽게 public 필드 + [Serializable]이다(HierarchyDto와 같은 규약).
     // 이 프레임의 모습을 내는 계산은 CutPlayer — 도구의 미리보기와 게임의 재생이 그 함수 하나를 쓴다.
     // ─────────────────────────────────────────────────────────────────
 

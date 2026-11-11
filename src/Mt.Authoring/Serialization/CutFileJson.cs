@@ -49,7 +49,7 @@ public static class CutFileJson
         // 오브젝트 — 품은 세트를 펼친 것. 그림은 실제로 입는 스킨(제 스킨 + 품은 세트들의 스킨)에서.
         SkinAsset? skin = RigAssets.EffectiveSkin(document, cut.Name, document.Skins.FirstOrDefault(s => s.Rig == cut.Name)?.Name);
 
-        foreach (RigSchemaNodeDto node in RigAssetCodec.ToDto(cut.Rig, stageSize, document.FindRig).nodes.Where(n => n.id != RigAssetCodec.RootId))
+        foreach (HierarchyNodeDto node in RigAssetCodec.ToDto(cut.Rig, stageSize, document.FindRig).nodes.Where(n => n.id != RigAssetCodec.RootId))
         {
             bool top = node.parent == RigAssetCodec.RootId;
             file.objects.Add(new CutObjectDto

@@ -80,7 +80,7 @@ public sealed class RigNodeAsset
 /// <summary>툴의 리그 ↔ 코어의 리그 스키마. 해석(트리 세우기)은 코어가 한다.</summary>
 public static class RigAssetCodec
 {
-    public const string RootId = RigSchemaLoader.RootKey;
+    public const string RootId = HierarchyLoader.RootKey;
 
     /// <summary>품은 세트의 오브젝트를 가리키는 경로의 구분 기호 — <c>차.Body</c>. 오브젝트 이름에는 못 쓰는 글자다(이름은 영문·숫자·_).</summary>
     public const char PathSeparator = '.';
@@ -100,10 +100,10 @@ public static class RigAssetCodec
     /// 인스턴스 오브젝트 밑에 그 세트의 오브젝트들이 <c>인스턴스.이름</c>으로 선다(되풀이해서 — 품은 것이 또 품었으면 <c>a.b.c</c>). 없는 세트·순환·너무 깊은 것은 건너뛴다.
     /// 그래서 세운 리그는 늘 한 덩어리다 — 미리보기도 컷 파일도 펼친 것을 본다(<c>PLAN-set.md</c> §7의 A).
     /// </summary>
-    public static RigSchemaRigDto ToDto(RigAsset rig, Vec2 stageSize, Func<string, RigAsset?>? resolve = null)
+    public static HierarchyDto ToDto(RigAsset rig, Vec2 stageSize, Func<string, RigAsset?>? resolve = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
-        var nodes = new List<RigSchemaNodeDto>
+        var nodes = new List<HierarchyNodeDto>
         {
             new()
             {
@@ -116,27 +116,25 @@ public static class RigAssetCodec
                 sizeDelta = F2(0f, 0f),
                 localScale = F3(1f, 1f, 1f),
                 localEulerAngles = F3(0f, 0f, 0f),
-                measuredRectSize = F2(stageSize.X, stageSize.Y),
-                canvasGroupAlpha = 1f,
             },
         };
 
         Expand(nodes, rig, "", RootId, resolve, new HashSet<string>(StringComparer.Ordinal) { rig.Kind }, 0);
 
-        return new RigSchemaRigDto { rigKind = rig.Kind, sourcePrefab = "", nodes = nodes };
+        return new HierarchyDto { name = rig.Kind, nodes = nodes };
     }
 
     /// <summary>
     /// 크기 없는 점 노드를 맨 위에 더한다 — 그리지 않고 값만 담는 자리(컷의 카메라: 그 자리가 곧 밀기·당기기의 값이다). 키를 놓을 수 있는 오브젝트로 선다.
     /// </summary>
-    public static RigSchemaRigDto WithPoints(RigSchemaRigDto dto, params string[] ids)
+    public static HierarchyDto WithPoints(HierarchyDto dto, params string[] ids)
     {
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(ids);
 
         foreach (string id in ids)
         {
-            dto.nodes.Add(new RigSchemaNodeDto
+            dto.nodes.Add(new HierarchyNodeDto
             {
                 id = id,
                 parent = RootId,
@@ -147,8 +145,6 @@ public static class RigAssetCodec
                 sizeDelta = F2(0f, 0f),
                 localScale = F3(1f, 1f, 1f),
                 localEulerAngles = F3(0f, 0f, 0f),
-                measuredRectSize = F2(0f, 0f),
-                canvasGroupAlpha = 1f,
             });
         }
 
@@ -156,12 +152,12 @@ public static class RigAssetCodec
     }
 
     /// <summary>세트의 오브젝트들을 <paramref name="prefix"/>를 붙여 더한다 — 맨 위의 것은 <paramref name="under"/> 밑에. 인스턴스를 만나면 그 세트를 그 밑에 펼친다.</summary>
-    private static void Expand(List<RigSchemaNodeDto> nodes, RigAsset rig, string prefix, string under, Func<string, RigAsset?>? resolve, HashSet<string> open, int depth)
+    private static void Expand(List<HierarchyNodeDto> nodes, RigAsset rig, string prefix, string under, Func<string, RigAsset?>? resolve, HashSet<string> open, int depth)
     {
         foreach (RigNodeAsset node in rig.Nodes)
         {
             string id = prefix + node.Id;
-            nodes.Add(new RigSchemaNodeDto
+            nodes.Add(new HierarchyNodeDto
             {
                 id = id,
                 parent = string.IsNullOrEmpty(node.Parent) ? under : prefix + node.Parent,
@@ -172,9 +168,7 @@ public static class RigAssetCodec
                 sizeDelta = F2(node.Width, node.Height),
                 localScale = F3(node.ScaleX, node.ScaleY, 1f),
                 localEulerAngles = F3(0f, 0f, node.Rotation),
-                measuredRectSize = F2(node.Width, node.Height),
-                hasCanvasGroup = node.Alpha,
-                canvasGroupAlpha = 1f,
+                hasAlpha = node.Alpha,
                 hasImage = node.Image,
                 fillColor = node.Color,
             });

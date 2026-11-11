@@ -6,34 +6,34 @@ namespace Mt.Authoring.Rig;
 /// 문서가 정의한 것(세트 · 컷)을 세운 한 벌 — 뷰포트 · 검증 · 하이어아키가 읽는 모양. 파일이 아니라 문서에서 그때그때 세운다(<see cref="RigAssets.Compose"/>).
 /// 노드 이름·계층·앵커·피벗·크기는 전부 여기서 온다.
 ///
-/// DTO는 코어 <c>Tuning/</c>의 것 그대로이고, 트리로 세우는 해석(<see cref="RigSchemaLoader"/>)도 코어가 한다.
+/// DTO는 코어 <c>Tuning/</c>의 것 그대로이고, 트리로 세우는 해석(<see cref="HierarchyLoader"/>)도 코어가 한다.
 /// </summary>
 public sealed class RigSchemaFile
 {
     private readonly Dictionary<string, ICollection<string>> _nodeIds;
     private readonly Dictionary<string, ICollection<string>> _alphaNodeIds;
 
-    private RigSchemaFile(RigSchemasFileDto dto)
+    private RigSchemaFile(HierarchyFileDto dto)
     {
         Dto = dto;
         _nodeIds = new Dictionary<string, ICollection<string>>(StringComparer.Ordinal);
         _alphaNodeIds = new Dictionary<string, ICollection<string>>(StringComparer.Ordinal);
 
-        foreach (RigSchemaRigDto rig in dto.rigs)
+        foreach (HierarchyDto rig in dto.hierarchies)
         {
             var ids = new HashSet<string>(StringComparer.Ordinal);
 
-            foreach (RigSchemaNodeDto node in rig.nodes)
+            foreach (HierarchyNodeDto node in rig.nodes)
             {
                 ids.Add(node.id);
             }
 
-            _nodeIds[rig.rigKind] = ids;
-            _alphaNodeIds[rig.rigKind] = new HashSet<string>(rig.nodes.Where(n => n.hasCanvasGroup).Select(n => n.id), StringComparer.Ordinal);
+            _nodeIds[rig.name] = ids;
+            _alphaNodeIds[rig.name] = new HashSet<string>(rig.nodes.Where(n => n.hasAlpha).Select(n => n.id), StringComparer.Ordinal);
         }
     }
 
-    public RigSchemasFileDto Dto { get; }
+    public HierarchyFileDto Dto { get; }
 
     public IEnumerable<string> RigKinds => _nodeIds.Keys;
 
@@ -45,11 +45,11 @@ public sealed class RigSchemaFile
     /// </summary>
     public IReadOnlyDictionary<string, ICollection<string>> AlphaNodeIds => _alphaNodeIds;
 
-    public bool TryGetRig(string rigKind, out RigSchemaRigDto rig)
+    public bool TryGetRig(string rigKind, out HierarchyDto rig)
     {
-        foreach (RigSchemaRigDto candidate in Dto.rigs)
+        foreach (HierarchyDto candidate in Dto.hierarchies)
         {
-            if (string.Equals(candidate.rigKind, rigKind, StringComparison.Ordinal))
+            if (string.Equals(candidate.name, rigKind, StringComparison.Ordinal))
             {
                 rig = candidate;
                 return true;
@@ -62,22 +62,22 @@ public sealed class RigSchemaFile
 
     /// <summary>리그 하나를 코어 트리로 세운다 — 뷰포트와 미리보기의 시작값이 여기서 나온다.</summary>
     public RectNodeTree BuildTree(string rigKind, string keyPrefix = "")
-        => RigSchemaLoader.BuildTree(Dto, rigKind, keyPrefix);
+        => HierarchyLoader.BuildTree(Dto, rigKind, keyPrefix);
 
     /// <summary>리그들로 한 벌을 세운다 — 무대 크기는 <paramref name="stageSize"/>. 세울 수 없는 모양의 리그면 예외(트리를 한 번 세워 본다).</summary>
-    public static RigSchemaFile Of(Vec2 stageSize, IEnumerable<RigSchemaRigDto> rigs)
+    public static RigSchemaFile Of(Vec2 stageSize, IEnumerable<HierarchyDto> rigs)
     {
         ArgumentNullException.ThrowIfNull(rigs);
-        var dto = new RigSchemasFileDto { capturedUnderParentSize = new Float2Dto { x = stageSize.X, y = stageSize.Y }, rigs = rigs.ToList() };
+        var dto = new HierarchyFileDto { stageSize = new Float2Dto { x = stageSize.X, y = stageSize.Y }, hierarchies = rigs.ToList() };
 
-        foreach (RigSchemaRigDto rig in dto.rigs)
+        foreach (HierarchyDto rig in dto.hierarchies)
         {
-            RigSchemaLoader.BuildTree(dto, rig.rigKind);
+            HierarchyLoader.BuildTree(dto, rig.name);
         }
 
         return new RigSchemaFile(dto);
     }
 
     /// <summary>리그가 하나도 없는 빈 한 벌 — 새 문서, 또는 문서의 리그를 세우지 못했을 때.</summary>
-    public static RigSchemaFile Empty(Vec2 stageSize) => Of(stageSize, Array.Empty<RigSchemaRigDto>());
+    public static RigSchemaFile Empty(Vec2 stageSize) => Of(stageSize, Array.Empty<HierarchyDto>());
 }

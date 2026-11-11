@@ -12,7 +12,7 @@ using System.Collections.Generic;
 namespace Ked.Presentation.Core
 {
     // RectNodeState들을 부모-자식 관계로 보관하고,
-    // 특정 노드의 좌표 계산을 RectChainMath에 연결해주는 리그 트리 모델
+    // 특정 노드의 좌표 계산을 RectChainMath에 연결해주는 트리 모델
     // (좌표 계산은 전부 RectChainMath에 위임.)
     public sealed class RectNodeTree
     {

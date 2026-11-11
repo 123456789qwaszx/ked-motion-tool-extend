@@ -140,7 +140,7 @@ public static class MtCli
         // 그림 경로는 컷 파일 기준으로 적는다(문서 기준 → 파일 기준). 그림은 복사하지 않는다.
         string documentFolder = Path.GetDirectoryName(Path.GetFullPath(options.Positional(0, "문서 경로"))) ?? ".";
         string folder = Path.GetDirectoryName(Path.GetFullPath(target)) ?? ".";
-        CutFileDto file = CutFileJson.Build(document, cut, rig.Dto.capturedUnderParentSize.ToVec2(),
+        CutFileDto file = CutFileJson.Build(document, cut, rig.Dto.stageSize.ToVec2(),
             image => Path.GetRelativePath(folder, Path.GetFullPath(Path.Combine(documentFolder, image))).Replace('\\', '/'));
         File.WriteAllBytes(target, new System.Text.UTF8Encoding(false).GetBytes(CutFileJson.Write(file)));
         Write(stdout, new JsonObject

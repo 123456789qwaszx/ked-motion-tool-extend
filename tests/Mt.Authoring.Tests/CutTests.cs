@@ -240,8 +240,8 @@ public class CutTests
         Assert.Equal(300f, tree.TransformPoint("cut/sky", Vec3.Zero).X, 3);
 
         // 그리는 순서 — 먼 것부터. 밑의 것은 제 맨 위 오브젝트를 따라간다. 깊이를 바꾸면 차례가 바뀐다.
-        Fixtures.RigOf(editor.Document).TryGetRig("arrival", out RigSchemaRigDto dto);
-        string[] Order() => CutStage.DrawOrder(cut, dto.nodes).Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsPointNode(id)).ToArray();
+        Fixtures.RigOf(editor.Document).TryGetRig("arrival", out HierarchyDto dto);
+        string[] Order() => CutStage.DrawOrder(cut, dto.nodes).Select(n => n.id).Where(id => id != HierarchyLoader.RootKey && !CutStage.IsPointNode(id)).ToArray();
         Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order());
         editor.SetCutNodeDepth("arrival", "hero", 30f);
         Assert.Equal(new[] { "sky", "near", "hero", "arm" }, Order());
@@ -485,9 +485,9 @@ public class CutTests
         CutAsset cut = editor.Document.FindCut("arrival")!;
         var depth = DepthTuningFile.Load(Fixtures.PathOf("presets/depth.json"));
         RigSchemaFile rig = Fixtures.RigOf(editor.Document);
-        Vec2 stage = rig.Dto.capturedUnderParentSize.ToVec2();
+        Vec2 stage = rig.Dto.stageSize.ToVec2();
         MotionAsset timeline = editor.Document.Find("arrival")!;
-        rig.TryGetRig("arrival", out RigSchemaRigDto dto);
+        rig.TryGetRig("arrival", out HierarchyDto dto);
         SkinAsset skin = RigAssets.EffectiveSkin(editor.Document, "arrival", "arrival")!;
 
         // 게임이 읽는 길 그대로: 글로 적은 파일을 코어의 DTO로 읽어 코어의 재생기에 넣는다.
@@ -524,7 +524,7 @@ public class CutTests
             }
 
             Assert.Equal(
-                CutStage.DrawOrder(cut, dto.nodes, tool, "cut/").Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsPointNode(id)),
+                CutStage.DrawOrder(cut, dto.nodes, tool, "cut/").Select(n => n.id).Where(id => id != HierarchyLoader.RootKey && !CutStage.IsPointNode(id)),
                 game.DrawOrder);
         }
 

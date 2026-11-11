@@ -1579,11 +1579,11 @@ public partial class MainWindow : Window
         TreeViewItem? selectedItem = null;
         var itemsByNode = new Dictionary<string, TreeViewItem>(StringComparer.Ordinal);
 
-        if (_session.Rig.TryGetRig(kind, out RigSchemaRigDto dto))
+        if (_session.Rig.TryGetRig(kind, out HierarchyDto dto))
         {
-            foreach (RigSchemaNodeDto node in dto.nodes)
+            foreach (HierarchyNodeDto node in dto.nodes)
             {
-                if (node.id == RigSchemaLoader.RootKey)
+                if (node.id == HierarchyLoader.RootKey)
                 {
                     continue; // 맨 위 항목이 곧 루트다.
                 }
@@ -1594,7 +1594,7 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                TreeViewItem nodeParent = string.IsNullOrEmpty(node.parent) || node.parent == RigSchemaLoader.RootKey || !itemsByNode.TryGetValue(node.parent, out TreeViewItem? found)
+                TreeViewItem nodeParent = string.IsNullOrEmpty(node.parent) || node.parent == HierarchyLoader.RootKey || !itemsByNode.TryGetValue(node.parent, out TreeViewItem? found)
                     ? root
                     : found;
                 // 따로 보기(숨김 · 솔로)의 표시.

@@ -216,12 +216,12 @@ public sealed class ViewportView : Control
     {
         get
         {
-            if (_rig is null || _setView is not { } kind || !_rig.TryGetRig(kind, out RigSchemaRigDto dto))
+            if (_rig is null || _setView is not { } kind || !_rig.TryGetRig(kind, out HierarchyDto dto))
             {
                 return Array.Empty<string>();
             }
 
-            return dto.nodes.Select(n => n.id).Where(k => k != RigSchemaLoader.RootKey).OrderBy(k => k, StringComparer.Ordinal).ToList();
+            return dto.nodes.Select(n => n.id).Where(k => k != HierarchyLoader.RootKey).OrderBy(k => k, StringComparer.Ordinal).ToList();
         }
     }
 
@@ -370,7 +370,7 @@ public sealed class ViewportView : Control
         return pose.Contains(RootKey) ? StageQuads.RectQuad(pose, RootKey) : null;
     }
 
-    private const string RootKey = Prefix + RigSchemaLoader.RootKey;
+    private const string RootKey = Prefix + HierarchyLoader.RootKey;
 
     private double SnapTime(double seconds) => SnapEnabled ? TimeSnap.Snap(seconds, SnapStep) : seconds;
 
@@ -1553,10 +1553,10 @@ public sealed class ViewportView : Control
         IReadOnlyList<string> parts = DrawnParts();
         SkinAsset? wornNow = Worn;
 
-        if (_rig is not null && _rig.TryGetRig(kind, out RigSchemaRigDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
+        if (_rig is not null && _rig.TryGetRig(kind, out HierarchyDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
         {
             // 컷이면 먼 것부터(깊이 순), 세트면 목록 순.
-            foreach (RigSchemaNodeDto rigNode in ShownCut is { } drawnCut ? CutStage.DrawOrder(drawnCut, drawn.nodes, pose, Prefix) : drawn.nodes)
+            foreach (HierarchyNodeDto rigNode in ShownCut is { } drawnCut ? CutStage.DrawOrder(drawnCut, drawn.nodes, pose, Prefix) : drawn.nodes)
             {
                 string node = rigNode.id;
                 string key = KeyOf(node);
@@ -2189,14 +2189,14 @@ public sealed class ViewportView : Control
         var at = new Pixel(position.X, position.Y);
 
         // 펼친 리그의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
-        if (_rig is not null && _setView is { } kind && _rig.TryGetRig(kind, out RigSchemaRigDto dto))
+        if (_rig is not null && _setView is { } kind && _rig.TryGetRig(kind, out HierarchyDto dto))
         {
-            foreach (RigSchemaNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut ? CutStage.DrawOrder(pickedCut, dto.nodes, pose, Prefix) : dto.nodes))
+            foreach (HierarchyNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut ? CutStage.DrawOrder(pickedCut, dto.nodes, pose, Prefix) : dto.nodes))
             {
                 string key = KeyOf(node.id);
                 string? owner = PickableOf(node.id);
 
-                if (node.id == RigSchemaLoader.RootKey || !pose.Contains(key) || node.sizeDelta is null || node.sizeDelta.x <= 0f || node.sizeDelta.y <= 0f
+                if (node.id == HierarchyLoader.RootKey || !pose.Contains(key) || node.sizeDelta is null || node.sizeDelta.x <= 0f || node.sizeDelta.y <= 0f
                     || owner is null || ResolveSetNode(owner) is null || !IsSetNodeShown(node.id))
                 {
                     continue;

@@ -82,7 +82,7 @@ public class RigAssetTests
         // 문서가 정의한 것만의 한 벌(앱이 쓰는 길) — 무대 크기를 받는다.
         RigSchemaFile alone = RigAssets.Compose(editor.Document, new Vec2(1920f, 1080f));
         Assert.Equal(new[] { "prop" }, alone.RigKinds);
-        Assert.Equal(1920f, alone.BuildTree("prop").GetRectSize(RigSchemaLoader.RootKey).X, 3);
+        Assert.Equal(1920f, alone.BuildTree("prop").GetRectSize(HierarchyLoader.RootKey).X, 3);
         Assert.Empty(RigAssets.Compose(new MotionDocument(), new Vec2(1920f, 1080f)).RigKinds);
     }
 
@@ -171,15 +171,15 @@ public class RigAssetTests
         editor.UpdateRigNode(PartsRigFixture.RigKind, "Badge_Glow", moved);
         Assert.Equal(revision + 1, editor.Revision);
         RigSchemaFile composed = Fixtures.RigOf(editor.Document);
-        Assert.True(composed.TryGetRig(PartsRigFixture.RigKind, out RigSchemaRigDto dto));
-        RigSchemaNodeDto node = dto.nodes.Single(n => n.id == "Badge_Glow");
-        Assert.Equal((30f, -12f, 80f, 40f, true, false), (node.anchoredPosition.x, node.anchoredPosition.y, node.sizeDelta.x, node.sizeDelta.y, node.hasImage, node.hasCanvasGroup));
+        Assert.True(composed.TryGetRig(PartsRigFixture.RigKind, out HierarchyDto dto));
+        HierarchyNodeDto node = dto.nodes.Single(n => n.id == "Badge_Glow");
+        Assert.Equal((30f, -12f, 80f, 40f, true, false), (node.anchoredPosition.x, node.anchoredPosition.y, node.sizeDelta.x, node.sizeDelta.y, node.hasImage, node.hasAlpha));
         Assert.Contains("Badge_Glow", RigParts.Of(composed, PartsRigFixture.RigKind));
 
         // 가만히 선 자세의 회전·배율(배치 모드) — 세운 나무에 그대로 선다. 배율 0은 막는다.
         editor.UpdateRigNode(PartsRigFixture.RigKind, "Badge_Glow", new RigNodeAsset { X = 30f, Y = -12f, Width = 80f, Height = 40f, Image = true, Rotation = 30f, ScaleX = 2f, ScaleY = -1f });
-        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig(PartsRigFixture.RigKind, out RigSchemaRigDto posed));
-        RigSchemaNodeDto turned = posed.nodes.Single(n => n.id == "Badge_Glow");
+        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig(PartsRigFixture.RigKind, out HierarchyDto posed));
+        HierarchyNodeDto turned = posed.nodes.Single(n => n.id == "Badge_Glow");
         Assert.Equal((30f, 2f, -1f), (turned.localEulerAngles.z, turned.localScale.x, turned.localScale.y));
         Assert.Throws<InvalidOperationException>(() => editor.UpdateRigNode(PartsRigFixture.RigKind, "Badge_Glow", new RigNodeAsset { ScaleX = 0f }));
         editor.Undo();
@@ -246,8 +246,8 @@ public class RigAssetTests
         Assert.Equal("#3D5A80", RigParts.ColorsOf(composed, "wipe")["Panel"]);
         Assert.Empty(RigParts.Of(composed, "wipe"));
         Assert.Empty(RigParts.ColorsOf(composed, "nope"));
-        Assert.True(composed.TryGetRig("wipe", out RigSchemaRigDto wipe));
-        Assert.Equal(new[] { ("Body", ""), ("Panel", "#3D5A80") }, wipe.nodes.Where(n => n.id != RigSchemaLoader.RootKey).Select(n => (n.id, n.fillColor ?? "")));
+        Assert.True(composed.TryGetRig("wipe", out HierarchyDto wipe));
+        Assert.Equal(new[] { ("Body", ""), ("Panel", "#3D5A80") }, wipe.nodes.Where(n => n.id != HierarchyLoader.RootKey).Select(n => (n.id, n.fillColor ?? "")));
 
         // 저작본 — 색이 없는 노드에는 안 적힌다.
         string json = MotionDocumentJson.Write(editor.Document);
@@ -396,7 +396,7 @@ public class RigAssetTests
 
         // 세운 리그: 품은 세트가 인스턴스 밑에 "인스턴스.이름"으로 펼쳐진다. 부모·색·그림 표시가 따라온다.
         RigSchemaFile composed = Fixtures.RigOf(editor.Document);
-        Assert.True(composed.TryGetRig("city", out RigSchemaRigDto dto));
+        Assert.True(composed.TryGetRig("city", out HierarchyDto dto));
         Assert.Equal(new[] { "__root", "Ground", "car", "car.Body", "car.Shell", "car.Wheel", "sun", "sun.Disc" }, dto.nodes.Select(n => n.id));
         Assert.Equal(("car", "car.Body", "car.Body"), (dto.nodes.Single(n => n.id == "car.Body").parent, dto.nodes.Single(n => n.id == "car.Shell").parent, dto.nodes.Single(n => n.id == "car.Wheel").parent));
         Assert.Equal(new[] { "car.Shell", "sun.Disc" }, RigParts.Of(composed, "city"));
@@ -420,7 +420,7 @@ public class RigAssetTests
 
         // 참조다 — 원본 세트를 고치면 품은 곳이 따라온다.
         editor.AddRigNode("car", "Light", "Body");
-        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig("city", out RigSchemaRigDto after));
+        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig("city", out HierarchyDto after));
         Assert.Contains(after.nodes, n => n.id == "car.Light");
 
         // 품은 것의 애니메이션: 인스턴스를 통째로 움직이는 키도, 안쪽의 것을 경로 이름으로 짚는 키도 놓인다 — 검증을 지난다.
@@ -461,7 +461,7 @@ public class RigAssetTests
 
         // 품은 것이 또 품은 것 — 경로가 이어진다.
         editor.AddRigInstance("city", "sun", "sun");
-        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig("city", out RigSchemaRigDto dto));
+        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig("city", out HierarchyDto dto));
         Assert.Contains(dto.nodes, n => n.id == "sun.inner.Wheel");
 
         // 인스턴스를 빼면 지울 수 있다.
@@ -474,7 +474,7 @@ public class RigAssetTests
         var broken = new MotionDocument();
         broken.Rigs.Add(new RigAsset { Kind = "a", Nodes = { new RigNodeAsset { Id = "x", Set = "b" }, new RigNodeAsset { Id = "y", Set = "ghost" } } });
         broken.Rigs.Add(new RigAsset { Kind = "b", Nodes = { new RigNodeAsset { Id = "z", Set = "a" } } });
-        Assert.True(Fixtures.RigOf(broken).TryGetRig("a", out RigSchemaRigDto looped));
+        Assert.True(Fixtures.RigOf(broken).TryGetRig("a", out HierarchyDto looped));
         Assert.Equal(new[] { "__root", "x", "x.z", "y" }, looped.nodes.Select(n => n.id));
     }
 

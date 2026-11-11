@@ -62,20 +62,20 @@ public static class CutStage
         ArgumentNullException.ThrowIfNull(rig);
         ArgumentNullException.ThrowIfNull(cut);
 
-        if (!rig.TryGetRig(cut.Name, out RigSchemaRigDto dto))
+        if (!rig.TryGetRig(cut.Name, out HierarchyDto dto))
         {
             return null;
         }
 
-        var tree = new RectNodeTree(new RectSpace(rig.Dto.capturedUnderParentSize.ToVec2(), Vec2.Half));
+        var tree = new RectNodeTree(new RectSpace(rig.Dto.stageSize.ToVec2(), Vec2.Half));
         tree.Add(prefix + Zoom, null, RectNodeState.StretchFull);
         tree.Add(prefix + Pan, prefix + Zoom, RectNodeState.StretchFull);
 
-        foreach (RigSchemaNodeDto node in dto.nodes)
+        foreach (HierarchyNodeDto node in dto.nodes)
         {
-            RectNodeState state = RigSchemaLoader.ToState(node, cut.Name);
+            RectNodeState state = HierarchyLoader.ToState(node, cut.Name);
 
-            if (node.id == RigSchemaLoader.RootKey)
+            if (node.id == HierarchyLoader.RootKey)
             {
                 tree.Add(prefix + node.id, prefix + Pan, state);
             }
@@ -109,7 +109,7 @@ public static class CutStage
         return tree;
     }
 
-    private static bool IsTop(RigSchemaNodeDto node) => string.IsNullOrEmpty(node.parent) || node.parent == RigSchemaLoader.RootKey;
+    private static bool IsTop(HierarchyNodeDto node) => string.IsNullOrEmpty(node.parent) || node.parent == HierarchyLoader.RootKey;
 
     /// <summary>
     /// 카메라와 깊이를 넣는다 — <see cref="Build"/>로 세워 포즈를 잡은 트리에 **한 번**(맨 위 오브젝트의 배율에 깊이의 배율을 곱하므로 두 번 넣으면 안 된다).
@@ -198,7 +198,7 @@ public static class CutStage
     /// 그리는 순서 — 먼 것부터(깊이가 작은 맨 위 오브젝트와 그 밑의 것들이 먼저), 같은 깊이는 목록 순. 펼친 리그의 노드들을 그 차례로 다시 세운다.
     /// </summary>
     /// <param name="pose">그 시각의 포즈 — 주면 키로 움직인 깊이의 차례다. 없으면 오브젝트에 적힌 깊이.</param>
-    public static IReadOnlyList<RigSchemaNodeDto> DrawOrder(CutAsset cut, IReadOnlyList<RigSchemaNodeDto> nodes, RectNodeTree? pose = null, string prefix = "")
+    public static IReadOnlyList<HierarchyNodeDto> DrawOrder(CutAsset cut, IReadOnlyList<HierarchyNodeDto> nodes, RectNodeTree? pose = null, string prefix = "")
     {
         ArgumentNullException.ThrowIfNull(cut);
         ArgumentNullException.ThrowIfNull(nodes);
@@ -209,7 +209,7 @@ public static class CutStage
             top[node.Id] = node.Parent.Length == 0 ? node.Id : top.GetValueOrDefault(node.Parent, node.Parent);
         }
 
-        float OrderDepth(RigSchemaNodeDto node)
+        float OrderDepth(HierarchyNodeDto node)
         {
             string owner = RigAssetCodec.OwnerOf(node.id); // 품은 세트 안쪽의 것(a.b)은 그것을 품은 오브젝트를 따른다
             return top.TryGetValue(owner, out string? root) && cut.Rig.Find(root) is { } rootNode ? DepthOf(pose, rootNode, prefix) : float.NegativeInfinity;

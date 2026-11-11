@@ -79,7 +79,6 @@ namespace Ked.Presentation.Core.Tests
         [Test]
         public void 바닥_pivot_노드는_부모_바닥에_붙는다()
         {
-            // 리그의 NeedsBottomPivot 노드가 이 모양이다.
             RectNodeState node = RectNodeState.StretchFull.WithPivot(new Vec2(0.5f, 0f));
 
             Vec2 local = RectChainMath.LocalPosition(new Vec2(1000f, 500f), Vec2.Half, node);

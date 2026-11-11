@@ -1,7 +1,7 @@
 namespace Ked.Presentation.Core
 {
     /// <summary>
-    /// 리그 노드 하나의 RectTransform 상태 값. 불변 구조체.
+    /// 노드 하나의 RectTransform 상태 값. 불변 구조체.
     ///
     /// anchoredPosition이 실제 localPosition이 되려면
     /// anchorMin/anchorMax/pivot/sizeDelta와 "부모 rect 크기"가 계산에 들어감.
@@ -50,7 +50,7 @@ namespace Ked.Presentation.Core
 
         /// <summary>
         /// 빌더 StretchFull과 같은 값: 앵커 (0,0)-(1,1) / pivot 가운데 / 크기 증감 0 / 스케일 1.
-        /// 리그 노드의 초기 상태.
+        /// 노드의 초기 상태.
         /// </summary>
         public static readonly RectNodeState StretchFull = new(
             anchoredPosition: Vec2.Zero,
