@@ -294,9 +294,9 @@ public static class TimelineFlatten
     }
 
     /// <summary>품은 세트 안의 그 오브젝트의 가만히 선 값 — 경로(<c>a.b</c>)면 품은 세트를 따라 들어간다. 못 찾으면 중립값.</summary>
-    private static float RestOf(AuthoringDocument document, string kind, string node, ChannelKind channel, Axis axis)
+    private static float RestOf(AuthoringDocument document, string setName, string node, ChannelKind channel, Axis axis)
     {
-        SetAsset? set = document.FindSetOrCut(kind);
+        SetAsset? set = document.FindSetOrCut(setName);
         string[] parts = node.Split(SetCodec.PathSeparator);
         ObjectAsset? found = null;
 

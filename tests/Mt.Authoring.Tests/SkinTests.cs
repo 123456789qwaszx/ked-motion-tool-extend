@@ -10,7 +10,7 @@ namespace Mt.Authoring.Tests;
 /// <summary>스킨과 조각 — 세트의 조각마다 붙일 그림의 묶음.</summary>
 public class SkinTests
 {
-    private static readonly BuiltSets BuiltSets = Fixtures.SetOf(new AuthoringDocument { Sets = { PartsSetFixture.Set(), Fixtures.ActorSet() } });
+    private static readonly BuiltSets BuiltSets = Fixtures.BuiltOf(new AuthoringDocument { Sets = { PartsSetFixture.Set(), Fixtures.ActorSet() } });
 
     private static DocumentEditor NewEditor() => new(new AuthoringDocument());
 
@@ -25,7 +25,7 @@ public class SkinTests
         // 이름이 아니라 표시를 본다 — 이름이 조각 같아도 "그림"이 꺼져 있으면 조각이 아니다.
         SetAsset unmarked = PartsSetFixture.Set("plain", parts: 2);
         unmarked.Objects.ForEach(n => n.Image = false);
-        Assert.Empty(ObjectParts.Of(Fixtures.SetOf(new AuthoringDocument { Sets = { unmarked } }), "plain"));
+        Assert.Empty(ObjectParts.Of(Fixtures.BuiltOf(new AuthoringDocument { Sets = { unmarked } }), "plain"));
 
         // 조각 노드는 세트의 보통 노드다 — 트리에 서고, 타임라인의 채널이 된다.
         RectNodeTree tree = BuiltSets.BuildTree(PartsSetFixture.SetName, "e1/");

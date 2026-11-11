@@ -28,7 +28,7 @@
 | F1 | 코어를 컷이 쓰는 것만 남기고 줄인다(C7 다-2) | 끝 — `21cebdb` |
 | F2 | 옛 이름을 고친다 | 끝 — `09c98c4`(코어) · `012d746`(식별자) · F2-3(문구 — 이 문서와 같은 커밋) |
 | F3 | 문서를 지금의 툴에 맞춘다 | 끝 — `ffe95e9` · F3-3 · F3-4 |
-| F4 | 구조를 훑어 불필요한 것을 찾고, 승인받은 것을 걷는다 | 다음 |
+| F4 | 구조를 훑어 불필요한 것을 찾고, 승인받은 것을 걷는다 | 끝 — `464f6eb` ~ 나6 |
 
 ### F2 — 옛 이름을 고친다
 
@@ -190,7 +190,7 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
 | 나3 | **코어 테스트의 NUnit** | 코어 테스트(60개)만 NUnit, 나머지는 xunit. 출발점이 유니티 테스트 러너였던 까닭 | **xunit으로 합친다** — 테스트 프레임워크 하나 |
 | 나4 | **코어의 컴파일 제약**(netstandard2.1 · C# 9 · Nullable 끔) | 유니티가 가져갈 수 있게 둔 안전핀 | **둔다** — 비용이 작고, 컷 파일을 읽는 쪽을 언젠가 떼어 갈 때의 자리다. 런타임과의 관계를 다시 열 때 정한다 |
 | 나5 | **돕는 손**(`ValidationFixes`) | 고칠 손이 하나(이름 고치기)이고, 문제의 문구 앞머리로 고른다 | **둔다** — 작다. 손이 늘면 그때 문제에 종류를 단다 |
-| 나6 | **남은 옛 이름 · 자리** | 세트의 이름을 든 변수가 `kind`인 곳(채널 종류의 `kind`와 섞인다) · 견본 `Fixtures.SetOf` · `BaseResolutionFile`(파일이 아니라 상수 하나) · `Sets/` 폴더에 깊이 커브 · 무대 크기 · 층 표가 섞임 | **고친다** — 나1 · 나2 뒤에(그때 자리가 정해진다) |
+| 나6 | **남은 옛 이름 · 자리** | 세트의 이름을 든 변수가 `kind`인 곳(채널 종류의 `kind`와 섞인다) · 견본 `Fixtures.BuiltOf` · `BaseResolutionFile`(파일이 아니라 상수 하나) · `Sets/` 폴더에 깊이 커브 · 무대 크기 · 층 표가 섞임 | **고친다** — 나1 · 나2 뒤에(그때 자리가 정해진다) |
 | 나7 | 그릇의 이름(`Ked.Presentation.Core` · `Mt.*` · `ked-motion-tool`) · 큰 파일(`ViewportView` 2,581줄 · `MainWindow.axaml.cs` 2,528줄 · `GraphEditorView` 2,193줄) | — | **지금은 둔다** — 이름은 F2-0에서 정한 대로 툴의 의도가 확정될 때. 큰 파일 나누기는 걷어 내기가 아니라 고쳐 짓기다 |
 
 **권고하는 차례**: 가1 → 가2 → 가3 → 가4 → 나1 → 나2① → 나2② → 나3 → 나6. 가는 한 커밋에 묶어도 된다(작다).
@@ -213,8 +213,16 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
   - **루트(`__root`)는 목록에 없다** — 트리를 세울 때만 붙는다. 그래서 하이어아키 · 뷰포트 · 컷 파일 굽기 · 테스트에서 "루트는 건너뛴다"가 다 사라졌다.
   - `BuiltSets`는 `StageSize`와 이름별 펼친 오브젝트를 든다(`TryGetObjects`). 없는 이름의 `BuildTree`는 던진다.
   - 로더 테스트가 지키던 규칙 가운데 "부모가 앞에 없으면 세우지 못한다"는 `BuiltSetsTests`로 옮겼다. 화면은 렌더로 보아 바꾸기 전과 같다.
-- [x] **나3 NUnit → xunit**(이 커밋) — 코어 테스트(46개) 셋을 xunit으로 옮겼다(단언은 변환기로 기계적으로 — `Assert.That(…, Is.EqualTo(…).Within(Eps))` → `Assert.Equal(…, …, Eps)` 등).
+- [x] **나3 NUnit → xunit**(`ff6da55`) — 코어 테스트(46개) 셋을 xunit으로 옮겼다(단언은 변환기로 기계적으로 — `Assert.That(…, Is.EqualTo(…).Within(Eps))` → `Assert.Equal(…, …, Eps)` 등).
   테스트 프레임워크가 하나가 됐고 `Directory.Packages.props`에서 NUnit 판을 걷었다. 유니티 시절의 폴더 `EditMode/`도 걷었다. 코어 테스트 프로젝트는 Nullable만 끈다(코어를 null로 부르는 시험이 있다).
+- [x] **나6 남은 옛 이름 · 자리**(이 커밋)
+  - 세트의 이름을 든 `kind`(약 60곳)를 `setName`으로 — `string kind` 선언(매개변수 · 지역 · 패턴 변수)의 범위 안에서만 바꿨다. 채널 종류의 `kind`(`ChannelKind`)는 그대로다.
+    한 메서드(`ThroughInstance`)에는 세트 이름이 둘이라 뒤의 것을 `extracted`로.
+  - `BaseResolutionFile.Default`(파일이 아니라 상수 하나) → `Stage.Size`. 견본 `Fixtures.SetOf`(옛 `RigOf`) → `Fixtures.BuiltOf`.
+  - `Sets/` 폴더는 이제 세운 한 벌 · 세우기 · 조각 · 층 표 · 무대 크기 — 깊이 커브가 나가서 자리가 맞는다. 코어의 `Tuning/`은 나2에서 없앴다.
+- **나4 · 나5 · 나7은 권고대로 두었다**(코어의 컴파일 제약 · 돕는 손 · 그릇의 이름과 큰 파일).
+
+**F4 끝(2026-11-11).** 테스트 299개(Core 46 · Authoring 170 · App 83). 코어는 `Cut/` · `Ease/` · `Primitives/` · `State/` · `Transforms/`만 남았다.
 
 ## 4. 차례의 까닭
 
@@ -254,5 +262,5 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
   - F4의 목록에 더할 것(조사하다 본 것):
     - `AuthoringDocumentJsonTests.옛_문서의_걷어_낸_속성은_읽을_때_무시된다` — 옛 속성(`scenes` · `rigSchemas` …)이 든 문서를 읽는 호환 테스트. 옛 판을 안 읽는 지금은 뜻이 없다.
     - 내장 깊이 커브: `BuiltinTuning.Source`(런타임 커밋) · 폴더 `Defaults/ExportedTuning/` · 유니티 덤프 모양(`{"MonoBehaviour": {"level": …}}`)을 그대로 읽는 `DepthTuningFile`.
-    - 세트의 이름을 든 변수가 `kind`인 곳 · 테스트 견본 `Fixtures.SetOf`(옛 `RigOf`).
+    - 세트의 이름을 든 변수가 `kind`인 곳 · 테스트 견본 `Fixtures.BuiltOf`(옛 `RigOf`).
 

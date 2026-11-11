@@ -16,12 +16,12 @@ public sealed partial class DocumentEditor
     /// </summary>
     /// <param name="imageFolder">그림들이 있는 폴더(문서 기준 상대 경로) — 스킨에 <c>폴더/파일</c>로 적힌다.</param>
     /// <returns>만든 오브젝트의 이름들(표의 순서).</returns>
-    public IReadOnlyList<string> ImportLayers(string kind, LayerSheet sheet, string imageFolder, string skin, Vec2 stageSize, string? parent = null)
+    public IReadOnlyList<string> ImportLayers(string setName, LayerSheet sheet, string imageFolder, string skin, Vec2 stageSize, string? parent = null)
     {
         ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(imageFolder);
         ArgumentNullException.ThrowIfNull(skin);
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
 
         if (sheet.Layers.Count == 0)
         {
@@ -35,20 +35,20 @@ public sealed partial class DocumentEditor
         {
             if (Document.FindSkin(skin) is null)
             {
-                AddSkin(skin, kind);
+                AddSkin(skin, setName);
             }
 
             if (sheet.Background is { } background && set.Find(BackdropNode) is null)
             {
-                AddObject(kind, BackdropNode, parent);
-                UpdateObject(kind, BackdropNode, new ObjectAsset { Width = stageSize.X, Height = stageSize.Y, Color = background, Alpha = true });
+                AddObject(setName, BackdropNode, parent);
+                UpdateObject(setName, BackdropNode, new ObjectAsset { Width = stageSize.X, Height = stageSize.Y, Color = background, Alpha = true });
             }
 
             foreach (LayerEntry layer in sheet.Layers)
             {
                 string id = UniqueNodeId(set, NodeIdFrom(layer.File));
-                AddObject(kind, id, parent, image: true);
-                UpdateObject(kind, id, new ObjectAsset
+                AddObject(setName, id, parent, image: true);
+                UpdateObject(setName, id, new ObjectAsset
                 {
                     // 표는 왼쪽 위 기준(y 아래가 +), 세트는 가운데 기준(y 위가 +).
                     X = layer.Left + layer.Width / 2f - stageSize.X / 2f,

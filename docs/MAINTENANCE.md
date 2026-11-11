@@ -41,7 +41,7 @@ dotnet test KedMotionTool.sln -c Release --no-build
 | 편집 명령 전부(되돌리기 포함) | `Mt.Authoring/Editing/DocumentEditor.cs` — `Mutate` · `Batch` · `RecordExternal` · `Undo`/`Redo`. 영역별로 `DocumentEditor.*.cs`(컷 · 세트 · 스킨 · 재생 블록 · 그림 키 · 이벤트 · 빼기 · 층 표 · 시차 · 화면 밖 · 숨기기) |
 | 저작 원본 · 컷 파일 읽고 쓰기 | `Serialization/AuthoringDocumentJson.cs` · `CutFileJson.cs` |
 | 규칙 · 알림 · 돕는 손 | `Validation/DocumentValidator.cs` · `ValidationFixes.cs` |
-| 문서의 세트·컷을 세운 한 벌 · 무대 크기 | `Sets/SetBuilder.cs` · `BuiltSets.cs` · `BaseResolutionFile.cs`. 세트를 펼친 오브젝트(`ExpandedObject`)와 트리 세우기는 `Model/SetAsset.cs`의 `SetCodec` |
+| 문서의 세트·컷을 세운 한 벌 · 무대 크기 | `Sets/SetBuilder.cs` · `BuiltSets.cs` · `Stage.cs`. 세트를 펼친 오브젝트(`ExpandedObject`)와 트리 세우기는 `Model/SetAsset.cs`의 `SetCodec` |
 | 컷을 무대에 세우기(오브젝트 → 포즈 → 카메라와 깊이) | `Preview/CutStage.cs` |
 | 시각의 포즈 · 재생 블록 굽기 · 포즈 → 키 값 | `Preview/TimelinePose.cs` · `TimelineFlatten.cs` · `PoseEdit.cs` |
 | 그림 키 · 이벤트 키 읽기 · 재생 시계 · 사각형의 네 모서리 | `Preview/ImageKeys.cs` · `EventKeys.cs` · `PlaybackClock.cs` · `StageQuads.cs` |

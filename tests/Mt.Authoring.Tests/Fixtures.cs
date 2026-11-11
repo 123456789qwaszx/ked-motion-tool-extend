@@ -72,10 +72,10 @@ internal static class Fixtures
     }
 
     /// <summary>문서의 세트·컷을 세운 한 벌(무대 1920×1080) — 앱에서는 세션이 하는 일.</summary>
-    public static BuiltSets SetOf(AuthoringDocument document) => SetBuilder.Compose(document, new Vec2(1920f, 1080f));
+    public static BuiltSets BuiltOf(AuthoringDocument document) => SetBuilder.Compose(document, new Vec2(1920f, 1080f));
 
     /// <summary>세트 actor 하나만 세운 한 벌.</summary>
-    public static BuiltSets ActorBuiltSets() => SetOf(new AuthoringDocument { Sets = { ActorSet() } });
+    public static BuiltSets ActorBuiltSets() => BuiltOf(new AuthoringDocument { Sets = { ActorSet() } });
 
     public static KeyAsset Key(float t, float v, float inTangent = 0f, float outTangent = 0f) => new()
     {

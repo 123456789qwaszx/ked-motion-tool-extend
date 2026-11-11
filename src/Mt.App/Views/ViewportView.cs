@@ -63,7 +63,7 @@ public sealed class ViewportView : Control
     // 스킨의 그림 — 문서 기준 경로 → 비트맵. 어느 스킨의 어느 장을 그릴지는 그릴 때 고른다(입은 스킨 · 그림 넘기기).
     private readonly Dictionary<string, Bitmap?> _images = new(StringComparer.Ordinal);
     public bool ShowGrid { get; set; } = true;
-    private Vec2 _stageSize = BaseResolutionFile.Default;
+    private Vec2 _stageSize = Stage.Size;
     private KeySelection _selection = new();
     private CurveFlags _flags = new();
 
@@ -215,7 +215,7 @@ public sealed class ViewportView : Control
     {
         get
         {
-            if (_set is null || _setView is not { } kind || !_set.TryGetObjects(kind, out IReadOnlyList<ExpandedObject> objects))
+            if (_set is null || _setView is not { } setName || !_set.TryGetObjects(setName, out IReadOnlyList<ExpandedObject> objects))
             {
                 return Array.Empty<string>();
             }
@@ -242,9 +242,9 @@ public sealed class ViewportView : Control
     /// </summary>
     public string? SetSkin
     {
-        get => _setView is not { } kind || _editor is null ? null
-            : _editor.Document.FindSkin(_setSkin) is { } chosen && chosen.Set == kind ? chosen.Name
-            : _editor.Document.Skins.FirstOrDefault(s => s.Set == kind)?.Name;
+        get => _setView is not { } setName || _editor is null ? null
+            : _editor.Document.FindSkin(_setSkin) is { } chosen && chosen.Set == setName ? chosen.Name
+            : _editor.Document.Skins.FirstOrDefault(s => s.Set == setName)?.Name;
         set
         {
             _setSkin = value;
@@ -349,7 +349,7 @@ public sealed class ViewportView : Control
     /// <summary>포즈 위의 대표 사각형(루트 공간) — 첫 조각, 첫 색 사각형, 그것도 없으면 무대 전체(루트).</summary>
     private Quad? QuadOf(RectNodeTree pose)
     {
-        if (_setView is not { } kind)
+        if (_setView is not { } setName)
         {
             return null;
         }
@@ -361,7 +361,7 @@ public sealed class ViewportView : Control
         }
 
         // 색 오브젝트뿐이면 첫 색 사각형.
-        if (ObjectParts.ColorsOf(_set, kind).Keys.FirstOrDefault(n => pose.Contains(KeyOf(n))) is { } colored)
+        if (ObjectParts.ColorsOf(_set, setName).Keys.FirstOrDefault(n => pose.Contains(KeyOf(n))) is { } colored)
         {
             return StageQuads.RectQuad(pose, KeyOf(colored));
         }
@@ -857,7 +857,7 @@ public sealed class ViewportView : Control
         get => _stageSize;
         set
         {
-            _stageSize = value.X > 0 && value.Y > 0 ? value : BaseResolutionFile.Default;
+            _stageSize = value.X > 0 && value.Y > 0 ? value : Stage.Size;
             InvalidateVisual();
         }
     }
@@ -937,7 +937,7 @@ public sealed class ViewportView : Control
     }
 
     /// <summary>연 컷/세트가 지금 입은 스킨(품은 세트들의 스킨까지 합친 것). 없으면 null.</summary>
-    private SkinAsset? Worn => _setView is { } kind ? EffectiveSkinOf(kind, SetSkin) : null;
+    private SkinAsset? Worn => _setView is { } setName ? EffectiveSkinOf(setName, SetSkin) : null;
 
     // 실제로 입는 스킨(제 스킨 + 품은 세트들의 스킨) — 그릴 때마다 여러 번 찾으니 문서가 바뀔 때까지 들고 있는다.
     private readonly Dictionary<(string Set, string? Skin), SkinAsset?> _effectiveSkins = new();
@@ -980,7 +980,7 @@ public sealed class ViewportView : Control
     /// 연 컷/세트에서 그려지는 조각 노드들(그리는 순서) — 그림 오브젝트 가운데 입은 스킨이 그림을 준 것. 스킨을 안 입었으면 빈 목록.
     /// </summary>
     public IReadOnlyList<string> DrawnParts()
-        => _setView is { } kind && Worn is { } worn ? ObjectParts.Of(_set, kind).Where(worn.Parts.ContainsKey).Where(IsObjectShown).ToList() : Array.Empty<string>();
+        => _setView is { } setName && Worn is { } worn ? ObjectParts.Of(_set, setName).Where(worn.Parts.ContainsKey).Where(IsObjectShown).ToList() : Array.Empty<string>();
 
     /// <summary>조각이 지금 그려지는 사각형(루트 공간) — 노드의 rect 안에 그림의 종횡비로 맞추고 스킨의 놓임(자리·크기·회전)을 입힌 것. 없으면 null.</summary>
     public Quad? PartQuad(string node) => CurrentPose() is { } pose ? PartQuadOf(pose, node) : null;
@@ -1081,13 +1081,13 @@ public sealed class ViewportView : Control
     {
         _template = null;
 
-        if (_set is null || _setView is not { } kind || !_set.TryGetObjects(kind, out _))
+        if (_set is null || _setView is not { } setName || !_set.TryGetObjects(setName, out _))
         {
             return;
         }
 
         // 컷 — 맨 위 오브젝트마다 제 깊이의 틀에 선다(카메라와 깊이는 포즈를 잡은 뒤 넣는다 — StageCut). 세트 — 무대 가운데에 그대로 선다.
-        _template = ShownCut is { } cut ? CutStage.Build(_set, cut, Prefix) : _set.BuildTree(kind, Prefix);
+        _template = ShownCut is { } cut ? CutStage.Build(_set, cut, Prefix) : _set.BuildTree(setName, Prefix);
     }
 
     /// <summary>
@@ -1316,8 +1316,8 @@ public sealed class ViewportView : Control
 
     /// <summary>그 노드가 불투명도를 받을 수 있나 — "불투명도를 받는다"를 켠 오브젝트만.</summary>
     public bool CanTakeAlpha(string? node)
-        => node is not null && _set is not null && _setView is { } kind
-           && _set.AlphaNodeIds.TryGetValue(kind, out ICollection<string>? nodes) && nodes.Contains(node);
+        => node is not null && _set is not null && _setView is { } setName
+           && _set.AlphaNodeIds.TryGetValue(setName, out ICollection<string>? nodes) && nodes.Contains(node);
 
     /// <summary>
     /// 고른 노드의 **제** 불투명도(부모 것은 안 곱한다) — 지금 시각. 불투명도를 받을 수 없는 노드거나 키를 놓을 타임라인이 없으면 null.
@@ -1528,17 +1528,17 @@ public sealed class ViewportView : Control
     /// <summary>연 컷/세트를 그린다 — 색 오브젝트는 사각형을 채우고, 그림 오브젝트는 스킨이 준 그림을 그린다.</summary>
     private void DrawShown(DrawingContext context, RectNodeTree pose)
     {
-        if (_setView is not { } kind)
+        if (_setView is not { } setName)
         {
             return;
         }
 
         // 노드 순서로(뒤의 것이 위). 그릴 것이 하나도 없으면(스킨을 안 입었고 색도 없다) 아래의 윤곽으로 떨어진다.
-        IReadOnlyDictionary<string, string> colors = ObjectParts.ColorsOf(_set, kind);
+        IReadOnlyDictionary<string, string> colors = ObjectParts.ColorsOf(_set, setName);
         IReadOnlyList<string> parts = DrawnParts();
         SkinAsset? wornNow = Worn;
 
-        if (_set is not null && _set.TryGetObjects(kind, out IReadOnlyList<ExpandedObject> drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
+        if (_set is not null && _set.TryGetObjects(setName, out IReadOnlyList<ExpandedObject> drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
         {
             // 컷이면 먼 것부터(깊이 순), 세트면 목록 순.
             foreach (ExpandedObject objectAsset in ShownCut is { } drawnCut ? CutStage.DrawOrder(drawnCut, drawn, pose, Prefix) : drawn)
@@ -1593,7 +1593,7 @@ public sealed class ViewportView : Control
         Point c = ToControl(root.TopRight);
         Point d = ToControl(root.TopLeft);
         context.DrawGeometry(null, SelectedObjectPen, new PolylineGeometry(new[] { a, b, c, d, a }, true));
-        DrawLabel(context, kind, new Point(Math.Min(a.X, d.X) + 4, Math.Min(c.Y, d.Y) + 4));
+        DrawLabel(context, setName, new Point(Math.Min(a.X, d.X) + 4, Math.Min(c.Y, d.Y) + 4));
     }
 
     private void DrawAxes(DrawingContext context, RectNodeTree pose)
@@ -2174,7 +2174,7 @@ public sealed class ViewportView : Control
         var at = new Pixel(position.X, position.Y);
 
         // 펼친 계층의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
-        if (_set is not null && _setView is { } kind && _set.TryGetObjects(kind, out IReadOnlyList<ExpandedObject> objects))
+        if (_set is not null && _setView is { } setName && _set.TryGetObjects(setName, out IReadOnlyList<ExpandedObject> objects))
         {
             foreach (ExpandedObject node in Enumerable.Reverse(ShownCut is { } pickedCut ? CutStage.DrawOrder(pickedCut, objects, pose, Prefix) : objects))
             {

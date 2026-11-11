@@ -183,7 +183,7 @@ public class CutTests
     private static RectNodeTree Staged(DocumentEditor editor, CutAsset cut, CameraSettings camera)
     {
         editor.SetCutCamera(cut.Name, camera);
-        RectNodeTree tree = CutStage.Build(Fixtures.SetOf(editor.Document), editor.Document.FindCut(cut.Name)!, "cut/")!;
+        RectNodeTree tree = CutStage.Build(Fixtures.BuiltOf(editor.Document), editor.Document.FindCut(cut.Name)!, "cut/")!;
         CutStage.Apply(tree, editor.Document.FindCut(cut.Name)!, "cut/");
         return tree;
     }
@@ -239,7 +239,7 @@ public class CutTests
         Assert.Equal(300f, tree.TransformPoint("cut/sky", Vec3.Zero).X, 3);
 
         // 그리는 순서 — 먼 것부터. 밑의 것은 제 맨 위 오브젝트를 따라간다. 깊이를 바꾸면 차례가 바뀐다.
-        Fixtures.SetOf(editor.Document).TryGetObjects("arrival", out IReadOnlyList<ExpandedObject> objects);
+        Fixtures.BuiltOf(editor.Document).TryGetObjects("arrival", out IReadOnlyList<ExpandedObject> objects);
         string[] Order() => CutStage.DrawOrder(cut, objects).Select(n => n.Id).Where(id => !CutStage.IsPointNode(id)).ToArray();
         Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order());
         editor.SetCutNodeDepth("arrival", "hero", 30f);
@@ -261,7 +261,7 @@ public class CutTests
         editor.SetCutCameraKey("arrival", 6f, new CameraSettings { PanX = 200f });
         Assert.Equal(revision + 2, editor.Revision);
         Assert.True(editor.CutCameraIsKeyed("arrival"));
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
 
         // 그 시각의 포즈 — 타임라인을 얹은 뒤 카메라와 깊이를 넣는다. 키 앞뒤로는 그 키의 값이 이어진다.
@@ -292,7 +292,7 @@ public class CutTests
         editor.AddTimeline("prop_in", "prop", 1f);
         editor.AddChannel("prop_in", "Body", ChannelKind.Position);
         editor.AddKey("prop_in", "Body", ChannelKind.Position, Axis.Y, new KeyAsset { T = 0.5f, V = 50f });
-        Assert.Empty(DocumentValidator.Validate(editor.Document, Fixtures.SetOf(editor.Document).NodeIds));
+        Assert.Empty(DocumentValidator.Validate(editor.Document, Fixtures.BuiltOf(editor.Document).NodeIds));
     }
 
     [Fact]
@@ -308,7 +308,7 @@ public class CutTests
 
         Vec2 At(string node, double t)
         {
-            BuiltSets set = Fixtures.SetOf(editor.Document);
+            BuiltSets set = Fixtures.BuiltOf(editor.Document);
             CutAsset cut = editor.Document.FindCut("arrival")!;
             RectNodeTree posed = TimelinePose.Pose(CutStage.Build(set, cut, "cut/")!, editor.Document.Find("arrival")!, t, null, "cut/");
             CutStage.Apply(posed, cut, "cut/");
@@ -320,7 +320,7 @@ public class CutTests
 
         // 빼기 — 키들이 그대로 세트의 애니메이션이 되고, 컷은 그것을 재생 블록으로 튼다. 막는 문제가 없다.
         editor.ExtractObjects("arrival", new[] { "hero" }, "cast");
-        BuiltSets composed = Fixtures.SetOf(editor.Document);
+        BuiltSets composed = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, composed.NodeIds, composed.AlphaNodeIds));
         Assert.Equal(new[] { 2f, 6f }, editor.Document.Find("cast_arrival")!.FindChannel("hero", ChannelKind.Position)!.X!.Keys.Select(k => k.T));
 
@@ -365,7 +365,7 @@ public class CutTests
         string json = AuthoringDocumentJson.Write(editor.Document);
         Assert.Contains("\"imageKeys\"", json, StringComparison.Ordinal);
         Assert.Equal(json, AuthoringDocumentJson.Write(AuthoringDocumentJson.Read(json)));
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
 
         // 막는 것: 그림 없는 키 · 길이 밖 · 그림을 그리지 않는 오브젝트.
@@ -482,7 +482,7 @@ public class CutTests
     {
         DocumentEditor editor = RichCut();
         CutAsset cut = editor.Document.FindCut("arrival")!;
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Vec2 stage = set.StageSize;
         TimelineAsset timeline = editor.Document.Find("arrival")!;
         set.TryGetObjects("arrival", out IReadOnlyList<ExpandedObject> objects);

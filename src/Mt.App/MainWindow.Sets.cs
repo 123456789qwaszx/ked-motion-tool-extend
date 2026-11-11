@@ -132,21 +132,21 @@ public partial class MainWindow
     internal string? SelectedSet => _cutList.SelectedItem as string ?? _setList.SelectedItem as string;
 
     /// <summary>테스트 손잡이 — 세트 목록에서 고른 것과 같다.</summary>
-    internal void SelectSet(string? kind)
+    internal void SelectSet(string? setName)
     {
         // 컷이면 컷 목록에서, 세트면 세트 목록에서 — null이면 둘 다 푼다.
-        if (kind is not null && _session.Editor.Document.FindCut(kind) is not null)
+        if (setName is not null && _session.Editor.Document.FindCut(setName) is not null)
         {
-            _cutList.SelectedItem = kind;
+            _cutList.SelectedItem = setName;
             return;
         }
 
-        if (kind is null && _cutList.SelectedItem is not null)
+        if (setName is null && _cutList.SelectedItem is not null)
         {
             _cutList.SelectedItem = null;
         }
 
-        _setList.SelectedItem = kind;
+        _setList.SelectedItem = setName;
     }
 
     /// <summary>테스트 손잡이 — 연 세트, 고른 오브젝트(노드), 목록의 세트들, 오브젝트 칸이 열려 있는가.</summary>
@@ -289,11 +289,11 @@ public partial class MainWindow
         ToolTip.SetTip(_setName, "연 세트의 이름 — 고치고 Enter. 그 세트의 애니메이션·스킨, 그것을 품은 세트·컷이 따라온다(되돌리기 한 번). 영문자로 시작하는 영문·숫자·_");
         OnCommit(_setName, text =>
         {
-            if (!_refreshing && SelectedSet is { } kind && text.Trim() != kind)
+            if (!_refreshing && SelectedSet is { } setName && text.Trim() != setName)
             {
                 Guard("세트 이름", () =>
                 {
-                    _session.Editor.RenameSet(kind, text);
+                    _session.Editor.RenameSet(setName, text);
                     RefreshSets();
                     _setList.SelectedItem = text.Trim();
                 });
@@ -345,9 +345,9 @@ public partial class MainWindow
         _objectFields.Children.Add(_instanceFields);
         _objectSkin.SelectionChanged += (_, _) =>
         {
-            if (!_refreshing && SelectedSet is { } kind && EditedObject is { Set.Length: > 0 } node && _objectSkin.SelectedItem is string chosen)
+            if (!_refreshing && SelectedSet is { } setName && EditedObject is { Set.Length: > 0 } node && _objectSkin.SelectedItem is string chosen)
             {
-                Guard("품은 세트의 스킨", () => _session.Editor.SetInstanceSkin(kind, node.Id, chosen == FirstSkinChoice ? null : chosen));
+                Guard("품은 세트의 스킨", () => _session.Editor.SetInstanceSkin(setName, node.Id, chosen == FirstSkinChoice ? null : chosen));
             }
         };
         _setNodePanel.Children.Add(_objectFields);
@@ -358,11 +358,11 @@ public partial class MainWindow
 
         OnCommit(_objectId, text =>
         {
-            if (!_refreshing && SelectedSet is { } kind && EditedObject is { } node && text.Trim() != node.Id)
+            if (!_refreshing && SelectedSet is { } setName && EditedObject is { } node && text.Trim() != node.Id)
             {
                 Guard("오브젝트 이름", () =>
                 {
-                    _session.Editor.RenameObject(kind, node.Id, text);
+                    _session.Editor.RenameObject(setName, node.Id, text);
                     _objectSelected = text.Trim();
                     _viewport.SelectedNode = _objectSelected;
                     RefreshObjectPanel();
@@ -371,9 +371,9 @@ public partial class MainWindow
         });
         _objectParent.SelectionChanged += (_, _) =>
         {
-            if (!_refreshing && SelectedSet is { } kind && EditedObject is { } node && _objectParent.SelectedItem is string chosen)
+            if (!_refreshing && SelectedSet is { } setName && EditedObject is { } node && _objectParent.SelectedItem is string chosen)
             {
-                Guard("오브젝트 부모", () => _session.Editor.SetObjectParent(kind, node.Id, chosen == RootParentChoice ? null : chosen));
+                Guard("오브젝트 부모", () => _session.Editor.SetObjectParent(setName, node.Id, chosen == RootParentChoice ? null : chosen));
             }
         };
 
@@ -448,10 +448,10 @@ public partial class MainWindow
             _setTrail.Clear();
         }
 
-        if (SelectedSet is { } kind)
+        if (SelectedSet is { } setName)
         {
             // 그 세트의 것이 아닌 타임라인은 풀린다(이 세트가 연기할 수 없다).
-            if (SelectedTimeline is { } timeline && _session.Editor.Document.Find(timeline)?.Set != kind)
+            if (SelectedTimeline is { } timeline && _session.Editor.Document.Find(timeline)?.Set != setName)
             {
                 _timelineList.SelectedItem = null;
             }
@@ -554,17 +554,17 @@ public partial class MainWindow
 
         string first = ids[0];
         string stem = first.ToLowerInvariant();
-        string kind = stem;
+        string setName = stem;
 
-        for (int i = 2; _session.Editor.Document.FindSetOrCut(kind) is not null; i++)
+        for (int i = 2; _session.Editor.Document.FindSetOrCut(setName) is not null; i++)
         {
-            kind = $"{stem}_{i.ToString(CultureInfo.InvariantCulture)}";
+            setName = $"{stem}_{i.ToString(CultureInfo.InvariantCulture)}";
         }
 
-        string instance = _session.Editor.ExtractObjects(set.Name, ids, kind);
+        string instance = _session.Editor.ExtractObjects(set.Name, ids, setName);
         RefreshSets();
         SelectObject(instance);
-        _session.SetStatus($"오브젝트 {ids.Count}개를 새 세트 '{kind}'로 뺐다 — 그 자리에 인스턴스 '{instance}'가 섰다. 세트 '{kind}'를 열어 이름을 고치거나 안쪽을 고친다.");
+        _session.SetStatus($"오브젝트 {ids.Count}개를 새 세트 '{setName}'로 뺐다 — 그 자리에 인스턴스 '{instance}'가 섰다. 세트 '{setName}'를 열어 이름을 고치거나 안쪽을 고친다.");
         return instance;
     }
 
@@ -632,18 +632,18 @@ public partial class MainWindow
 
     private string NewSet()
     {
-        string kind = "set";
+        string setName = "set";
 
-        for (int i = 2; _session.Editor.Document.FindSetOrCut(kind) is not null; i++)
+        for (int i = 2; _session.Editor.Document.FindSetOrCut(setName) is not null; i++)
         {
-            kind = $"set_{i.ToString(CultureInfo.InvariantCulture)}";
+            setName = $"set_{i.ToString(CultureInfo.InvariantCulture)}";
         }
 
-        _session.Editor.AddSet(new SetAsset { Name = kind, Objects = { new ObjectAsset { Id = "Body", Alpha = true } } });
+        _session.Editor.AddSet(new SetAsset { Name = setName, Objects = { new ObjectAsset { Id = "Body", Alpha = true } } });
         RefreshSets();
-        _setList.SelectedItem = kind;
+        _setList.SelectedItem = setName;
         SelectObject("Body");
-        return kind;
+        return setName;
     }
 
     /// <summary>
@@ -652,7 +652,7 @@ public partial class MainWindow
     /// </summary>
     private string? AddImageObject(string path, Ked.Presentation.Core.Vec2 at)
     {
-        if (SelectedSet is not { } kind || EditedSet is not { } set)
+        if (SelectedSet is not { } setName || EditedSet is not { } set)
         {
             return null;
         }
@@ -690,18 +690,18 @@ public partial class MainWindow
         {
             if (skin is null)
             {
-                skin = kind;
+                skin = setName;
 
                 for (int i = 2; editor.Document.FindSkin(skin) is not null; i++)
                 {
-                    skin = $"{kind}_{i.ToString(CultureInfo.InvariantCulture)}";
+                    skin = $"{setName}_{i.ToString(CultureInfo.InvariantCulture)}";
                 }
 
-                editor.AddSkin(skin, kind);
+                editor.AddSkin(skin, setName);
             }
 
-            editor.AddObject(kind, id, under, image: true);
-            editor.UpdateObject(kind, id, new ObjectAsset { X = MathF.Round(at.X), Y = MathF.Round(at.Y), Width = width, Height = height, Image = true, Alpha = true });
+            editor.AddObject(setName, id, under, image: true);
+            editor.UpdateObject(setName, id, new ObjectAsset { X = MathF.Round(at.X), Y = MathF.Round(at.Y), Width = width, Height = height, Image = true, Alpha = true });
             _session.SetSkinPart(skin, id, path);
         });
 
@@ -716,19 +716,19 @@ public partial class MainWindow
     /// <summary>층 표를 연 세트로 들인다 — 입혀 보는 스킨에(없으면 세트의 이름으로 만든다). 들인 뒤 보기를 세트에 맞춘다.</summary>
     private IReadOnlyList<string> ImportLayerSheet(string path)
     {
-        if (SelectedSet is not { } kind)
+        if (SelectedSet is not { } setName)
         {
             return Array.Empty<string>();
         }
 
-        string skin = _viewport.SetSkin ?? kind;
+        string skin = _viewport.SetSkin ?? setName;
 
-        for (int i = 2; _viewport.SetSkin is null && _session.Editor.Document.FindSkin(skin) is { } taken && taken.Set != kind; i++)
+        for (int i = 2; _viewport.SetSkin is null && _session.Editor.Document.FindSkin(skin) is { } taken && taken.Set != setName; i++)
         {
-            skin = $"{kind}_{i.ToString(CultureInfo.InvariantCulture)}";
+            skin = $"{setName}_{i.ToString(CultureInfo.InvariantCulture)}";
         }
 
-        IReadOnlyList<string> created = _session.ImportLayers(kind, path, skin);
+        IReadOnlyList<string> created = _session.ImportLayers(setName, path, skin);
         _viewport.SetSkin = skin;
         RefreshAssets();
         Avalonia.Threading.Dispatcher.UIThread.Post(_viewport.FitToSet);
@@ -764,15 +764,15 @@ public partial class MainWindow
 
     private void RemoveSelectedSet()
     {
-        if (SelectedCut is null && SelectedSet is { } kind)
+        if (SelectedCut is null && SelectedSet is { } setName)
         {
-            _session.Editor.RemoveSet(kind);
+            _session.Editor.RemoveSet(setName);
         }
     }
 
     private void CommitObject()
     {
-        if (_refreshing || SelectedSet is not { } kind || EditedObject is not { } node)
+        if (_refreshing || SelectedSet is not { } setName || EditedObject is not { } node)
         {
             return;
         }
@@ -790,13 +790,13 @@ public partial class MainWindow
             Image = _objectImage.IsChecked == true,
             Alpha = _objectAlpha.IsChecked == true,
         };
-        Guard("오브젝트 값", () => _session.Editor.UpdateObject(kind, node.Id, value));
+        Guard("오브젝트 값", () => _session.Editor.UpdateObject(setName, node.Id, value));
     }
 
     /// <summary>오브젝트를 더한다 — 고른 오브젝트 밑에(없으면 맨 위에). 이름은 Part1…(그림) · Node1…(묶음).</summary>
     private string? AddObject(bool image, string? under = null)
     {
-        if (SelectedSet is not { } kind || EditedSet is not { } set)
+        if (SelectedSet is not { } setName || EditedSet is not { } set)
         {
             return null;
         }
@@ -809,7 +809,7 @@ public partial class MainWindow
             id = stem + i.ToString(CultureInfo.InvariantCulture);
         }
 
-        _session.Editor.AddObject(kind, id, under ?? EditedObject?.Id, image);
+        _session.Editor.AddObject(setName, id, under ?? EditedObject?.Id, image);
         SelectObject(id);
         return id;
     }
@@ -820,7 +820,7 @@ public partial class MainWindow
     /// <summary>다른 세트를 품는다 — 인스턴스 오브젝트의 이름은 그 세트의 이름에서(겹치면 번호).</summary>
     private string? AddSetInstance(string setKind, string under)
     {
-        if (SelectedSet is not { } kind || EditedSet is not { } set)
+        if (SelectedSet is not { } setName || EditedSet is not { } set)
         {
             return null;
         }
@@ -834,7 +834,7 @@ public partial class MainWindow
             id = $"{stem}_{i.ToString(CultureInfo.InvariantCulture)}";
         }
 
-        _session.Editor.AddInstance(kind, id, setKind, under);
+        _session.Editor.AddInstance(setName, id, setKind, under);
         RefreshAssets();
         SelectObject(id);
         return id;
@@ -843,7 +843,7 @@ public partial class MainWindow
     /// <summary>색 사각형을 더한다 — 오브젝트를 만들고 크기와 색을 주는 것이 한 칸. 이름은 Color1….</summary>
     private string? AddColorNode(string under)
     {
-        if (SelectedSet is not { } kind || EditedSet is not { } set)
+        if (SelectedSet is not { } setName || EditedSet is not { } set)
         {
             return null;
         }
@@ -858,8 +858,8 @@ public partial class MainWindow
         DocumentEditor editor = _session.Editor;
         editor.Batch(DocumentChangeKind.Document, () =>
         {
-            editor.AddObject(kind, id, under, image: false);
-            editor.UpdateObject(kind, id, new ObjectAsset { Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
+            editor.AddObject(setName, id, under, image: false);
+            editor.UpdateObject(setName, id, new ObjectAsset { Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
         });
         SelectObject(id);
         return id;
@@ -867,19 +867,19 @@ public partial class MainWindow
 
     private void RemoveSelectedObject()
     {
-        if (SelectedSet is { } kind && EditedObject is { } node)
+        if (SelectedSet is { } setName && EditedObject is { } node)
         {
             string? parent = node.Parent.Length > 0 ? node.Parent : null;
-            _session.Editor.RemoveObject(kind, node.Id);
+            _session.Editor.RemoveObject(setName, node.Id);
             SelectObject(parent);
         }
     }
 
     private void MoveSelectedObject(int direction)
     {
-        if (SelectedSet is { } kind && EditedObject is { } node)
+        if (SelectedSet is { } setName && EditedObject is { } node)
         {
-            _session.Editor.MoveObject(kind, node.Id, direction);
+            _session.Editor.MoveObject(setName, node.Id, direction);
         }
     }
 

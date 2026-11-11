@@ -9,11 +9,11 @@ internal static class PartsSetFixture
     public const float PartSize = 160f;
 
     /// <summary>문서가 정의하는 조각 세트 — 묶음과 조각은 불투명도를 받고, 조각은 그림 노드다.</summary>
-    public static Mt.Authoring.Model.SetAsset Set(string kind = SetName, int parts = 4, float partSize = PartSize)
+    public static Mt.Authoring.Model.SetAsset Set(string setName = SetName, int parts = 4, float partSize = PartSize)
     {
         var set = new Mt.Authoring.Model.SetAsset
         {
-            Name = kind,
+            Name = setName,
             Objects =
             {
                 new Mt.Authoring.Model.ObjectAsset { Id = "Badge_Anchor" },

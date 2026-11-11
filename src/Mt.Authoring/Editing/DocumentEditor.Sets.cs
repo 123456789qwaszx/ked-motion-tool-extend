@@ -30,14 +30,14 @@ public sealed partial class DocumentEditor
     }
 
     /// <summary>세트를 지운다. 그 세트의 타임라인·스킨은 남는다 — 검증이 "없는 세트"로 알린다.</summary>
-    public void RemoveSet(string kind)
+    public void RemoveSet(string setName)
     {
-        SetAsset set = RequireSet(kind);
+        SetAsset set = RequireSet(setName);
 
         // 다른 세트가 품고 있으면 못 지운다 — 참조가 허공을 가리키게 두지 않는다.
-        if (Document.AllSetsAndCuts.FirstOrDefault(r => r.Objects.Any(n => n.Set == kind)) is { } holder)
+        if (Document.AllSetsAndCuts.FirstOrDefault(r => r.Objects.Any(n => n.Set == setName)) is { } holder)
         {
-            throw new InvalidOperationException($"세트 '{kind}'를 '{holder.Name}'가 품고 있다 — 먼저 거기서 뺀다.");
+            throw new InvalidOperationException($"세트 '{setName}'를 '{holder.Name}'가 품고 있다 — 먼저 거기서 뺀다.");
         }
 
         Mutate(DocumentChangeKind.Document, () => Document.Sets.Remove(set));
@@ -47,10 +47,10 @@ public sealed partial class DocumentEditor
     /// 다른 세트를 품는다(<c>PLAN-set.md</c> S9) — 그 세트의 인스턴스 오브젝트를 더한다(참조: 그 세트를 고치면 여기도 바뀐다).
     /// 자기 자신이나, 자기를 (몇 다리 건너서라도) 품고 있는 세트는 못 품는다 — 끝없이 돈다.
     /// </summary>
-    public ObjectAsset AddInstance(string kind, string id, string setKind, string? parent = null)
+    public ObjectAsset AddInstance(string setName, string id, string setKind, string? parent = null)
     {
         ArgumentNullException.ThrowIfNull(setKind);
-        RequireSetOrCut(kind);
+        RequireSetOrCut(setName);
 
         if (Document.FindSetOrCut(setKind) is null)
         {
@@ -62,15 +62,15 @@ public sealed partial class DocumentEditor
             throw new InvalidOperationException($"'{setKind}'는 컷이다 — 컷은 품을 수 없다(묶어서 다시 쓸 것은 세트로 뺀다).");
         }
 
-        if (Holds(setKind, kind, new HashSet<string>(StringComparer.Ordinal)))
+        if (Holds(setKind, setName, new HashSet<string>(StringComparer.Ordinal)))
         {
-            throw new InvalidOperationException($"세트 '{setKind}'는 '{kind}'를 품고 있다(또는 자기 자신이다) — 서로 품으면 끝없이 돈다.");
+            throw new InvalidOperationException($"세트 '{setKind}'는 '{setName}'를 품고 있다(또는 자기 자신이다) — 서로 품으면 끝없이 돈다.");
         }
 
         ObjectAsset node = null!;
         Batch(DocumentChangeKind.Document, () =>
         {
-            node = AddObject(kind, id, parent);
+            node = AddObject(setName, id, parent);
             Mutate(DocumentChangeKind.Document, () =>
             {
                 node.Set = setKind;
@@ -81,9 +81,9 @@ public sealed partial class DocumentEditor
     }
 
     /// <summary>인스턴스가 품은 세트에 입힐 스킨을 고른다. null이면 그 세트의 첫 스킨.</summary>
-    public void SetInstanceSkin(string kind, string id, string? skin)
+    public void SetInstanceSkin(string setName, string id, string? skin)
     {
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
         ObjectAsset node = set.Objects[RequireNodeIndex(set, id)];
 
         if (string.IsNullOrEmpty(node.Set))
@@ -104,25 +104,25 @@ public sealed partial class DocumentEditor
         }
     }
 
-    /// <summary><paramref name="kind"/>가 <paramref name="target"/>이거나 그것을 (몇 다리 건너) 품고 있는가.</summary>
-    private bool Holds(string kind, string target, HashSet<string> seen)
-        => kind == target
-           || (seen.Add(kind) && Document.FindSetOrCut(kind) is { } set && set.Objects.Any(n => n.Set is { Length: > 0 } inner && Holds(inner, target, seen)));
+    /// <summary><paramref name="setName"/>가 <paramref name="target"/>이거나 그것을 (몇 다리 건너) 품고 있는가.</summary>
+    private bool Holds(string setName, string target, HashSet<string> seen)
+        => setName == target
+           || (seen.Add(setName) && Document.FindSetOrCut(setName) is { } set && set.Objects.Any(n => n.Set is { Length: > 0 } inner && Holds(inner, target, seen)));
 
     // ── 세트 편집 — 노드를 하나씩 짓고 옮긴다 ────────
 
     /// <summary>
     /// 노드를 더한다 — <paramref name="parent"/>(비면 루트) 밑의 맨 뒤(그 부모의 식구들 뒤 = 가장 위에 그려진다). id는 그 세트에서 하나뿐이어야 한다.
     /// </summary>
-    public ObjectAsset AddObject(string kind, string id, string? parent = null, bool image = false)
+    public ObjectAsset AddObject(string setName, string id, string? parent = null, bool image = false)
     {
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
         string name = RequireNodeId(set, id);
         string under = parent ?? "";
 
         if (under.Length > 0 && set.Find(under) is null)
         {
-            throw new KeyNotFoundException($"부모 오브젝트 '{under}'가 세트 '{kind}'에 없다.");
+            throw new KeyNotFoundException($"부모 오브젝트 '{under}'가 세트 '{setName}'에 없다.");
         }
 
         var node = new ObjectAsset { Id = name, Parent = under, Image = image, Alpha = image, Width = image ? ObjectAsset.DefaultImageSize : 0f, Height = image ? ObjectAsset.DefaultImageSize : 0f };
@@ -132,9 +132,9 @@ public sealed partial class DocumentEditor
     }
 
     /// <summary>노드를 지운다 — 그 밑의 노드도 함께. 그 노드를 쓰던 채널·스킨 칸은 남고 검증이 알린다(되살리면 다시 맞는다).</summary>
-    public void RemoveObject(string kind, string id)
+    public void RemoveObject(string setName, string id)
     {
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
         int index = RequireNodeIndex(set, id);
         int end = SubtreeEnd(set, index);
         Mutate(DocumentChangeKind.Document, () => set.Objects.RemoveRange(index, end - index));
@@ -143,9 +143,9 @@ public sealed partial class DocumentEditor
     /// <summary>
     /// 노드의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 자식의 부모, 그 세트의 타임라인 채널, 스킨의 조각 칸.
     /// </summary>
-    public void RenameObject(string kind, string id, string newId)
+    public void RenameObject(string setName, string id, string newId)
     {
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
         ObjectAsset node = set.Objects[RequireNodeIndex(set, id)];
 
         if (string.Equals(id, newId?.Trim(), StringComparison.Ordinal))
@@ -156,9 +156,9 @@ public sealed partial class DocumentEditor
         string name = RequireNodeId(set, newId);
 
         // 그 세트의 타임라인에 새 이름의 채널이 이미 있으면(지운 노드의 흔적) 합칠 수 없다.
-        if (Document.Timelines.Any(m => m.Set == kind && m.Channels.Any(c => c.Object == name)))
+        if (Document.Timelines.Any(m => m.Set == setName && m.Channels.Any(c => c.Object == name)))
         {
-            throw new InvalidOperationException($"세트 '{kind}'의 타임라인에 오브젝트 '{name}'의 채널이 이미 있다 — 먼저 그 채널을 지운다.");
+            throw new InvalidOperationException($"세트 '{setName}'의 타임라인에 오브젝트 '{name}'의 채널이 이미 있다 — 먼저 그 채널을 지운다.");
         }
 
         Mutate(DocumentChangeKind.Document, () =>
@@ -170,13 +170,13 @@ public sealed partial class DocumentEditor
                 child.Parent = name;
             }
 
-            foreach (ChannelAsset channel in Document.Timelines.Where(m => m.Set == kind).SelectMany(m => m.Channels).Where(c => c.Object == id))
+            foreach (ChannelAsset channel in Document.Timelines.Where(m => m.Set == setName).SelectMany(m => m.Channels).Where(c => c.Object == id))
             {
                 channel.Object = name;
             }
 
             // 컷의 맨 위 오브젝트면 깊이의 트랙(이름__depth)도 따라온다.
-            foreach (ChannelAsset channel in Document.Timelines.Where(m => m.Set == kind).SelectMany(m => m.Channels).Where(c => c.Object == Preview.CutStage.DepthNodeOf(id)))
+            foreach (ChannelAsset channel in Document.Timelines.Where(m => m.Set == setName).SelectMany(m => m.Channels).Where(c => c.Object == Preview.CutStage.DepthNodeOf(id)))
             {
                 channel.Object = Preview.CutStage.DepthNodeOf(name);
             }
@@ -184,7 +184,7 @@ public sealed partial class DocumentEditor
             // 세트를 품은 오브젝트(인스턴스)면 — 그 안쪽을 짚던 경로 채널(이름.안쪽)과 그것을 트는 재생 블록도 따라온다.
             string prefix = id + SetCodec.PathSeparator;
 
-            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set == kind))
+            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set == setName))
             {
                 foreach (ChannelAsset channel in timeline.Channels.Where(c => c.Object.StartsWith(prefix, StringComparison.Ordinal)))
                 {
@@ -203,7 +203,7 @@ public sealed partial class DocumentEditor
                 }
             }
 
-            foreach (SkinAsset skin in Document.Skins.Where(s => s.Set == kind))
+            foreach (SkinAsset skin in Document.Skins.Where(s => s.Set == setName))
             {
                 if (skin.Parts.Remove(id, out string? image))
                 {
@@ -219,10 +219,10 @@ public sealed partial class DocumentEditor
     }
 
     /// <summary>노드의 값(위치 · 크기 · 그림을 그리는가 · 불투명도를 받는가)을 고친다. id와 부모는 따로(<see cref="RenameObject"/> · <see cref="SetObjectParent"/>).</summary>
-    public void UpdateObject(string kind, string id, ObjectAsset value)
+    public void UpdateObject(string setName, string id, ObjectAsset value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
         ObjectAsset node = set.Objects[RequireNodeIndex(set, id)];
 
         if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Width) || !float.IsFinite(value.Height) || value.Width < 0f || value.Height < 0f)
@@ -279,9 +279,9 @@ public sealed partial class DocumentEditor
     }
 
     /// <summary>노드를 다른 부모 밑으로 옮긴다(비면 루트) — 밑의 노드도 함께, 새 부모의 식구들 맨 뒤로. 제 밑으로는 못 옮긴다.</summary>
-    public void SetObjectParent(string kind, string id, string? parent)
+    public void SetObjectParent(string setName, string id, string? parent)
     {
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
         int index = RequireNodeIndex(set, id);
         string under = parent ?? "";
 
@@ -295,7 +295,7 @@ public sealed partial class DocumentEditor
 
         if (under.Length > 0 && set.Find(under) is null)
         {
-            throw new KeyNotFoundException($"부모 오브젝트 '{under}'가 세트 '{kind}'에 없다.");
+            throw new KeyNotFoundException($"부모 오브젝트 '{under}'가 세트 '{setName}'에 없다.");
         }
 
         if (subtree.Any(n => n.Id == under))
@@ -313,9 +313,9 @@ public sealed partial class DocumentEditor
     }
 
     /// <summary>형제 사이에서 순서를 옮긴다(−1 = 앞으로 = 아래에 그려진다, +1 = 뒤로 = 위에) — 밑의 노드도 함께. 끝이면 아무 일도 없다.</summary>
-    public void MoveObject(string kind, string id, int direction)
+    public void MoveObject(string setName, string id, int direction)
     {
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
         int index = RequireNodeIndex(set, id);
         string parent = set.Objects[index].Parent;
         List<int> siblings = Enumerable.Range(0, set.Objects.Count).Where(i => set.Objects[i].Parent == parent).ToList();
@@ -422,21 +422,21 @@ public sealed partial class DocumentEditor
     };
 
     /// <summary>세트만 — 컷의 오브젝트 계층은 세트의 목록에 없다(만들기·지우기·이름은 컷의 명령으로).</summary>
-    private SetAsset RequireSet(string kind)
+    private SetAsset RequireSet(string setName)
     {
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
 
-        if (Document.FindCut(kind) is not null)
+        if (Document.FindCut(setName) is not null)
         {
-            throw new InvalidOperationException($"'{kind}'는 컷이다 — 컷의 명령으로 고친다.");
+            throw new InvalidOperationException($"'{setName}'는 컷이다 — 컷의 명령으로 고친다.");
         }
 
         return set;
     }
 
-    private SetAsset RequireSetOrCut(string kind)
+    private SetAsset RequireSetOrCut(string setName)
     {
-        ArgumentNullException.ThrowIfNull(kind);
-        return Document.FindSetOrCut(kind) ?? throw new KeyNotFoundException($"세트 '{kind}'가 문서에 없다.");
+        ArgumentNullException.ThrowIfNull(setName);
+        return Document.FindSetOrCut(setName) ?? throw new KeyNotFoundException($"세트 '{setName}'가 문서에 없다.");
     }
 }

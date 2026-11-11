@@ -10,7 +10,7 @@ public class BuiltSetsTests
     public void 세운_한_벌에서_세트와_노드_목록이_나온다_하드코딩된_이름은_없다()
     {
         var document = new AuthoringDocument { Sets = { Fixtures.ActorSet(), PartsSetFixture.Set() } };
-        BuiltSets set = Fixtures.SetOf(document);
+        BuiltSets set = Fixtures.BuiltOf(document);
 
         Assert.Contains(Fixtures.Actor, set.SetNames);
         Assert.Contains(PartsSetFixture.SetName, set.SetNames);

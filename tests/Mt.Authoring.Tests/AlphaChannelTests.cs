@@ -16,7 +16,7 @@ public class AlphaChannelTests
     private const string SpriteRoot = "CharacterPortraitSprite_Root";
 
     /// <summary>조각 세트(badge)와 세트 actor를 세운 한 벌.</summary>
-    private static readonly BuiltSets BuiltSets = Fixtures.SetOf(new AuthoringDocument { Sets = { PartsSetFixture.Set(), Fixtures.ActorSet() } });
+    private static readonly BuiltSets BuiltSets = Fixtures.BuiltOf(new AuthoringDocument { Sets = { PartsSetFixture.Set(), Fixtures.ActorSet() } });
 
     private static KeyAsset Linear(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
 

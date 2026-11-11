@@ -49,7 +49,7 @@ public partial class MainWindow
     private CutAsset? OpenCut => _session.Editor.Document.FindCut(SelectedCut);
 
     /// <summary>연 것의 이름표 — "컷 x" 또는 "세트 x".</summary>
-    private string KindLabel(string kind) => _session.Editor.Document.FindCut(kind) is null ? $"세트 {kind}" : $"컷 {kind}";
+    private string KindLabel(string setName) => _session.Editor.Document.FindCut(setName) is null ? $"세트 {setName}" : $"컷 {setName}";
 
     private void BuildCutLeft()
     {

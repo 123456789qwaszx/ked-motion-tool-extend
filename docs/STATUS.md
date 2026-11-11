@@ -36,19 +36,19 @@
 | C7 (다)-2 | 코어를 컷이 쓰는 것만 남기고 줄였다 — 런타임의 사본이 아니라 이 저장소의 것이 됐다(`vendoring.md`는 출발점의 기록) | `21cebdb` |
 | F2 | 옛 이름을 고쳤다 — `Rig` · `Motion` · `Node`를 묶음(`Set`) · 타임라인(`Timeline`) · 오브젝트(`Object`)로. 저작본은 `cut-authoring/1`(옛 판은 읽지 않는다) | `09c98c4` · `012d746` 외 — `PLAN-foundation.md` |
 | F3 | 문서를 지금의 툴에 맞췄다 — README는 입구, 조작은 `USER-GUIDE.md`, 고치는 사람은 `MAINTENANCE.md`. `HANDOFF.md`와 옛 계획서 아홉을 걷었다 | `ffe95e9` 외 — `PLAN-foundation.md` |
+| F4 | 구조를 훑어 걷었다 — 안 쓰는 손잡이 · 멤버 · 호환 코드, 깊이 커브는 코어의 상수로(재생에 컷 파일 하나면 된다), 계층 DTO 층 대신 펼친 오브젝트, NUnit → xunit, 남은 옛 이름 | `464f6eb` ~ — `PLAN-foundation.md` |
 
-마지막으로 확인한 수치: 빌드 경고·오류 0, 테스트 310개(Core 60 · Authoring 169 · App 81).
+마지막으로 확인한 수치: 빌드 경고·오류 0, 테스트 299개(Core 46 · Authoring 170 · App 83).
 
 ## 4. 지금 하던 것
 
-없다 — F3(문서)까지 끝나 푸시됐다. 작업 트리는 깨끗해야 한다(`git status`로 확인). 다음은 §5의 1.
+없다 — F4(구조 훑기)까지 끝나 푸시됐다. 기반 다듬기(`PLAN-foundation.md`)의 단계는 다 끝났다. 작업 트리는 깨끗해야 한다(`git status`로 확인). 다음은 §5의 1.
 
 ## 5. 다음
 
-기능 개발이 아니다(§1의 방향) — 아래 차례로 기반을 다듬는다. **단계와 완료 기준은 `PLAN-foundation.md`**(F2 이름 → F3 문서 → F4 구조 훑기 — F3까지 끝).
+기능 개발이 아니다(§1의 방향) — 아래 차례로 기반을 다듬는다. **단계와 완료 기준은 `PLAN-foundation.md`**(F2 이름 → F3 문서 → F4 구조 훑기 — 다 끝).
 
-1. **구조를 훑어 불필요한 것을 찾는다**(F4) — 빈 층 · 한 군데서만 쓰는 추상 · 쓰이지 않는 설정 · 옛 형식을 읽어 주는 호환 코드. 목록을 소유자에게 보고하고, 승인받은 것을 한 번에 하나씩 걷는다.
-   - 이미 보이는 것은 `PLAN-foundation.md`의 F4 절과 기록(F2 · F3의 "F4의 목록"). 예: 코어의 `RectNodeState.Centered`/`WithAnchors`/`WithPivot`/`WithSizeDelta` · `RectNodeTree.BuildChainTo`/`TryGetState`는 테스트만 부른다.
+1. **소유자가 다음 방향을 연다.** 기반 다듬기의 단계(F0~F4)는 끝났다. 남은 후보(권고: 지금은 둔다): 그릇의 이름(`Ked.Presentation.Core` · `Mt.*` · `ked-motion-tool`) · 큰 파일 나누기(`ViewportView` · `MainWindow.axaml.cs` · `GraphEditorView`, 각 2,000줄 남짓) · 코어의 netstandard2.1 · C# 9 제약.
 2. 컷의 예시는 테스트의 발판으로 필요한 최소한(하나)까지만 — 보여 주기 위한 예시는 뒤로 미뤘다(소유자, 2026-11-11).
 
 ## 6. 알려진 불편과 남은 것

@@ -1554,19 +1554,19 @@ public partial class MainWindow : Window
         _hierarchy.Items.Clear();
         _hierarchyParents.Clear();
 
-        if (_viewport.SetView is not { } kind)
+        if (_viewport.SetView is not { } setName)
         {
             return;
         }
 
-        TreeViewItem root = Folder(_session.Editor.Document.FindCut(kind) is null ? $"세트  {kind}" : $"컷  {kind}", "set:" + kind);
+        TreeViewItem root = Folder(_session.Editor.Document.FindCut(setName) is null ? $"세트  {setName}" : $"컷  {setName}", "set:" + setName);
         root.Tag = new HierarchyRoot();
         root.FontWeight = FontWeight.SemiBold;
         Attach(root, null);
         TreeViewItem? selectedItem = null;
         var itemsByNode = new Dictionary<string, TreeViewItem>(StringComparer.Ordinal);
 
-        if (_session.Built.TryGetObjects(kind, out IReadOnlyList<ExpandedObject> objects))
+        if (_session.Built.TryGetObjects(setName, out IReadOnlyList<ExpandedObject> objects))
         {
             foreach (ExpandedObject node in objects)
             {
@@ -1582,7 +1582,7 @@ public partial class MainWindow : Window
                 // 따로 보기(숨김 · 솔로)의 표시.
                 bool shown = _viewport.IsObjectShown(node.Id);
                 string mark = _viewport.SoloObject == node.Id ? "   ◉ 이것만" : _viewport.IsObjectHidden(node.Id) ? "   (숨김)" : "";
-                TreeViewItem nodeItem = Folder(node.Id + mark, $"node:{kind}/{node.Id}");
+                TreeViewItem nodeItem = Folder(node.Id + mark, $"node:{setName}/{node.Id}");
                 nodeItem.Opacity = shown ? 1 : 0.45;
 
                 // 품은 세트 안쪽의 것 — 참조다: 여기서는 못 고치고 그 세트를 열어 고친다.

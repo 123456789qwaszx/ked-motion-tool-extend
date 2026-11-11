@@ -74,19 +74,19 @@ public partial class MainWindow
 
         try
         {
-            string? kind = _viewport.SetView;
-            IReadOnlyList<string> parts = kind is null ? Array.Empty<string>() : ObjectParts.Of(_session.Built, kind);
+            string? setName = _viewport.SetView;
+            IReadOnlyList<string> parts = setName is null ? Array.Empty<string>() : ObjectParts.Of(_session.Built, setName);
             _skinPanel.IsVisible = parts.Count > 0;
             _skinParts.Children.Clear();
             _skinSetupBoxes.Clear();
 
-            if (kind is null || parts.Count == 0)
+            if (setName is null || parts.Count == 0)
             {
                 return;
             }
 
             // 스킨이 하나라도 있으면 그 가운데 하나를 입혀 본다(뷰포트가 첫 스킨을 고른다) — 없을 때만 "(없음)".
-            List<string> choices = _session.Editor.Document.Skins.Where(s => s.Set == kind).Select(s => s.Name).ToList();
+            List<string> choices = _session.Editor.Document.Skins.Where(s => s.Set == setName).Select(s => s.Name).ToList();
 
             if (choices.Count == 0)
             {

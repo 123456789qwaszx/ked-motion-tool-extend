@@ -48,8 +48,8 @@ public sealed class AuthoringDocument
         set => Sets = value ?? new List<SetAsset>();
     }
 
-    public SetAsset? FindSetOrCut(string? kind)
-        => kind is null ? null : Sets.FirstOrDefault(r => string.Equals(r.Name, kind, StringComparison.Ordinal)) ?? FindCut(kind)?.AsSet; // 컷의 오브젝트 계층도 같은 이름으로 찾는다
+    public SetAsset? FindSetOrCut(string? setName)
+        => setName is null ? null : Sets.FirstOrDefault(r => string.Equals(r.Name, setName, StringComparison.Ordinal)) ?? FindCut(setName)?.AsSet; // 컷의 오브젝트 계층도 같은 이름으로 찾는다
 
     /// <summary>
     /// 컷들(<c>PLAN-standalone.md</c> §6) — 씬 + 카메라 + 타임라인. 저작본에는 <see cref="CutsOrNull"/>로 실린다(없으면 안 적는다).

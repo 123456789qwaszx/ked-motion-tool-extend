@@ -138,7 +138,7 @@ public sealed class DocumentSession
     /// <summary>
     /// 층 표(<c>layers.tsv</c>)를 세트로 들인다 — 표 옆의 그림들이 오브젝트 여럿 + 스킨으로, 한 칸에(<c>PLAN-set.md</c> S6). 그림 경로는 문서 기준으로 적힌다.
     /// </summary>
-    public IReadOnlyList<string> ImportLayers(string kind, string sheetPath, string skin)
+    public IReadOnlyList<string> ImportLayers(string setName, string sheetPath, string skin)
     {
         ArgumentNullException.ThrowIfNull(sheetPath);
         LayerSheet sheet = LayerSheet.Load(sheetPath);
@@ -146,7 +146,7 @@ public sealed class DocumentSession
         // 표의 파일 하나를 문서 기준 경로로 바꿔 그 폴더를 얻는다(저장 전의 문서면 절대 경로로 남는다).
         string probe = RelativeToDocument(Path.Combine(folder, "x")).Replace('\\', '/');
         string relative = probe.Length > 1 ? probe[..^2] : "";
-        return Editor.ImportLayers(kind, sheet, relative, skin, StageSize);
+        return Editor.ImportLayers(setName, sheet, relative, skin, StageSize);
     }
 
     /// <summary>다른 저작 문서의 세트를 전부 들인다(애니메이션·스킨까지) — 그림 경로는 이 문서 기준으로 바뀐다. 들인 세트의 이름들.</summary>
@@ -165,7 +165,7 @@ public sealed class DocumentSession
         => Editor.SetSkinPart(skin, node, string.IsNullOrEmpty(path) ? null : RelativeToDocument(path));
 
     /// <summary>기준 해상도(무대 크기) — 1920×1080.</summary>
-    public Vec2 StageSize => BaseResolutionFile.Default;
+    public Vec2 StageSize => Stage.Size;
 
     public bool IsDirty => Editor.Revision != _savedRevision;
 

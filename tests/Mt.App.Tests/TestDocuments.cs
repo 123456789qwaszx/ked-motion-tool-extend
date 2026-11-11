@@ -70,10 +70,10 @@ internal static class TestDocuments
     }
 
     /// <summary>뷰포트를 따로 세워 시험할 때 — 문서의 세트·컷을 세운 계층을 싣고 그 세트를 연다(창에서는 세션이 하는 일).</summary>
-    public static void Open(ViewportView view, DocumentEditor editor, string kind = Actor)
+    public static void Open(ViewportView view, DocumentEditor editor, string setName = Actor)
     {
-        view.SetBuilt(SetBuilder.Compose(editor.Document, BaseResolutionFile.Default));
-        view.SetView = kind;
+        view.SetBuilt(SetBuilder.Compose(editor.Document, Stage.Size));
+        view.SetView = setName;
     }
 
     /// <summary>창에 세트 actor를 만들어 연다 — 그 뒤의 "애니메이션 추가"가 이 세트의 애니메이션이 된다.</summary>

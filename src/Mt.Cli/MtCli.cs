@@ -263,7 +263,7 @@ public static class MtCli
         AuthoringDocument document = AuthoringDocumentJson.Read(File.ReadAllText(path));
 
         // 문서가 정의한 세트·컷으로 한 벌을 세운다(무대는 1920×1080).
-        set = SetBuilder.Compose(document, BaseResolutionFile.Default);
+        set = SetBuilder.Compose(document, Stage.Size);
 
         // 손으로(또는 AI가) 쓴 문서는 탄젠트 값을 모른다 — 키의 탄젠트 종류(auto·flat·linear…)대로 값을 세운다. 앱이 편집할 때마다 하는 그 계산이고,
         // 앱이 저장한 문서에는 아무것도 안 바꾼다(이미 그 값이다). free는 적힌 값 그대로 둔다.

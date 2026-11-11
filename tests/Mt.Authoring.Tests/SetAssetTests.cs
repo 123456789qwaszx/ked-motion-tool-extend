@@ -24,8 +24,8 @@ public class SetAssetTests
     public void 문서의_세트는_한_벌로_서고_조각과_불투명도_노드가_표시대로_나온다()
     {
         DocumentEditor editor = NewEditor();
-        Assert.Empty(Fixtures.SetOf(new AuthoringDocument()).SetNames); // 빈 문서 — 아는 세트가 없다
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        Assert.Empty(Fixtures.BuiltOf(new AuthoringDocument()).SetNames); // 빈 문서 — 아는 세트가 없다
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Equal(new[] { PartsSetFixture.SetName }, set.SetNames);
 
         Assert.Equal(new[] { "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, ObjectParts.Of(set, PartsSetFixture.SetName));
@@ -39,7 +39,7 @@ public class SetAssetTests
 
         // 조각은 이름이 아니라 표시(Image)로 가린다 — 이름 규칙에 안 맞아도 된다.
         editor.AddSet(new SetAsset { Name = "prop", Objects = { new ObjectAsset { Id = "Hand" }, new ObjectAsset { Id = "Leaf", Parent = "Hand", Width = 80, Height = 40, Image = true } } });
-        BuiltSets both = Fixtures.SetOf(editor.Document);
+        BuiltSets both = Fixtures.BuiltOf(editor.Document);
         Assert.Equal(new[] { "Leaf" }, ObjectParts.Of(both, "prop"));
         Assert.Empty(both.AlphaNodeIds["prop"]);
 
@@ -77,7 +77,7 @@ public class SetAssetTests
 
         // 지우면 한 벌에서 빠진다.
         editor.RemoveSet(PartsSetFixture.SetName);
-        Assert.DoesNotContain(PartsSetFixture.SetName, Fixtures.SetOf(editor.Document).SetNames);
+        Assert.DoesNotContain(PartsSetFixture.SetName, Fixtures.BuiltOf(editor.Document).SetNames);
 
         // 문서가 정의한 것만의 한 벌(앱이 쓰는 길) — 무대 크기를 받는다.
         BuiltSets alone = SetBuilder.Compose(editor.Document, new Vec2(1920f, 1080f));
@@ -116,7 +116,7 @@ public class SetAssetTests
 
     // ── 세트 편집─────────────────────────────────
 
-    private static string[] Ids(DocumentEditor editor, string kind = PartsSetFixture.SetName) => editor.Document.FindSetOrCut(kind)!.Objects.Select(n => n.Id).ToArray();
+    private static string[] Ids(DocumentEditor editor, string setName = PartsSetFixture.SetName) => editor.Document.FindSetOrCut(setName)!.Objects.Select(n => n.Id).ToArray();
 
     [Fact]
     public void 노드를_짓고_지우고_옮기면_부모가_늘_자식보다_먼저_온다()
@@ -170,7 +170,7 @@ public class SetAssetTests
         editor.UpdateObject(PartsSetFixture.SetName, "Badge_Glow", moved);
         editor.UpdateObject(PartsSetFixture.SetName, "Badge_Glow", moved);
         Assert.Equal(revision + 1, editor.Revision);
-        BuiltSets composed = Fixtures.SetOf(editor.Document);
+        BuiltSets composed = Fixtures.BuiltOf(editor.Document);
         Assert.True(composed.TryGetObjects(PartsSetFixture.SetName, out IReadOnlyList<ExpandedObject> objects));
         ExpandedObject node = objects.Single(n => n.Id == "Badge_Glow");
         Assert.Equal((30f, -12f, 80f, 40f, true, false), (node.Position.X, node.Position.Y, node.Size.X, node.Size.Y, node.Image, node.Alpha));
@@ -178,7 +178,7 @@ public class SetAssetTests
 
         // 가만히 선 자세의 회전·배율(배치 모드) — 세운 나무에 그대로 선다. 배율 0은 막는다.
         editor.UpdateObject(PartsSetFixture.SetName, "Badge_Glow", new ObjectAsset { X = 30f, Y = -12f, Width = 80f, Height = 40f, Image = true, Rotation = 30f, ScaleX = 2f, ScaleY = -1f });
-        Assert.True(Fixtures.SetOf(editor.Document).TryGetObjects(PartsSetFixture.SetName, out IReadOnlyList<ExpandedObject> posed));
+        Assert.True(Fixtures.BuiltOf(editor.Document).TryGetObjects(PartsSetFixture.SetName, out IReadOnlyList<ExpandedObject> posed));
         ExpandedObject turned = posed.Single(n => n.Id == "Badge_Glow");
         Assert.Equal((30f, 2f, -1f), (turned.Rotation, turned.Scale.X, turned.Scale.Y));
         Assert.Throws<InvalidOperationException>(() => editor.UpdateObject(PartsSetFixture.SetName, "Badge_Glow", new ObjectAsset { ScaleX = 0f }));
@@ -189,7 +189,7 @@ public class SetAssetTests
         Assert.Equal(new[] { "Extra", "Badge_Anchor" }, Ids(editor));
         editor.Undo();
         Assert.Equal(7, Ids(editor).Length);
-        Fixtures.SetOf(editor.Document); // 여전히 세울 수 있다
+        Fixtures.BuiltOf(editor.Document); // 여전히 세울 수 있다
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public class SetAssetTests
         Assert.Null(DocumentEditor.NormalizeColor("  "));
 
         // 세운 계층: 색 표에 그 노드가 서고, 그림 노드는 아니다(조각이 아니다).
-        BuiltSets composed = Fixtures.SetOf(editor.Document);
+        BuiltSets composed = Fixtures.BuiltOf(editor.Document);
         Assert.Equal("#3D5A80", ObjectParts.ColorsOf(composed, "wipe")["Panel"]);
         Assert.Empty(ObjectParts.Of(composed, "wipe"));
         Assert.Empty(ObjectParts.ColorsOf(composed, "nope"));
@@ -257,7 +257,7 @@ public class SetAssetTests
         // 비우면 색 오브젝트가 아니다.
         editor.UpdateObject("wipe", "Panel", new ObjectAsset { Width = 1920f, Height = 400f, Alpha = true });
         Assert.Null(editor.Document.FindSetOrCut("wipe")!.Find("Panel")!.Color);
-        Assert.Empty(ObjectParts.ColorsOf(Fixtures.SetOf(editor.Document), "wipe"));
+        Assert.Empty(ObjectParts.ColorsOf(Fixtures.BuiltOf(editor.Document), "wipe"));
     }
 
     // ── 시차 — 오브젝트의 움직임을 통째로 민다 ─────────────────────────
@@ -293,7 +293,7 @@ public class SetAssetTests
         Assert.Equal(new[] { (0f, -50f), (0.2f, 0f), (1f, 0f) }, Keys("Badge_Part3"));
 
         // 어느 쪽이든 문제가 없다.
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
 
         // 채널이 없는 오브젝트·0초는 아무 일도 없다(기록 없음).
@@ -353,7 +353,7 @@ public class SetAssetTests
         Assert.Equal(1, editor.HideAllUntilTurn("in"));
         Assert.Equal(revision + 1, editor.Revision);
         Assert.Null(editor.Document.Find("in")!.FindChannel("Badge_Part2", ChannelKind.Alpha));
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
     }
 
@@ -395,7 +395,7 @@ public class SetAssetTests
         editor.AddInstance("city", "sun", "sun");
 
         // 세운 계층: 품은 세트가 인스턴스 밑에 "인스턴스.이름"으로 펼쳐진다. 부모·색·그림 표시가 따라온다.
-        BuiltSets composed = Fixtures.SetOf(editor.Document);
+        BuiltSets composed = Fixtures.BuiltOf(editor.Document);
         Assert.True(composed.TryGetObjects("city", out IReadOnlyList<ExpandedObject> city));
         Assert.Equal(new[] { "Ground", "car", "car.Body", "car.Shell", "car.Wheel", "sun", "sun.Disc" }, city.Select(n => n.Id));
         Assert.Equal(("car", "car.Body", "car.Body"), (city.Single(n => n.Id == "car.Body").Parent, city.Single(n => n.Id == "car.Shell").Parent, city.Single(n => n.Id == "car.Wheel").Parent));
@@ -420,7 +420,7 @@ public class SetAssetTests
 
         // 참조다 — 원본 세트를 고치면 품은 곳이 따라온다.
         editor.AddObject("car", "Light", "Body");
-        Assert.True(Fixtures.SetOf(editor.Document).TryGetObjects("city", out IReadOnlyList<ExpandedObject> after));
+        Assert.True(Fixtures.BuiltOf(editor.Document).TryGetObjects("city", out IReadOnlyList<ExpandedObject> after));
         Assert.Contains(after, n => n.Id == "car.Light");
 
         // 품은 것의 애니메이션: 인스턴스를 통째로 움직이는 키도, 안쪽의 것을 경로 이름으로 짚는 키도 놓인다 — 검증을 지난다.
@@ -429,7 +429,7 @@ public class SetAssetTests
         editor.SetKeys("city_in", "car", ChannelKind.Position, Axis.X, new[] { new KeyAsset { T = 0f, V = -500f, Tangent = TangentMode.Linear }, new KeyAsset { T = 1f, V = 0f, Tangent = TangentMode.Linear } });
         editor.AddChannel("city_in", "car.Wheel", ChannelKind.Euler);
         editor.SetKeys("city_in", "car.Wheel", ChannelKind.Euler, Axis.Z, new[] { new KeyAsset { T = 0f, V = 0f, Tangent = TangentMode.Linear }, new KeyAsset { T = 1f, V = -360f, Tangent = TangentMode.Linear } });
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
 
         // 저작본은 참조만 적는다. 컷 파일에는 펼친 한 덩어리로 나간다(게임은 품는다는 것을 모른다) — 이 세트를 품은 컷으로 본다.
@@ -461,7 +461,7 @@ public class SetAssetTests
 
         // 품은 것이 또 품은 것 — 경로가 이어진다.
         editor.AddInstance("city", "sun", "sun");
-        Assert.True(Fixtures.SetOf(editor.Document).TryGetObjects("city", out IReadOnlyList<ExpandedObject> nested));
+        Assert.True(Fixtures.BuiltOf(editor.Document).TryGetObjects("city", out IReadOnlyList<ExpandedObject> nested));
         Assert.Contains(nested, n => n.Id == "sun.inner.Wheel");
 
         // 인스턴스를 빼면 지울 수 있다.
@@ -474,7 +474,7 @@ public class SetAssetTests
         var broken = new AuthoringDocument();
         broken.Sets.Add(new SetAsset { Name = "a", Objects = { new ObjectAsset { Id = "x", Set = "b" }, new ObjectAsset { Id = "y", Set = "ghost" } } });
         broken.Sets.Add(new SetAsset { Name = "b", Objects = { new ObjectAsset { Id = "z", Set = "a" } } });
-        Assert.True(Fixtures.SetOf(broken).TryGetObjects("a", out IReadOnlyList<ExpandedObject> looped));
+        Assert.True(Fixtures.BuiltOf(broken).TryGetObjects("a", out IReadOnlyList<ExpandedObject> looped));
         Assert.Equal(new[] { "x", "x.z", "y" }, looped.Select(n => n.Id));
     }
 
@@ -515,7 +515,7 @@ public class SetAssetTests
     /// <summary>그 시각에 그 오브젝트가 가만히 선 자리에서 떨어진 만큼(Body는 가만히 선 자리가 (0, 0)이라 곧 그 자리다).</summary>
     private static Vec2 PosedAt(DocumentEditor editor, string node, double t)
     {
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         RectNodeTree template = set.BuildTree("city", "c/");
         RectNodeTree posed = TimelinePose.Pose(template, editor.Document.Find("city_in")!, t, null, "c/");
         return posed.GetState("c/" + node).AnchoredPosition - template.GetState("c/" + node).AnchoredPosition;
@@ -581,7 +581,7 @@ public class SetAssetTests
         Assert.Equal(("thud", 1.6f), (thud.Name, MathF.Round(thud.T, 3)));
 
         // 구운 것도 문제가 없다.
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
 
         // 참조다 — 품은 애니메이션을 고치면 구운 것이 따라온다.
@@ -623,7 +623,7 @@ public class SetAssetTests
         Assert.Equal(90f, At(2f), 1);
 
         // 미리보기의 포즈도 같은 값이다.
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         float Posed(double t) => TimelinePose.Pose(set.BuildTree("city", "c/"), timeline, t, null, "c/").GetState("c/car.Wheel").LocalEulerAngles.Z;
         Assert.Equal((20f, 45f, 90f), (MathF.Round(Posed(0.2), 1), MathF.Round(Posed(0.7), 1), MathF.Round(Posed(1.2), 1)));
 
@@ -668,7 +668,7 @@ public class SetAssetTests
     {
         DocumentEditor editor = PlayEditor();
         editor.AddPlayBlock("city_in", "car", "roll", 1.5f); // 1.5 + 0.4 ≤ 2
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
 
         // 품은 애니메이션을 길게(1초) — 바깥에서 막을 길이 없으니 검증이 알린다(막지는 않는다).
@@ -712,7 +712,7 @@ public class SetAssetTests
             Assert.Equal(before[i].Y, after.Y, 1);
         }
 
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
 
         // 원본을 고쳐도 더는 안 따라온다.
@@ -760,7 +760,7 @@ public class SetAssetTests
 
         Vec2 World(string timeline, string node, double t)
         {
-            BuiltSets set = Fixtures.SetOf(editor.Document);
+            BuiltSets set = Fixtures.BuiltOf(editor.Document);
             TimelineAsset asset = editor.Document.Find(timeline)!;
             return TimelinePose.Pose(set.BuildTree("town", "c/"), asset, t, null, "c/").TransformPoint("c/" + node, Vec3.Zero).XY;
         }
@@ -808,7 +808,7 @@ public class SetAssetTests
             Assert.Equal(before[i].Item4.Y, after[i].Item4.Y, 1);
         }
 
-        BuiltSets composed = Fixtures.SetOf(editor.Document);
+        BuiltSets composed = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, composed.NodeIds, composed.AlphaNodeIds));
 
         // 막는 것: 있는 이름 · 부모가 다른 것들. 문서는 그대로다.
@@ -875,7 +875,7 @@ public class SetAssetTests
         Assert.Throws<InvalidOperationException>(() => editor.SlideFromOutside("town_in", "Sun", StageSide.Left, 1f, 0.5f, stage));
         Assert.Throws<KeyNotFoundException>(() => editor.SlideFromOutside("town_in", "Nope", StageSide.Left, 0f, 0.5f, stage));
         Assert.Equal(revision, editor.Revision);
-        BuiltSets set = Fixtures.SetOf(editor.Document);
+        BuiltSets set = Fixtures.BuiltOf(editor.Document);
         Assert.Empty(DocumentValidator.Validate(editor.Document, set.NodeIds, set.AlphaNodeIds));
     }
 

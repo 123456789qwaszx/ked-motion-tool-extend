@@ -16,10 +16,10 @@ public sealed partial class DocumentEditor
     /// </list>
     /// 고른 것들의 맨 위는 같은 부모 밑이어야 한다(자리를 한 기준으로 옮긴다).
     /// </summary>
-    public string ExtractObjects(string kind, IReadOnlyCollection<string> ids, string newKind)
+    public string ExtractObjects(string setName, IReadOnlyCollection<string> ids, string newKind)
     {
         ArgumentNullException.ThrowIfNull(ids);
-        SetAsset set = RequireSetOrCut(kind);
+        SetAsset set = RequireSetOrCut(setName);
         string name = RequireNewSetName(newKind);
 
         // 고른 것 + 그 밑(부모가 앞에 서므로 한 번 훑으면 된다).
@@ -85,7 +85,7 @@ public sealed partial class DocumentEditor
             Document.Sets.Insert(Math.Max(0, Document.Sets.IndexOf(set)), inner); // 품긴 세트가 앞에(컷에서 뺐으면 맨 앞) — 목록에서 "작은 것부터"
 
             // 그림 — 그 오브젝트들의 스킨 칸을 새 세트의 스킨으로.
-            foreach (SkinAsset skin in Document.Skins.Where(s => s.Set == kind).ToList())
+            foreach (SkinAsset skin in Document.Skins.Where(s => s.Set == setName).ToList())
             {
                 List<string> parts = skin.Parts.Keys.Concat(skin.Setups.Keys).Where(moved.Contains).Distinct().ToList();
 
@@ -113,7 +113,7 @@ public sealed partial class DocumentEditor
             }
 
             // 키 — 그 오브젝트들의 채널·재생 블록을 새 세트의 애니메이션으로, 원래 자리에는 그것을 트는 재생 블록을.
-            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set == kind).ToList())
+            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set == setName).ToList())
             {
                 List<ChannelAsset> channels = timeline.Channels.Where(c => Moves(c.Object)).ToList();
                 List<PlayBlockAsset> plays = timeline.Plays.Where(p => moved.Contains(p.Object)).ToList();
@@ -125,7 +125,7 @@ public sealed partial class DocumentEditor
                     continue;
                 }
 
-                string suffix = timeline.Name.StartsWith(kind + "_", StringComparison.Ordinal) ? timeline.Name[(kind.Length + 1)..] : timeline.Name;
+                string suffix = timeline.Name.StartsWith(setName + "_", StringComparison.Ordinal) ? timeline.Name[(setName.Length + 1)..] : timeline.Name;
                 var part = new TimelineAsset
                 {
                     Name = UniqueName($"{name}_{suffix}", n => Document.Find(n) is not null),
@@ -151,11 +151,11 @@ public sealed partial class DocumentEditor
             }
 
             // 가리키던 것 — 이 세트를 품은 다른 세트의 경로 채널(a.b.이름 → a.b.인스턴스.이름).
-            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set != kind && m.Set != name))
+            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set != setName && m.Set != name))
             {
                 foreach (ChannelAsset channel in timeline.Channels)
                 {
-                    channel.Object = ThroughInstance(timeline.Set, channel.Object, kind, moved, instance);
+                    channel.Object = ThroughInstance(timeline.Set, channel.Object, setName, moved, instance);
                 }
             }
         });
@@ -167,11 +167,11 @@ public sealed partial class DocumentEditor
     /// 세트의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 그 세트의 애니메이션·스킨, 그것을 품은 인스턴스.
     /// **세트의 이름을 딴 이름들도 따라온다**(빼낼 때 붙은 이름을 한 번에 고치게): 애니메이션 <c>옛이름_x</c> → <c>새이름_x</c>, 스킨 <c>옛이름</c>, 인스턴스 오브젝트 <c>옛이름</c> — 새 이름이 비어 있을 때만.
     /// </summary>
-    public void RenameSet(string kind, string newKind)
+    public void RenameSet(string setName, string newKind)
     {
-        SetAsset set = RequireSet(kind);
+        SetAsset set = RequireSet(setName);
 
-        if (string.Equals(kind, newKind?.Trim(), StringComparison.Ordinal))
+        if (string.Equals(setName, newKind?.Trim(), StringComparison.Ordinal))
         {
             return;
         }
@@ -180,11 +180,11 @@ public sealed partial class DocumentEditor
 
         Batch(DocumentChangeKind.Document, () =>
         {
-            RenameSetCore(set, kind, name);
+            RenameSetCore(set, setName, name);
 
-            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set == name && m.Name.StartsWith(kind + "_", StringComparison.Ordinal)).ToList())
+            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set == name && m.Name.StartsWith(setName + "_", StringComparison.Ordinal)).ToList())
             {
-                string renamed = name + timeline.Name[kind.Length..];
+                string renamed = name + timeline.Name[setName.Length..];
 
                 if (Document.Find(renamed) is null)
                 {
@@ -192,38 +192,38 @@ public sealed partial class DocumentEditor
                 }
             }
 
-            if (Document.FindSkin(kind) is { } skin && skin.Set == name && Document.FindSkin(name) is null)
+            if (Document.FindSkin(setName) is { } skin && skin.Set == name && Document.FindSkin(name) is null)
             {
-                RenameSkin(kind, name);
+                RenameSkin(setName, name);
             }
 
-            foreach (SetAsset holder in Document.AllSetsAndCuts.Where(r => r.Find(kind) is { } instance && instance.Set == name && r.Find(name) is null).ToList())
+            foreach (SetAsset holder in Document.AllSetsAndCuts.Where(r => r.Find(setName) is { } instance && instance.Set == name && r.Find(name) is null).ToList())
             {
                 if (!Document.Timelines.Any(m => m.Set == holder.Name && m.Channels.Any(c => c.Object == name)))
                 {
-                    RenameObject(holder.Name, kind, name);
+                    RenameObject(holder.Name, setName, name);
                 }
             }
         });
     }
 
-    private void RenameSetCore(SetAsset set, string kind, string name)
+    private void RenameSetCore(SetAsset set, string setName, string name)
     {
         Mutate(DocumentChangeKind.Document, () =>
         {
             set.Name = name;
 
-            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set == kind))
+            foreach (TimelineAsset timeline in Document.Timelines.Where(m => m.Set == setName))
             {
                 timeline.Set = name;
             }
 
-            foreach (SkinAsset skin in Document.Skins.Where(s => s.Set == kind))
+            foreach (SkinAsset skin in Document.Skins.Where(s => s.Set == setName))
             {
                 skin.Set = name;
             }
 
-            foreach (ObjectAsset node in Document.AllSetsAndCuts.SelectMany(r => r.Objects).Where(n => n.Set == kind))
+            foreach (ObjectAsset node in Document.AllSetsAndCuts.SelectMany(r => r.Objects).Where(n => n.Set == setName))
             {
                 node.Set = name;
             }
@@ -248,10 +248,10 @@ public sealed partial class DocumentEditor
 
         while (queue.Count > 0)
         {
-            string kind = queue.Dequeue();
-            SetAsset set = source.FindSetOrCut(kind) ?? throw new KeyNotFoundException($"그 문서에 세트 '{kind}'가 없다.");
+            string setName = queue.Dequeue();
+            SetAsset set = source.FindSetOrCut(setName) ?? throw new KeyNotFoundException($"그 문서에 세트 '{setName}'가 없다.");
 
-            if (wanted.Add(kind))
+            if (wanted.Add(setName))
             {
                 foreach (string inner in set.Objects.Select(n => n.Set).OfType<string>().Where(k => k.Length > 0))
                 {
@@ -302,13 +302,13 @@ public sealed partial class DocumentEditor
         return sets.Select(r => r.Name).ToList();
     }
 
-    private string RequireNewSetName(string? kind)
+    private string RequireNewSetName(string? setName)
     {
-        string name = (kind ?? "").Trim();
+        string name = (setName ?? "").Trim();
 
         if (!SetNameRule.IsMatch(name))
         {
-            throw new InvalidOperationException($"세트 이름은 영문자로 시작하는 영문·숫자·_ 다 ('{kind}')");
+            throw new InvalidOperationException($"세트 이름은 영문자로 시작하는 영문·숫자·_ 다 ('{setName}')");
         }
 
         if (Document.FindSetOrCut(name) is not null)
@@ -331,8 +331,8 @@ public sealed partial class DocumentEditor
         return name;
     }
 
-    /// <summary>경로 이름이 <paramref name="kind"/> 세트의 옮겨진 오브젝트를 지나가면, 그 앞에 인스턴스를 끼운다.</summary>
-    private string ThroughInstance(string setName, string path, string kind, HashSet<string> moved, string instance)
+    /// <summary>경로 이름이 <paramref name="extracted"/> 세트의 옮겨진 오브젝트를 지나가면, 그 앞에 인스턴스를 끼운다.</summary>
+    private string ThroughInstance(string setName, string path, string extracted, HashSet<string> moved, string instance)
     {
         string[] parts = path.Split(SetCodec.PathSeparator);
         SetAsset? set = Document.FindSetOrCut(setName);
@@ -341,7 +341,7 @@ public sealed partial class DocumentEditor
         {
             set = set.Find(parts[i])?.Set is { Length: > 0 } inner ? Document.FindSetOrCut(inner) : null;
 
-            if (set?.Name == kind)
+            if (set?.Name == extracted)
             {
                 return moved.Contains(parts[i + 1])
                     ? string.Join(SetCodec.PathSeparator, parts.Take(i + 1).Append(instance).Concat(parts.Skip(i + 1)))
