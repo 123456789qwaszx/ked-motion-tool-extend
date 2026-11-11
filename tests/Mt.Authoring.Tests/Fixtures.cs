@@ -1,7 +1,7 @@
 using Ked.Presentation.Core;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Model;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 
 namespace Mt.Authoring.Tests;
 
@@ -13,28 +13,28 @@ internal static class Fixtures
     public const string Actor = "actor";
 
     /// <summary>
-    /// 시험용 세트 <c>actor</c>(화면 테스트의 <c>TestDocuments.ActorRig()</c>와 같은 것) — 깊게 품은 묶음들의 사슬 끝에 화면 크기(1920×1080)의 색 사각형 하나.
+    /// 시험용 세트 <c>actor</c>(화면 테스트의 <c>TestDocuments.ActorSet()</c>와 같은 것) — 깊게 품은 묶음들의 사슬 끝에 화면 크기(1920×1080)의 색 사각형 하나.
     /// 묶음마다 자리·회전·배율의 손잡이가 된다(Track_Move_Y는 위아래, SwayPivot은 발 기준 회전). 원점이 그림의 아래 끝(y = −540)에 있는 묶음이 넷이고 나머지는 가운데다.
     /// </summary>
-    public static RigAsset ActorRig()
+    public static SetAsset ActorSet()
     {
-        var rig = new RigAsset { Kind = Actor };
+        var set = new SetAsset { Name = Actor };
         string parent = "";
         float parentY = 0f;
 
         foreach (string id in ActorChain)
         {
             float y = FootPivots.Contains(id) ? -540f : 0f;
-            rig.Nodes.Add(new RigNodeAsset { Id = id, Parent = parent, Y = y - parentY });
+            set.Objects.Add(new ObjectAsset { Id = id, Parent = parent, Y = y - parentY });
             parent = id;
             parentY = y;
         }
 
-        rig.Nodes.Add(new RigNodeAsset { Id = "CharacterPortraitSprite_Root", Parent = parent, Y = -parentY, Alpha = true });
-        rig.Nodes.Add(new RigNodeAsset { Id = "CharacterPortraitSprite_Image", Parent = "CharacterPortraitSprite_Root", Width = 1920f, Height = 1080f, Color = "#3D5A80" });
-        rig.Nodes.Add(new RigNodeAsset { Id = "CharacterPortraitSpriteOverlay_Root", Parent = parent, Y = -parentY, Alpha = true });
-        rig.Nodes.Add(new RigNodeAsset { Id = "CharacterPortraitSpriteOverlay_Image", Parent = "CharacterPortraitSpriteOverlay_Root" });
-        return rig;
+        set.Objects.Add(new ObjectAsset { Id = "CharacterPortraitSprite_Root", Parent = parent, Y = -parentY, Alpha = true });
+        set.Objects.Add(new ObjectAsset { Id = "CharacterPortraitSprite_Image", Parent = "CharacterPortraitSprite_Root", Width = 1920f, Height = 1080f, Color = "#3D5A80" });
+        set.Objects.Add(new ObjectAsset { Id = "CharacterPortraitSpriteOverlay_Root", Parent = parent, Y = -parentY, Alpha = true });
+        set.Objects.Add(new ObjectAsset { Id = "CharacterPortraitSpriteOverlay_Image", Parent = "CharacterPortraitSpriteOverlay_Root" });
+        return set;
     }
 
     /// <summary>actor의 묶음 사슬 — 앞의 것이 뒤의 것의 부모다.</summary>
@@ -52,32 +52,32 @@ internal static class Fixtures
     /// 세트 actor와 그 애니메이션 둘을 편집기 명령으로 짓는다.
     /// nod: Track_Move_Y 자리, y 0 → -18 → 0 (0.6초). bow: SwayPivot 회전, z 0 → 8 (0.4초) — x·y는 상수 0의 키다.
     /// </summary>
-    public static MotionDocument ActorDocument()
+    public static AuthoringDocument ActorDocument()
     {
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddRig(ActorRig());
+        var editor = new DocumentEditor(new AuthoringDocument());
+        editor.AddSet(ActorSet());
 
-        editor.AddMotion("nod", Actor, 0.6f);
-        editor.AddChannel("nod", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position);
-        editor.SetKeys("nod", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y, new[]
+        editor.AddTimeline("nod", Actor, 0.6f);
+        editor.AddChannel("nod", "CharacterPortrait_Track_Move_Y", ChannelKind.Position);
+        editor.SetKeys("nod", "CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y, new[]
         {
             Key(0f, 0f), Key(0.3f, -18f), Key(0.6f, 0f),
         });
 
-        editor.AddMotion("bow", Actor, 0.4f);
-        editor.AddChannel("bow", "CharacterPortrait_SwayPivot", MotionChannelKind.Euler);
-        editor.SetKeys("bow", "CharacterPortrait_SwayPivot", MotionChannelKind.Euler, Axis.X, new[] { Key(0f, 0f), Key(0.4f, 0f) });
-        editor.SetKeys("bow", "CharacterPortrait_SwayPivot", MotionChannelKind.Euler, Axis.Y, new[] { Key(0f, 0f), Key(0.4f, 0f) });
-        editor.SetKeys("bow", "CharacterPortrait_SwayPivot", MotionChannelKind.Euler, Axis.Z, new[] { Key(0f, 0f), Key(0.4f, 8f) });
+        editor.AddTimeline("bow", Actor, 0.4f);
+        editor.AddChannel("bow", "CharacterPortrait_SwayPivot", ChannelKind.Euler);
+        editor.SetKeys("bow", "CharacterPortrait_SwayPivot", ChannelKind.Euler, Axis.X, new[] { Key(0f, 0f), Key(0.4f, 0f) });
+        editor.SetKeys("bow", "CharacterPortrait_SwayPivot", ChannelKind.Euler, Axis.Y, new[] { Key(0f, 0f), Key(0.4f, 0f) });
+        editor.SetKeys("bow", "CharacterPortrait_SwayPivot", ChannelKind.Euler, Axis.Z, new[] { Key(0f, 0f), Key(0.4f, 8f) });
 
         return editor.Document;
     }
 
     /// <summary>문서의 세트·컷을 세운 한 벌(무대 1920×1080) — 앱에서는 세션이 하는 일.</summary>
-    public static RigSchemaFile RigOf(MotionDocument document) => RigAssets.Compose(document, new Vec2(1920f, 1080f));
+    public static BuiltSets SetOf(AuthoringDocument document) => SetBuilder.Compose(document, new Vec2(1920f, 1080f));
 
     /// <summary>세트 actor 하나만 세운 한 벌.</summary>
-    public static RigSchemaFile ActorRigFile() => RigOf(new MotionDocument { Rigs = { ActorRig() } });
+    public static BuiltSets ActorBuiltSets() => SetOf(new AuthoringDocument { Sets = { ActorSet() } });
 
     public static KeyAsset Key(float t, float v, float inTangent = 0f, float outTangent = 0f) => new()
     {

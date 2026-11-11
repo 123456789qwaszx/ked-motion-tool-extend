@@ -21,7 +21,7 @@ public sealed record DopeBlock(float Time, IReadOnlyList<KeyRef> Keys);
 public sealed record DopeRow(
     DopeRowLevel Level,
     string Node,
-    MotionChannelKind? Kind,
+    ChannelKind? Kind,
     Axis? Axis,
     string Label,
     IReadOnlyList<DopeBlock> Blocks,
@@ -39,13 +39,13 @@ public sealed record DopeRow(
 /// </summary>
 public static class DopeSheetRows
 {
-    public static List<DopeRow> Build(MotionAsset motion, Func<string, bool>? isCollapsed = null)
+    public static List<DopeRow> Build(TimelineAsset timeline, Func<string, bool>? isCollapsed = null)
     {
-        ArgumentNullException.ThrowIfNull(motion);
+        ArgumentNullException.ThrowIfNull(timeline);
 
         var rows = new List<DopeRow>();
 
-        foreach (IGrouping<string, ChannelAsset> node in motion.Channels.GroupBy(c => c.Node, StringComparer.Ordinal))
+        foreach (IGrouping<string, ChannelAsset> node in timeline.Channels.GroupBy(c => c.Object, StringComparer.Ordinal))
         {
             var nodeKeys = new List<KeyRef>();
             var channelRows = new List<DopeRow>();
@@ -62,7 +62,7 @@ public static class DopeSheetRows
                         continue;
                     }
 
-                    var curveRef = new CurveRef(channel.Node, channel.Kind, axis);
+                    var curveRef = new CurveRef(channel.Object, channel.Kind, axis);
                     var keys = new List<KeyRef>();
 
                     for (int i = 0; i < curve.Keys.Count; i++)
@@ -72,18 +72,18 @@ public static class DopeSheetRows
 
                     channelKeys.AddRange(keys);
                     componentRows.Add(new DopeRow(
-                        DopeRowLevel.Component, channel.Node, channel.Kind, axis,
-                        axis.ToString().ToLowerInvariant(), Group(motion, keys), curveRef));
+                        DopeRowLevel.Component, channel.Object, channel.Kind, axis,
+                        axis.ToString().ToLowerInvariant(), Group(timeline, keys), curveRef));
                 }
 
                 nodeKeys.AddRange(channelKeys);
                 channelRows.Add(new DopeRow(
-                    DopeRowLevel.Channel, channel.Node, channel.Kind, null,
-                    ChannelKindLabel.Of(channel.Kind), Group(motion, channelKeys), null));
+                    DopeRowLevel.Channel, channel.Object, channel.Kind, null,
+                    ChannelKindLabel.Of(channel.Kind), Group(timeline, channelKeys), null));
                 channelRows.AddRange(componentRows);
             }
 
-            rows.Add(new DopeRow(DopeRowLevel.Node, node.Key, null, null, node.Key, Group(motion, nodeKeys), null));
+            rows.Add(new DopeRow(DopeRowLevel.Node, node.Key, null, null, node.Key, Group(timeline, nodeKeys), null));
 
             if (isCollapsed is null || !isCollapsed(node.Key))
             {
@@ -94,13 +94,13 @@ public static class DopeSheetRows
         return rows;
     }
 
-    private static List<DopeBlock> Group(MotionAsset motion, List<KeyRef> keys)
+    private static List<DopeBlock> Group(TimelineAsset timeline, List<KeyRef> keys)
     {
         var blocks = new List<(float Time, List<KeyRef> Keys)>();
 
-        foreach (KeyRef key in keys.OrderBy(k => k.Resolve(motion)?.T ?? 0f))
+        foreach (KeyRef key in keys.OrderBy(k => k.Resolve(timeline)?.T ?? 0f))
         {
-            float t = key.Resolve(motion)?.T ?? 0f;
+            float t = key.Resolve(timeline)?.T ?? 0f;
 
             if (blocks.Count > 0 && Math.Abs(blocks[^1].Time - t) <= KeyTimes.Tolerance)
             {

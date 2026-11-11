@@ -15,7 +15,7 @@ public class SkinShellTests
 {
     private static MainWindow NewWindow()
     {
-        string path = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"settings-{Guid.NewGuid():N}.json");
+        string path = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"settings-{Guid.NewGuid():N}.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, "{}");
         return new(path);
@@ -31,7 +31,7 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 window.InspectorTab = 1; // 오브젝트 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
@@ -40,8 +40,8 @@ public class SkinShellTests
                 Assert.Null(window.AddSkinFromForm());
 
                 // 그림 오브젝트(조각)가 있는 세트를 열면 스킨 칸이 선다. 스킨이 없으면 조각은 하나도 안 그려진다.
-                editor.AddRig(PartsRigFixture.Rig());
-                window.SelectSet(PartsRigFixture.RigKind);
+                editor.AddSet(PartsSetFixture.Set());
+                window.SelectSet(PartsSetFixture.SetName);
                 Assert.Equal((true, (string?)null, 0), window.SkinFormState);
                 Assert.Empty(window.Viewport.DrawnParts());
 
@@ -65,16 +65,16 @@ public class SkinShellTests
 
                 // 조각은 노드의 rect(160×160)로, 무대 가운데에 선다.
                 Quad quad = window.Viewport.PartQuad("Badge_Part1")!.Value;
-                Assert.Equal(PartsRigFixture.PartSize, quad.BottomRight.X - quad.BottomLeft.X, 2);
-                Assert.Equal(PartsRigFixture.PartSize, quad.TopLeft.Y - quad.BottomLeft.Y, 2);
+                Assert.Equal(PartsSetFixture.PartSize, quad.BottomRight.X - quad.BottomLeft.X, 2);
+                Assert.Equal(PartsSetFixture.PartSize, quad.TopLeft.Y - quad.BottomLeft.Y, 2);
                 Assert.Equal(0f, quad.Center.X, 2);
                 Assert.Null(window.Viewport.PartQuad("Nope"));
 
                 // 조각마다 따로 움직인다 — 애니메이션은 그 세트의 보통 애니메이션이다.
-                editor.AddMotion("float", PartsRigFixture.RigKind, 1f);
-                editor.AddChannel("float", "Badge_Part1", MotionChannelKind.Position);
-                editor.SetKeys("float", "Badge_Part1", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(1f, 100f) });
-                window.SelectMotion("float");
+                editor.AddTimeline("float", PartsSetFixture.SetName, 1f);
+                editor.AddChannel("float", "Badge_Part1", ChannelKind.Position);
+                editor.SetKeys("float", "Badge_Part1", ChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(1f, 100f) });
+                window.SelectTimeline("float");
                 window.Viewport.ScrubTo(1.0);
                 Assert.Equal(100f, window.Viewport.PartQuad("Badge_Part1")!.Value.Center.X, 2);
                 Assert.Equal(0f, window.Viewport.PartQuad("Badge_Part3")!.Value.Center.X, 2);
@@ -84,7 +84,7 @@ public class SkinShellTests
                 Assert.Equal(100f, window.Viewport.ShownQuad()!.Value.Center.X, 2);
 
                 // 스킨 둘 — 입혀 보는 것을 바꾸면 그 스킨의 그림만 그려진다(보기 상태 — 문서는 그대로).
-                editor.AddSkin("plain", PartsRigFixture.RigKind);
+                editor.AddSkin("plain", PartsSetFixture.SetName);
                 revision = editor.Revision;
                 window.Viewport.SetSkin = "plain";
                 Assert.Empty(window.Viewport.DrawnParts());
@@ -116,13 +116,13 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
-                editor.AddRig(PartsRigFixture.Rig());
-                window.SelectSet(PartsRigFixture.RigKind);
+                DocumentEditor editor = window.Session.Editor;
+                editor.AddSet(PartsSetFixture.Set());
+                window.SelectSet(PartsSetFixture.SetName);
                 window.AddSkinFromForm();
                 editor.SetSkinPart("skin", "Badge_Part1", "art/sweat.png");
-                editor.AddMotion("vanish", PartsRigFixture.RigKind, 1f);
-                window.SelectMotion("vanish");
+                editor.AddTimeline("vanish", PartsSetFixture.SetName, 1f);
+                window.SelectTimeline("vanish");
                 window.Viewport.SnapEnabled = false;
                 window.InspectorTab = 2; // 모션 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -147,7 +147,7 @@ public class SkinShellTests
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Equal(revision + 1, editor.Revision);
                 ChannelAsset channel = Assert.Single(editor.Document.Find("vanish")!.Channels);
-                Assert.Equal(("Badge_Part1", MotionChannelKind.Alpha), (channel.Node, channel.Kind));
+                Assert.Equal(("Badge_Part1", ChannelKind.Alpha), (channel.Object, channel.Kind));
                 Assert.Equal(new[] { (0f, 1f), (1f, 0f) }, channel.X!.Keys.Select(k => (k.T, k.V)));
                 Assert.Equal(0, window.ProblemRowsShown);
 
@@ -171,7 +171,7 @@ public class SkinShellTests
 
                 // 범위 밖 값은 0~1로 죈다. 받을 수 없는 오브젝트(Anchor)에는 안 놓인다.
                 window.Viewport.SetAlphaValue("Badge_Body", 7f);
-                Assert.All(editor.Document.Find("vanish")!.FindChannel("Badge_Body", MotionChannelKind.Alpha)!.X!.Keys, k => Assert.InRange(k.V, 0f, 1f));
+                Assert.All(editor.Document.Find("vanish")!.FindChannel("Badge_Body", ChannelKind.Alpha)!.X!.Keys, k => Assert.InRange(k.V, 0f, 1f));
                 revision = editor.Revision;
                 window.Viewport.SetAlphaValue("Badge_Anchor", 0.3f);
                 Assert.Equal(revision, editor.Revision);
@@ -193,33 +193,33 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
-                editor.AddRig(PartsRigFixture.Rig());
-                window.SelectSet(PartsRigFixture.RigKind);
-                editor.AddMotion("bob", PartsRigFixture.RigKind, 0.4f);
-                editor.AddChannel("bob", "Badge_Body", MotionChannelKind.Position);
-                editor.SetKeys("bob", "Badge_Body", MotionChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 10f), TestDocuments.Key(0.4f, 0f) });
-                window.SelectMotion("bob");
+                DocumentEditor editor = window.Session.Editor;
+                editor.AddSet(PartsSetFixture.Set());
+                window.SelectSet(PartsSetFixture.SetName);
+                editor.AddTimeline("bob", PartsSetFixture.SetName, 0.4f);
+                editor.AddChannel("bob", "Badge_Body", ChannelKind.Position);
+                editor.SetKeys("bob", "Badge_Body", ChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 10f), TestDocuments.Key(0.4f, 0f) });
+                window.SelectTimeline("bob");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // bob이 건드리는 것은 Body의 위치뿐이다. 나머지(다른 노드 · 배율 · 회전 · 불투명도)가 "키 없음"으로 흐리게 선다.
-                Assert.DoesNotContain(("Badge_Body", MotionChannelKind.Position), window.UnkeyedRows);
-                Assert.Contains(("Badge_Body", MotionChannelKind.Scale), window.UnkeyedRows);
-                Assert.Contains(("Badge_Body", MotionChannelKind.Alpha), window.UnkeyedRows);
-                Assert.Contains(("Badge_Part1", MotionChannelKind.Euler), window.UnkeyedRows);
-                Assert.DoesNotContain(("Badge_Anchor", MotionChannelKind.Alpha), window.UnkeyedRows); // 불투명도를 못 받는 노드
+                Assert.DoesNotContain(("Badge_Body", ChannelKind.Position), window.UnkeyedRows);
+                Assert.Contains(("Badge_Body", ChannelKind.Scale), window.UnkeyedRows);
+                Assert.Contains(("Badge_Body", ChannelKind.Alpha), window.UnkeyedRows);
+                Assert.Contains(("Badge_Part1", ChannelKind.Euler), window.UnkeyedRows);
+                Assert.DoesNotContain(("Badge_Anchor", ChannelKind.Alpha), window.UnkeyedRows); // 불투명도를 못 받는 노드
 
                 // ＋ — 지금 값이 지금 시각(0초)의 키가 되고 채널이 생긴다: 한 칸. 줄은 "키 없음"에서 빠지고 그 노드가 골라진다.
                 long before = editor.Revision;
-                window.KeyUnkeyedRow("Badge_Body", MotionChannelKind.Scale);
+                window.KeyUnkeyedRow("Badge_Body", ChannelKind.Scale);
                 Assert.Equal(before + 1, editor.Revision);
-                ChannelAsset scale = editor.Document.Find("bob")!.FindChannel("Badge_Body", MotionChannelKind.Scale)!;
+                ChannelAsset scale = editor.Document.Find("bob")!.FindChannel("Badge_Body", ChannelKind.Scale)!;
                 Assert.Equal((0f, 1f, 1f), (scale.X!.Keys.Single().T, scale.X!.Keys.Single().V, scale.Y!.Keys.Single().V));
-                Assert.DoesNotContain(("Badge_Body", MotionChannelKind.Scale), window.UnkeyedRows);
+                Assert.DoesNotContain(("Badge_Body", ChannelKind.Scale), window.UnkeyedRows);
                 Assert.Equal("Badge_Body", window.Viewport.SelectedNode);
                 editor.Undo();
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.Contains(("Badge_Body", MotionChannelKind.Scale), window.UnkeyedRows);
+                Assert.Contains(("Badge_Body", ChannelKind.Scale), window.UnkeyedRows);
             }
             finally
             {
@@ -238,15 +238,15 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
-                Assert.Empty(window.Session.Rig.RigKinds); // 새 문서 — 아는 리그가 없다
+                DocumentEditor editor = window.Session.Editor;
+                Assert.Empty(window.Session.Built.SetNames); // 새 문서 — 아는 리그가 없다
 
                 // 문서에 세트를 정의하면 세션의 리그에 선다(문서가 정의한 것만의 한 벌이다).
-                editor.AddRig(PartsRigFixture.Rig());
-                Assert.Equal(new[] { PartsRigFixture.RigKind }, window.Session.Rig.RigKinds);
+                editor.AddSet(PartsSetFixture.Set());
+                Assert.Equal(new[] { PartsSetFixture.SetName }, window.Session.Built.SetNames);
 
                 // 연다.
-                window.SelectSet(PartsRigFixture.RigKind);
+                window.SelectSet(PartsSetFixture.SetName);
                 Assert.True(window.Viewport.CurrentPose()!.Contains($"set/Badge_Part1"));       // 뷰포트에 섰다
                 Assert.Equal(0, window.ProblemRowsShown);
 
@@ -260,33 +260,33 @@ public class SkinShellTests
                 Assert.Equal(new[] { "Badge_Part1" }, window.Viewport.DrawnParts());
 
                 // 모션 — 이 리그의 노드에, 불투명도도.
-                editor.AddMotion("pop", PartsRigFixture.RigKind, 0.2f);
-                editor.AddChannel("pop", "Badge_Body", MotionChannelKind.Position);
-                editor.SetKeys("pop", "Badge_Body", MotionChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 40f) });
-                window.SelectMotion("pop");
+                editor.AddTimeline("pop", PartsSetFixture.SetName, 0.2f);
+                editor.AddChannel("pop", "Badge_Body", ChannelKind.Position);
+                editor.SetKeys("pop", "Badge_Body", ChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 40f) });
+                window.SelectTimeline("pop");
                 window.Viewport.SelectedNode = "Badge_Part1";
                 Assert.True(window.Viewport.CanTakeAlpha("Badge_Part1"));
                 Assert.Equal(0, window.ProblemRowsShown);
 
                 // 리그의 노드를 지우면(편집기 명령) 뷰포트의 리그가 바로 따라온다.
-                editor.RemoveRigNode(PartsRigFixture.RigKind, "Badge_Part3");
+                editor.RemoveObject(PartsSetFixture.SetName, "Badge_Part3");
                 Assert.False(window.Viewport.CurrentPose()!.Contains($"set/Badge_Part3"));
                 editor.Undo();
                 Assert.True(window.Viewport.CurrentPose()!.Contains($"set/Badge_Part3"));
 
-                string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"rig-out-{Guid.NewGuid():N}");
+                string directory = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"set-out-{Guid.NewGuid():N}");
                 Directory.CreateDirectory(directory);
 
                 // 저장하고 다시 열어도 리그가 선다.
-                string saved = Path.Combine(directory, "a.motion-authoring.json");
+                string saved = Path.Combine(directory, "a.cut-authoring.json");
                 window.Session.Save(saved);
                 window.Session.New();
-                Assert.Empty(window.Session.Rig.RigKinds);
+                Assert.Empty(window.Session.Built.SetNames);
                 Assert.Null(window.Viewport.SetView);       // 새 문서 — 연 것이 없다
                 Assert.Null(window.Viewport.CurrentPose());
                 window.Session.Open(saved);
-                Assert.Contains(PartsRigFixture.RigKind, window.Session.Rig.RigKinds);
-                window.SelectSet(PartsRigFixture.RigKind);
+                Assert.Contains(PartsSetFixture.SetName, window.Session.Built.SetNames);
+                window.SelectSet(PartsSetFixture.SetName);
                 Assert.True(window.Viewport.CurrentPose()!.Contains($"set/Badge_Part1"));
             }
             finally
@@ -306,7 +306,7 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // 처음에는 세트가 없다 — 뷰포트는 빈 무대다.
@@ -329,61 +329,61 @@ public class SkinShellTests
                 Assert.Equal("Part1", window.AddSetNodeFromForm(image: true));
                 window.SelectSetNode("Body");
                 Assert.Equal("Part2", window.AddSetNodeFromForm(image: true));
-                Assert.Equal(new[] { ("Body", ""), ("Part1", "Body"), ("Part2", "Body") }, editor.Document.FindRig("set")!.Nodes.Select(n => (n.Id, n.Parent)));
+                Assert.Equal(new[] { ("Body", ""), ("Part1", "Body"), ("Part2", "Body") }, editor.Document.FindSetOrCut("set")!.Objects.Select(n => (n.Id, n.Parent)));
                 Assert.True(window.Viewport.CurrentPose()!.Contains("set/Part2"));
 
                 // 하이어아키에서 오브젝트를 고르면 "오브젝트" 탭의 칸이 그것을 본다. 칸에서 자리를 고친다(Enter) — 한 칸, 뷰포트가 따라온다.
                 window.InspectorTab = 1;
                 window.SelectSetNode("Part2");
                 Assert.Equal("Part2", window.SetEditorState.Node);
-                Assert.Equal("Part2", window.RigNodeBoxes.Id.Text);
+                Assert.Equal("Part2", window.ObjectBoxes.Id.Text);
                 revision = editor.Revision;
-                window.RigNodeBoxes.X.Focus();
-                window.RigNodeBoxes.X.Text = "40";
+                window.ObjectBoxes.X.Focus();
+                window.ObjectBoxes.X.Text = "40";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Equal(revision + 1, editor.Revision);
-                Assert.Equal(40f, editor.Document.FindRig("set")!.Find("Part2")!.X);
+                Assert.Equal(40f, editor.Document.FindSetOrCut("set")!.Find("Part2")!.X);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.Equal(40f, window.Viewport.CurrentPose()!.GetState("set/Part2").AnchoredPosition.X, 3);
 
                 // 이름 바꾸기 — 고른 것이 새 이름을 따라간다.
-                window.RigNodeBoxes.Id.Focus();
-                window.RigNodeBoxes.Id.Text = "Spark";
+                window.ObjectBoxes.Id.Focus();
+                window.ObjectBoxes.Id.Text = "Spark";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Equal("Spark", window.SetEditorState.Node);
-                Assert.NotNull(editor.Document.FindRig("set")!.Find("Spark"));
+                Assert.NotNull(editor.Document.FindSetOrCut("set")!.Find("Spark"));
 
                 // 순서와 지우기.
                 window.MoveSetNodeFromForm(-1);
-                Assert.Equal(new[] { "Body", "Spark", "Part1" }, editor.Document.FindRig("set")!.Nodes.Select(n => n.Id));
+                Assert.Equal(new[] { "Body", "Spark", "Part1" }, editor.Document.FindSetOrCut("set")!.Objects.Select(n => n.Id));
                 window.RemoveSetNodeFromForm();
-                Assert.Equal(new[] { "Body", "Part1" }, editor.Document.FindRig("set")!.Nodes.Select(n => n.Id));
+                Assert.Equal(new[] { "Body", "Part1" }, editor.Document.FindSetOrCut("set")!.Objects.Select(n => n.Id));
                 Assert.Equal("Body", window.SetEditorState.Node);
 
                 // 그 세트의 애니메이션(모션)을 고르면 세트가 연기한다 — 세트는 열린 채다.
-                editor.AddMotion("in", "set", 0.5f);
-                editor.AddChannel("in", "Part1", MotionChannelKind.Position);
-                editor.SetKeys("in", "Part1", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 100f) });
-                window.SelectMotion("in");
+                editor.AddTimeline("in", "set", 0.5f);
+                editor.AddChannel("in", "Part1", ChannelKind.Position);
+                editor.SetKeys("in", "Part1", ChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 100f) });
+                window.SelectTimeline("in");
                 Assert.Equal("set", window.SelectedSet);
                 window.Viewport.ScrubTo(0.5);
                 Assert.Equal(100f, window.Viewport.CurrentPose()!.GetState("set/Part1").AnchoredPosition.X, 2);
 
                 // 세트를 연 동안 목록에는 그 세트의 애니메이션만 있다 — 다른 것의 모션은 세트를 닫아야 고른다. 닫으면 빈 무대다.
-                editor.AddMotion("nod", "elsewhere", 0.6f);
-                Assert.DoesNotContain("nod", window.MotionListState.Names);
+                editor.AddTimeline("nod", "elsewhere", 0.6f);
+                Assert.DoesNotContain("nod", window.TimelineListState.Names);
                 window.SelectSet(null);
                 Assert.Null(window.Viewport.SetView);
                 Assert.Null(window.Viewport.CurrentPose());
-                window.SelectMotion("nod");
-                Assert.Equal("nod", window.SelectedMotion);
+                window.SelectTimeline("nod");
+                Assert.Equal("nod", window.SelectedTimeline);
 
                 // 다시 열었다가, 세트를 만든 것까지 되돌리면 목록에서 사라지고 빈 무대로 돌아간다.
                 window.SelectSet("set");
                 Assert.Equal("set", window.Viewport.SetView);
-                Assert.Null(window.SelectedMotion);
+                Assert.Null(window.SelectedTimeline);
 
-                while (editor.Document.FindRig("set") is not null)
+                while (editor.Document.FindSetOrCut("set") is not null)
                 {
                     editor.Undo();
                 }
@@ -409,9 +409,9 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
-                editor.AddRig(PartsRigFixture.Rig());
-                window.SelectSet(PartsRigFixture.RigKind);
+                DocumentEditor editor = window.Session.Editor;
+                editor.AddSet(PartsSetFixture.Set());
+                window.SelectSet(PartsSetFixture.SetName);
                 window.AddSkinFromForm();
                 window.InspectorTab = 1; // 오브젝트 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -429,8 +429,8 @@ public class SkinShellTests
                 Assert.Null(window.SkinSetupBoxes("Badge_Part2")); // 그림이 없는 조각에는 덧붙임 칸이 없다
 
                 // 시계를 따라 넘어간다(장당 0.2초).
-                editor.AddMotion("still", PartsRigFixture.RigKind, 1f);
-                window.SelectMotion("still");
+                editor.AddTimeline("still", PartsSetFixture.SetName, 1f);
+                window.SelectTimeline("still");
                 window.Viewport.ScrubTo(0.0);
                 Assert.Equal("art/a.png", window.Viewport.PartImage("Badge_Part1"));
                 window.Viewport.ScrubTo(0.25);
@@ -450,7 +450,7 @@ public class SkinShellTests
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Quad placed = window.Viewport.PartQuad("Badge_Part1")!.Value;
                 // 놓임은 조각 노드의 px이다 — 화면에서는 부모들의 배율이 곱해진다: 조각의 폭이 곱해진 그만큼.
-                float perPixel = (before.BottomRight.X - before.BottomLeft.X) / PartsRigFixture.PartSize;
+                float perPixel = (before.BottomRight.X - before.BottomLeft.X) / PartsSetFixture.PartSize;
                 Assert.Equal(before.Center.X + 50f * perPixel, placed.Center.X, 2);
                 Assert.Equal(0f, window.Viewport.CurrentPose()!.GetState($"set/Badge_Part1").AnchoredPosition.X, 3);
 
@@ -478,24 +478,24 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
 
                 // 그림 견본 하나를 alert.png라는 이름으로 — 오브젝트의 이름은 파일에서 온다.
-                string art = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"art-{Guid.NewGuid():N}", "alert.png");
+                string art = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"art-{Guid.NewGuid():N}", "alert.png");
                 Directory.CreateDirectory(Path.GetDirectoryName(art)!);
                 File.Copy(TestDocuments.ArtPath("10_microbe_cell.png"), art);
                 window.NewSetFromForm();
                 window.InspectorTab = 1;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.True(view.IsLayoutMode);
-                RigAsset Rig() => editor.Document.FindRig("set")!;
+                SetAsset Set() => editor.Document.FindSetOrCut("set")!;
 
                 // 그림 가져오기 — 오브젝트(이름은 파일에서, 크기는 그림의 것) + 자리 + 스킨의 그림이 한 칸. 스킨이 없어 세트의 이름으로 만들어 입혀 본다.
                 long revision = editor.Revision;
                 Assert.Equal("alert", window.AddImageObjectFromForm(art, new Vec2(100f, 50f)));
                 Assert.Equal(revision + 1, editor.Revision);
-                RigNodeAsset node = Rig().Find("alert")!;
+                ObjectAsset node = Set().Find("alert")!;
                 Assert.Equal(("Body", 100f, 50f, 239f, 114f, true), (node.Parent, node.X, node.Y, node.Width, node.Height, node.Image));
                 Assert.Equal("set", view.SetSkin);
                 Assert.EndsWith("alert.png", editor.Document.FindSkin("set")!.Parts["alert"], StringComparison.Ordinal);
@@ -520,30 +520,30 @@ public class SkinShellTests
                 window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
                 window.MouseUp(At(drop), MouseButton.Left);
                 Assert.Equal(revision + 1, editor.Revision);
-                Assert.Equal((160f, 10f), (Rig().Find("alert")!.X, Rig().Find("alert")!.Y));
-                Assert.Empty(editor.Document.Motions);
+                Assert.Equal((160f, 10f), (Set().Find("alert")!.X, Set().Find("alert")!.Y));
+                Assert.Empty(editor.Document.Timelines);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.Equal("160", window.RigNodeBoxes.X.Text);
+                Assert.Equal("160", window.ObjectBoxes.X.Text);
 
                 // Shift+끌기 = 배율(원점에서의 거리 비), Ctrl+끌기 = 회전.
                 Vec2 c = Center("alert");
                 window.MouseDown(At(new Vec2(c.X + 50f, c.Y)), MouseButton.Left, RawInputModifiers.Shift);
                 window.MouseMove(At(new Vec2(c.X + 25f, c.Y)), RawInputModifiers.LeftMouseButton | RawInputModifiers.Shift);
                 window.MouseUp(At(new Vec2(c.X + 25f, c.Y)), MouseButton.Left, RawInputModifiers.Shift);
-                Assert.Equal((0.5f, 0.5f), (Rig().Find("alert")!.ScaleX, Rig().Find("alert")!.ScaleY));
+                Assert.Equal((0.5f, 0.5f), (Set().Find("alert")!.ScaleX, Set().Find("alert")!.ScaleY));
                 c = Center("alert");
                 window.MouseDown(At(new Vec2(c.X + 20f, c.Y)), MouseButton.Left, RawInputModifiers.Control);
                 window.MouseMove(At(new Vec2(c.X, c.Y + 20f)), RawInputModifiers.LeftMouseButton | RawInputModifiers.Control);
                 window.MouseUp(At(new Vec2(c.X, c.Y + 20f)), MouseButton.Left, RawInputModifiers.Control);
-                Assert.Equal(90f, Rig().Find("alert")!.Rotation, 0);
+                Assert.Equal(90f, Set().Find("alert")!.Rotation, 0);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.Equal(("90", "0.5"), (window.RigNodePoseBoxes.Rotation.Text, window.RigNodePoseBoxes.ScaleX.Text));
+                Assert.Equal(("90", "0.5"), (window.ObjectPoseBoxes.Rotation.Text, window.ObjectPoseBoxes.ScaleX.Text));
 
                 // 칸에서도 고친다.
-                window.RigNodePoseBoxes.Rotation.Focus();
-                window.RigNodePoseBoxes.Rotation.Text = "15";
+                window.ObjectPoseBoxes.Rotation.Focus();
+                window.ObjectPoseBoxes.Rotation.Text = "15";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-                Assert.Equal(15f, Rig().Find("alert")!.Rotation);
+                Assert.Equal(15f, Set().Find("alert")!.Rotation);
 
                 // 제자리에서 눌렀다 떼면 고르기만 한다(기록 없음).
                 revision = editor.Revision;
@@ -554,8 +554,8 @@ public class SkinShellTests
                 Assert.Equal("alert_2", window.SetEditorState.Node);
 
                 // 그 세트의 애니메이션을 고르면 배치 모드가 아니다 — 끌기는 키가 된다(전부터 있던 길).
-                editor.AddMotion("in", "set", 0.5f);
-                window.SelectMotion("in");
+                editor.AddTimeline("in", "set", 0.5f);
+                window.SelectTimeline("in");
                 Assert.False(view.IsLayoutMode);
                 Assert.Equal("set", window.SelectedSet);
             }
@@ -576,9 +576,9 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
-                editor.AddMotion("nod", "elsewhere", 0.6f);
+                editor.AddTimeline("nod", "elsewhere", 0.6f);
                 window.NewSetFromForm();
                 string a = window.AddSetNodeFromForm(image: true)!;   // Part1 — Body 밑
                 window.SelectSetNode("Body");
@@ -596,11 +596,11 @@ public class SkinShellTests
                 Assert.Equal(new[] { a, b, c }, Drawn());
 
                 // 목록은 이 세트의 애니메이션만 — 다른 것의 nod는 안 보인다. "모션 추가"는 이 세트의 것을 만든다.
-                Assert.Equal(("애니메이션 — 세트 set", 0), (window.MotionListState.Header, window.MotionListState.Names.Count));
-                window.AddMotionFromButton();
-                Assert.Equal("set", editor.Document.Find("motion")!.Rig);
-                Assert.Equal(new[] { "motion" }, window.MotionListState.Names);
-                Assert.Equal("motion", window.SelectedMotion);
+                Assert.Equal(("애니메이션 — 세트 set", 0), (window.TimelineListState.Header, window.TimelineListState.Names.Count));
+                window.AddTimelineFromButton();
+                Assert.Equal("set", editor.Document.Find("timeline")!.Set);
+                Assert.Equal(new[] { "timeline" }, window.TimelineListState.Names);
+                Assert.Equal("timeline", window.SelectedTimeline);
                 Assert.Equal("set", window.SelectedSet);  // 세트는 열린 채다
                 Assert.False(view.IsLayoutMode);          // 애니메이션 모드
 
@@ -621,11 +621,11 @@ public class SkinShellTests
                 Assert.Empty(Drawn());
 
                 // 움직임 밀기 · 차례로(시차) — 고른 애니메이션에서 오브젝트의 키를 통째로. 각각 한 칸.
-                editor.AddChannel("motion", a, MotionChannelKind.Position);
-                editor.SetKeys("motion", a, MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 0f), TestDocuments.Key(0.6f, 50f), TestDocuments.Key(1f, 50f) });
-                editor.AddChannel("motion", b, MotionChannelKind.Position);
-                editor.SetKeys("motion", b, MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 0f), TestDocuments.Key(0.6f, 50f), TestDocuments.Key(1f, 50f) });
-                float SecondKey(string node) => editor.Document.Find("motion")!.FindChannel(node, MotionChannelKind.Position)!.X!.Keys[1].T;
+                editor.AddChannel("timeline", a, ChannelKind.Position);
+                editor.SetKeys("timeline", a, ChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 0f), TestDocuments.Key(0.6f, 50f), TestDocuments.Key(1f, 50f) });
+                editor.AddChannel("timeline", b, ChannelKind.Position);
+                editor.SetKeys("timeline", b, ChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.2f, 0f), TestDocuments.Key(0.6f, 50f), TestDocuments.Key(1f, 50f) });
+                float SecondKey(string node) => editor.Document.Find("timeline")!.FindChannel(node, ChannelKind.Position)!.X!.Keys[1].T;
                 long before = editor.Revision;
                 window.ShiftSetNodeKeysFromMenu(a, 0.1f);
                 Assert.Equal(before + 1, editor.Revision);
@@ -649,8 +649,8 @@ public class SkinShellTests
                 // 세트를 닫으면 따로 보기가 풀리고 목록이 전부로 돌아온다.
                 window.SetSetNodeViewFromMenu(a, solo: null, hidden: true);
                 window.SelectSet(null);
-                Assert.Equal("모션", window.MotionListState.Header);
-                Assert.Equal(new[] { "nod", "motion" }, window.MotionListState.Names);
+                Assert.Equal("모션", window.TimelineListState.Header);
+                Assert.Equal(new[] { "nod", "timeline" }, window.TimelineListState.Names);
                 window.SelectSet("set");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.Equal(new[] { a, b, c }, Drawn());
@@ -672,12 +672,12 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
                 window.NewSetFromForm();
                 window.InspectorTab = 1;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                RigNodeAsset Node(string id) => editor.Document.FindRig("set")!.Find(id)!;
+                ObjectAsset Node(string id) => editor.Document.FindSetOrCut("set")!.Find(id)!;
 
                 // 색 사각형 더하기 — 오브젝트 + 크기 + 색이 한 칸. 스킨이 없어도 선다(세트의 오브젝트 사각형이 그 색 사각형이다).
                 long revision = editor.Revision;
@@ -688,14 +688,14 @@ public class SkinShellTests
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Quad quad = view.ShownQuad()!.Value;
                 Assert.Equal(400f, quad.BottomRight.X - quad.BottomLeft.X, 1);
-                Assert.Equal("#3D5A80", window.RigNodeColorBox.Text);
+                Assert.Equal("#3D5A80", window.ObjectColorBox.Text);
 
                 // 칸에서 색을 바꾼다(Enter) — 한 칸. 틀린 글은 막히고 문서는 그대로다.
-                window.RigNodeColorBox.Focus();
-                window.RigNodeColorBox.Text = "ee6c4d";
+                window.ObjectColorBox.Focus();
+                window.ObjectColorBox.Text = "ee6c4d";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Equal("#EE6C4D", Node("Color1").Color);
-                window.RigNodeColorBox.Text = "red";
+                window.ObjectColorBox.Text = "red";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Equal("#EE6C4D", Node("Color1").Color);
 
@@ -717,12 +717,12 @@ public class SkinShellTests
                 window.PickColorSwatch("#243B6B");
                 Assert.Equal("#243B6B", Node("Color1").Color);
                 Assert.Equal(revision + 1, editor.Revision);
-                Assert.Equal("#243B6B", window.RigNodeColorBox.Text);
+                Assert.Equal("#243B6B", window.ObjectColorBox.Text);
 
                 // 색을 비우면 보통 오브젝트로 돌아간다.
                 window.SelectSetNode("Color1");
-                window.RigNodeColorBox.Focus();
-                window.RigNodeColorBox.Text = "";
+                window.ObjectColorBox.Focus();
+                window.ObjectColorBox.Text = "";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                 Assert.Null(Node("Color1").Color);
             }
@@ -743,7 +743,7 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 string sheet = TestDocuments.ArtPath("layers.tsv");
                 Assert.Empty(window.ImportLayerSheetFromForm(sheet)); // 연 세트가 없으면 아무 일도 없다
                 window.NewSetFromForm();
@@ -754,9 +754,9 @@ public class SkinShellTests
                 IReadOnlyList<string> created = window.ImportLayerSheetFromForm(sheet);
                 Assert.Equal(revision + 1, editor.Revision);
                 Assert.Equal(new[] { "sign", "microbe_sun", "microbe_leaf", "microbe_cell" }, created);
-                RigAsset rig = editor.Document.FindRig("set")!;
-                Assert.Equal("#10262B", rig.Find("Backdrop")!.Color);
-                Assert.Equal((889f, 249f, true), (rig.Find("sign")!.Width, rig.Find("sign")!.Height, rig.Find("sign")!.Image));
+                SetAsset set = editor.Document.FindSetOrCut("set")!;
+                Assert.Equal("#10262B", set.Find("Backdrop")!.Color);
+                Assert.Equal((889f, 249f, true), (set.Find("sign")!.Width, set.Find("sign")!.Height, set.Find("sign")!.Image));
                 Assert.Equal("set", window.Viewport.SetSkin);
                 Assert.EndsWith("art/06_sign.png", editor.Document.FindSkin("set")!.Parts["sign"], StringComparison.Ordinal);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -764,7 +764,7 @@ public class SkinShellTests
 
                 // 되돌리면 통째로 사라진다(처음의 Body만 남는다).
                 editor.Undo();
-                Assert.Equal(new[] { "Body" }, editor.Document.FindRig("set")!.Nodes.Select(n => n.Id));
+                Assert.Equal(new[] { "Body" }, editor.Document.FindSetOrCut("set")!.Objects.Select(n => n.Id));
                 Assert.Null(editor.Document.FindSkin("set"));
             }
             finally
@@ -784,7 +784,7 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
 
                 // 세트 둘: car(색 사각형 하나) · city(빈 세트).
@@ -799,7 +799,7 @@ public class SkinShellTests
                 window.SelectSetNode(null);
                 Assert.Equal("set", window.AddSetInstanceFromMenu("set"));
                 Assert.Equal(revision + 1, editor.Revision);
-                Assert.Equal("set", editor.Document.FindRig("set_2")!.Find("set")!.Set);
+                Assert.Equal("set", editor.Document.FindSetOrCut("set_2")!.Find("set")!.Set);
                 Assert.Equal("set", window.SetEditorState.Node);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.True(view.CurrentPose()!.Contains("set/set.Color1"));
@@ -814,14 +814,14 @@ public class SkinShellTests
                 Assert.Equal("set", window.SetEditorState.Node);
                 window.MouseMove(At(drop), RawInputModifiers.LeftMouseButton);
                 window.MouseUp(At(drop), MouseButton.Left);
-                RigNodeAsset instance = editor.Document.FindRig("set_2")!.Find("set")!;
+                ObjectAsset instance = editor.Document.FindSetOrCut("set_2")!.Find("set")!;
                 Assert.Equal((80f, 40f, "set"), (instance.X, instance.Y, instance.Set));
-                Assert.Equal(0f, editor.Document.FindRig("set")!.Find("Color1")!.X); // 원본 세트는 안 바뀐다
+                Assert.Equal(0f, editor.Document.FindSetOrCut("set")!.Find("Color1")!.X); // 원본 세트는 안 바뀐다
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.Equal(grab.X + 80f, Inner().X, 1);
 
                 // 원본을 고치면 품은 곳이 따라온다(참조).
-                editor.UpdateRigNode("set", "Color1", new RigNodeAsset { X = 25f, Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
+                editor.UpdateObject("set", "Color1", new ObjectAsset { X = 25f, Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.Equal(grab.X + 80f + 25f, Inner().X, 1);
 
@@ -848,16 +848,16 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
 
                 // 세트 둘: set(색 사각형 + 애니메이션 slide: 0.4초, x 0 → 100) · set_2(set을 품는다 + 애니메이션 city_in: 2초).
                 window.NewSetFromForm();
                 window.SelectSetNode("Body");
                 window.AddColorNodeFromForm();
-                editor.AddMotion("slide", "set", 0.4f);
-                editor.AddChannel("slide", "Color1", MotionChannelKind.Position);
-                editor.SetKeys("slide", "Color1", MotionChannelKind.Position, Axis.X, new[]
+                editor.AddTimeline("slide", "set", 0.4f);
+                editor.AddChannel("slide", "Color1", ChannelKind.Position);
+                editor.SetKeys("slide", "Color1", ChannelKind.Position, Axis.X, new[]
                 {
                     new KeyAsset { T = 0f, V = 0f, Tangent = TangentMode.Linear },
                     new KeyAsset { T = 0.4f, V = 100f, Tangent = TangentMode.Linear },
@@ -865,12 +865,12 @@ public class SkinShellTests
                 window.NewSetFromForm();
                 window.SelectSetNode(null);
                 window.AddSetInstanceFromMenu("set");
-                editor.AddMotion("city_in", "set_2", 2f);
+                editor.AddTimeline("city_in", "set_2", 2f);
                 window.InspectorTab = 2; // 모션 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // 품은 세트가 있는 세트의 애니메이션을 고르면 재생 블록 칸이 보인다.
-                window.SelectMotion("city_in");
+                window.SelectTimeline("city_in");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.True(window.PlayPanelShown);
                 Assert.Equal(0, window.PlayRowCount);
@@ -878,13 +878,13 @@ public class SkinShellTests
                 // "재생 블록 추가 (지금 시각)" — 한 칸. 지금 시각에 들어가는 첫 (인스턴스, 애니메이션)이 놓인다.
                 window.Graph.CurrentTime = 0.5;
                 long revision = editor.Revision;
-                Assert.Equal(0, window.AddMotionPlayFromForm());
+                Assert.Equal(0, window.AddPlayBlockFromForm());
                 Assert.Equal(revision + 1, editor.Revision);
-                MotionPlayAsset play = Assert.Single(editor.Document.Find("city_in")!.Plays);
-                Assert.Equal(("set", "slide", 0.5f, 1), (play.Node, play.Motion, play.At, play.Repeat));
+                PlayBlockAsset play = Assert.Single(editor.Document.Find("city_in")!.Plays);
+                Assert.Equal(("set", "slide", 0.5f, 1), (play.Object, play.Timeline, play.At, play.Repeat));
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.Equal(1, window.PlayRowCount);
-                Assert.Equal(("0.5", "set", "slide", "1"), (window.PlayRow(0).Time.Text, window.PlayRow(0).Node.SelectedItem, window.PlayRow(0).Motion.SelectedItem, window.PlayRow(0).Repeat.Text));
+                Assert.Equal(("0.5", "set", "slide", "1"), (window.PlayRow(0).Time.Text, window.PlayRow(0).Node.SelectedItem, window.PlayRow(0).Timeline.SelectedItem, window.PlayRow(0).Repeat.Text));
 
                 // 타임 슬라이더가 블록의 구간을 막대로 그린다(0.5 ~ 0.9초).
                 (double start, double end, string label) = Assert.Single(view.PlaySpans());
@@ -907,7 +907,7 @@ public class SkinShellTests
                 window.MouseMove(Slider(new Point(bar.Center.X + 4000, bar.Center.Y)), RawInputModifiers.LeftMouseButton);
                 window.MouseUp(Slider(new Point(bar.Center.X + 4000, bar.Center.Y)), MouseButton.Left);
                 Assert.Equal(1.6f, editor.Document.Find("city_in")!.Plays[0].At, 2);
-                editor.UpdateMotionPlay("city_in", 0, "set", "slide", 0.5f, 1);
+                editor.UpdatePlayBlock("city_in", 0, "set", "slide", 0.5f, 1);
 
                 // 뷰포트가 품은 애니메이션을 튼다 — 블록 전에는 제자리, 가운데서 반, 끝난 뒤에는 마지막 값이 남는다.
                 float X(double t)
@@ -945,7 +945,7 @@ public class SkinShellTests
                 window.DetachPlayRow(0);
                 Assert.Equal(revision + 1, editor.Revision);
                 Assert.Empty(editor.Document.Find("city_in")!.Plays);
-                Assert.NotNull(editor.Document.Find("city_in")!.FindChannel("set.Color1", MotionChannelKind.Position));
+                Assert.NotNull(editor.Document.Find("city_in")!.FindChannel("set.Color1", ChannelKind.Position));
                 Assert.Equal(50f, X(1.1) - rest, 0);  // 둘째 바퀴의 가운데 — 뗀 뒤에도 그대로
                 Assert.Equal(100f, X(1.5) - rest, 0); // 되풀이는 쌓이지 않는다 — 마지막 값 100이 남는다
                 Assert.Equal(0, window.PlayRowCount);
@@ -953,7 +953,7 @@ public class SkinShellTests
                 // 품은 세트가 없는 세트의 애니메이션에서는 칸이 숨는다.
                 window.SelectSet("set");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                window.SelectMotion("slide");
+                window.SelectTimeline("slide");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.False(window.PlayPanelShown);
             }
@@ -974,14 +974,14 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
                 window.NewSetFromForm();
                 window.SelectSetNode(null);
                 window.AddColorNodeFromForm(); // Color1 — 맨 위
                 window.SelectSetNode(null);
                 window.AddColorNodeFromForm(); // Color2
-                editor.UpdateRigNode("set", "Color2", new RigNodeAsset { X = 200f, Y = 100f, Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
+                editor.UpdateObject("set", "Color2", new ObjectAsset { X = 200f, Y = 100f, Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Vec2 before = view.CurrentPose()!.TransformPoint("set/Color2", Vec3.Zero).XY;
 
@@ -989,8 +989,8 @@ public class SkinShellTests
                 long revision = editor.Revision;
                 Assert.Equal("color1", window.ExtractSetNodesFromMenu("Color1", "Color2"));
                 Assert.Equal(revision + 1, editor.Revision);
-                Assert.Equal("color1", editor.Document.FindRig("set")!.Find("color1")!.Set);
-                Assert.Equal(new[] { "Color1", "Color2" }, editor.Document.FindRig("color1")!.Nodes.Select(n => n.Id));
+                Assert.Equal("color1", editor.Document.FindSetOrCut("set")!.Find("color1")!.Set);
+                Assert.Equal(new[] { "Color1", "Color2" }, editor.Document.FindSetOrCut("color1")!.Objects.Select(n => n.Id));
                 Assert.Equal("color1", window.SetEditorState.Node);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
@@ -1006,14 +1006,14 @@ public class SkinShellTests
                 window.SetNameBox.Focus();
                 window.SetNameBox.Text = "panels";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-                Assert.Equal("panels", editor.Document.FindRig("set")!.Find("panels")!.Set); // 세트의 이름을 딴 인스턴스도 따라온다
+                Assert.Equal("panels", editor.Document.FindSetOrCut("set")!.Find("panels")!.Set); // 세트의 이름을 딴 인스턴스도 따라온다
                 Assert.Equal("panels", window.SelectedSet);
 
                 // 있는 이름은 막히고 칸이 돌아온다.
                 window.SetNameBox.Focus();
                 window.SetNameBox.Text = "set";
                 window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-                Assert.NotNull(editor.Document.FindRig("panels"));
+                Assert.NotNull(editor.Document.FindSetOrCut("panels"));
                 Assert.Equal("panels", window.SetNameBox.Text);
             }
             finally
@@ -1033,7 +1033,7 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 window.NewSetFromForm();                 // set — 품길 세트(스킨 둘)
                 editor.AddSkin("red", "set");
                 editor.AddSkin("blue", "set");
@@ -1044,19 +1044,19 @@ public class SkinShellTests
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // 인스턴스를 고르면 스킨 칸이 선다 — 고르면 한 칸.
-                Assert.True(window.RigInstanceFieldsShown);
-                Assert.Equal(0, window.RigNodeSkinCombo.SelectedIndex);
+                Assert.True(window.InstanceFieldsShown);
+                Assert.Equal(0, window.ObjectSkinCombo.SelectedIndex);
                 long revision = editor.Revision;
-                window.RigNodeSkinCombo.SelectedItem = "blue";
-                Assert.Equal("blue", editor.Document.FindRig("set_2")!.Find("set")!.SetSkin);
+                window.ObjectSkinCombo.SelectedItem = "blue";
+                Assert.Equal("blue", editor.Document.FindSetOrCut("set_2")!.Find("set")!.SetSkin);
                 Assert.Equal(revision + 1, editor.Revision);
-                window.RigNodeSkinCombo.SelectedIndex = 0;
-                Assert.Null(editor.Document.FindRig("set_2")!.Find("set")!.SetSkin);
+                window.ObjectSkinCombo.SelectedIndex = 0;
+                Assert.Null(editor.Document.FindSetOrCut("set_2")!.Find("set")!.SetSkin);
 
                 // 보통 오브젝트에서는 칸이 숨는다.
                 window.SelectSetNode("Body");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.False(window.RigInstanceFieldsShown);
+                Assert.False(window.InstanceFieldsShown);
 
                 // 안쪽 세트 열기 → 돌아가기 — 문서는 안 바뀌고, 돌아오면 그 인스턴스가 골라져 있다.
                 window.SelectSetNode("set");
@@ -1095,27 +1095,27 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
 
                 // 들일 문서 — 세트 둘: pillar가 sun을 품고, pillar_in이 sun_rise를 재생 블록으로 튼다. 그림은 그 문서 기준의 상대 경로다.
-                string folder = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"import-{Guid.NewGuid():N}");
+                string folder = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"import-{Guid.NewGuid():N}");
                 Directory.CreateDirectory(Path.Combine(folder, "art"));
                 File.Copy(TestDocuments.ArtPath("08_microbe_sun.png"), Path.Combine(folder, "art", "sun.png"));
-                var source = new MotionEditor(new MotionDocument());
-                source.AddRig(new RigAsset { Kind = "sun", Nodes = { new RigNodeAsset { Id = "Disc", Width = 242f, Height = 236f, Image = true, Alpha = true } } });
+                var source = new DocumentEditor(new AuthoringDocument());
+                source.AddSet(new SetAsset { Name = "sun", Objects = { new ObjectAsset { Id = "Disc", Width = 242f, Height = 236f, Image = true, Alpha = true } } });
                 source.AddSkin("sun", "sun");
                 source.SetSkinPart("sun", "Disc", "art/sun.png");
-                source.AddMotion("sun_rise", "sun", 0.5f);
-                source.AddChannel("sun_rise", "Disc", MotionChannelKind.Position);
-                source.SetKeys("sun_rise", "Disc", MotionChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 120f) });
-                source.AddRig(new RigAsset { Kind = "pillar", Nodes = { new RigNodeAsset { Id = "Panel", Width = 400f, Height = 900f, Color = "#3D5A80", Alpha = true } } });
-                source.AddRigInstance("pillar", "sun", "sun");
-                source.AddMotion("pillar_in", "pillar", 1f);
-                source.AddChannel("pillar_in", "Panel", MotionChannelKind.Position);
-                source.SetKeys("pillar_in", "Panel", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, -600f), TestDocuments.Key(1f, 0f) });
-                source.AddMotionPlay("pillar_in", "sun", "sun_rise", 0.25f);
-                string path = Path.Combine(folder, "pillar.motion-authoring.json");
-                File.WriteAllText(path, Mt.Authoring.Serialization.MotionDocumentJson.Write(source.Document));
+                source.AddTimeline("sun_rise", "sun", 0.5f);
+                source.AddChannel("sun_rise", "Disc", ChannelKind.Position);
+                source.SetKeys("sun_rise", "Disc", ChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 120f) });
+                source.AddSet(new SetAsset { Name = "pillar", Objects = { new ObjectAsset { Id = "Panel", Width = 400f, Height = 900f, Color = "#3D5A80", Alpha = true } } });
+                source.AddInstance("pillar", "sun", "sun");
+                source.AddTimeline("pillar_in", "pillar", 1f);
+                source.AddChannel("pillar_in", "Panel", ChannelKind.Position);
+                source.SetKeys("pillar_in", "Panel", ChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, -600f), TestDocuments.Key(1f, 0f) });
+                source.AddPlayBlock("pillar_in", "sun", "sun_rise", 0.25f);
+                string path = Path.Combine(folder, "pillar.cut-authoring.json");
+                File.WriteAllText(path, Mt.Authoring.Serialization.AuthoringDocumentJson.Write(source.Document));
 
                 // 그 문서의 세트 둘(pillar · 그것이 품은 sun)이 애니메이션 · 스킨과 함께 — 한 칸.
                 long revision = editor.Revision;
@@ -1157,7 +1157,7 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
 
                 // set(색 사각형 Color1) · set_2(set을 (300, 100)에 품는다).
@@ -1167,12 +1167,12 @@ public class SkinShellTests
                 window.NewSetFromForm();
                 window.SelectSetNode(null);
                 window.AddSetInstanceFromMenu("set");
-                editor.UpdateRigNode("set_2", "set", new RigNodeAsset { X = 300f, Y = 100f, Alpha = true });
+                editor.UpdateObject("set_2", "set", new ObjectAsset { X = 300f, Y = 100f, Alpha = true });
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Point At(Vec2 p) => view.TranslatePoint(view.ToScreen(p), window) ?? throw new InvalidOperationException("뷰가 창에 붙어 있지 않다");
                 Vec2 Inner() => view.CurrentPose()!.TransformPoint("set/set.Color1", Vec3.Zero).XY;
-                RigNodeAsset Color() => editor.Document.FindRig("set")!.Find("Color1")!;
-                RigNodeAsset Instance() => editor.Document.FindRig("set_2")!.Find("set")!;
+                ObjectAsset Color() => editor.Document.FindSetOrCut("set")!.Find("Color1")!;
+                ObjectAsset Instance() => editor.Document.FindSetOrCut("set_2")!.Find("set")!;
 
                 // 더블클릭 — 안쪽으로 들어간다. 문서는 안 바뀐다.
                 long revision = editor.Revision;
@@ -1212,8 +1212,8 @@ public class SkinShellTests
                 Assert.True(window.EnterInstanceInPlaceFromForm());
                 Assert.Equal("set", view.EnteredInstance);
                 view.EnterInstance(null);
-                editor.AddMotion("city_in", "set_2", 1f);
-                window.SelectMotion("city_in");
+                editor.AddTimeline("city_in", "set_2", 1f);
+                window.SelectTimeline("city_in");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 window.SelectSetNode("set");
                 Assert.False(window.EnterInstanceInPlaceFromForm());
@@ -1236,19 +1236,19 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
 
                 // 컷에 층 표를 들이고, sign에 자리와 배율의 키를 놓는다(가만히 선 자리 위에서 움직인다).
                 // 키는 처음(0초)과 끝(10초)에도 둔다 — 빼낸 뒤에는 세트의 애니메이션이라 "0초에서 시작해 길이에서 끝난다"는 규칙을 받는다.
                 window.NewCutFromForm();
                 window.ImportLayerSheetFromForm(TestDocuments.ArtPath("layers.tsv"));
-                editor.AddChannel("cut", "sign", MotionChannelKind.Position);
-                editor.SetKeys("cut", "sign", MotionChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 0f), TestDocuments.Key(1.5f, 240f), TestDocuments.Key(2.5f, -80f), TestDocuments.Key(10f, -80f) });
-                editor.SetKeys("cut", "sign", MotionChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(2.5f, 60f), TestDocuments.Key(10f, 60f) });
-                editor.AddChannel("cut", "sign", MotionChannelKind.Scale);
-                editor.SetKeys("cut", "sign", MotionChannelKind.Scale, Axis.X, new[] { TestDocuments.Key(0f, 1f), TestDocuments.Key(1f, 1f), TestDocuments.Key(2f, 1.5f), TestDocuments.Key(10f, 1.5f) });
-                editor.SetKeys("cut", "sign", MotionChannelKind.Scale, Axis.Y, new[] { TestDocuments.Key(0f, 1f), TestDocuments.Key(1f, 1f), TestDocuments.Key(2f, 1.5f), TestDocuments.Key(10f, 1.5f) });
+                editor.AddChannel("cut", "sign", ChannelKind.Position);
+                editor.SetKeys("cut", "sign", ChannelKind.Position, Axis.X, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.5f, 0f), TestDocuments.Key(1.5f, 240f), TestDocuments.Key(2.5f, -80f), TestDocuments.Key(10f, -80f) });
+                editor.SetKeys("cut", "sign", ChannelKind.Position, Axis.Y, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(2.5f, 60f), TestDocuments.Key(10f, 60f) });
+                editor.AddChannel("cut", "sign", ChannelKind.Scale);
+                editor.SetKeys("cut", "sign", ChannelKind.Scale, Axis.X, new[] { TestDocuments.Key(0f, 1f), TestDocuments.Key(1f, 1f), TestDocuments.Key(2f, 1.5f), TestDocuments.Key(10f, 1.5f) });
+                editor.SetKeys("cut", "sign", ChannelKind.Scale, Axis.Y, new[] { TestDocuments.Key(0f, 1f), TestDocuments.Key(1f, 1f), TestDocuments.Key(2f, 1.5f), TestDocuments.Key(10f, 1.5f) });
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.Equal(0, window.ProblemRowsShown);
                 double[] times = { 0.2, 0.7, 1.0, 1.6, 2.0, 2.5, 2.9 };
@@ -1284,11 +1284,11 @@ public class SkinShellTests
                 Assert.Equal(revision + 2, editor.Revision);
 
                 // 세트·애니메이션·스킨·인스턴스의 이름이 다 따라왔고, 컷의 타임라인이 그 애니메이션을 재생 블록으로 튼다.
-                Assert.Equal("plate", editor.Document.FindCut("cut")!.Rig.Find("plate")!.Set);
-                string moved = Assert.Single(editor.Document.Motions, m => m.Rig == "plate").Name;
+                Assert.Equal("plate", editor.Document.FindCut("cut")!.AsSet.Find("plate")!.Set);
+                string moved = Assert.Single(editor.Document.Timelines, m => m.Set == "plate").Name;
                 Assert.StartsWith("plate_", moved, StringComparison.Ordinal);
                 Assert.NotNull(editor.Document.FindSkin("plate"));
-                Assert.Contains(editor.Document.Find("cut")!.Plays, p => p.Node == "plate" && p.Motion == moved);
+                Assert.Contains(editor.Document.Find("cut")!.Plays, p => p.Object == "plate" && p.Timeline == moved);
                 Assert.Equal(0, window.ProblemRowsShown);
 
                 // 컷의 재생은 그대로다.
@@ -1319,25 +1319,25 @@ public class SkinShellTests
 
             try
             {
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 window.NewSetFromForm();
                 window.SelectSetNode(null);
                 window.AddColorNodeFromForm(); // Color1 — 400×300, 무대 가운데
-                editor.AddMotion("set_in", "set", 1f);
+                editor.AddTimeline("set_in", "set", 1f);
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 // 애니메이션을 고르지 않았으면 할 일이 없다.
                 Assert.Null(window.SlideSetNodeFromMenu("Color1", StageSide.Left, leaving: false));
 
                 // 0.25초에서 "왼쪽에서" — 한 칸. 무대의 반(960) + 너비의 반(200) = 1160만큼 왼쪽에서 0.5초 동안 들어온다.
-                window.SelectMotion("set_in");
+                window.SelectTimeline("set_in");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 window.Graph.CurrentTime = 0.25;
                 long revision = editor.Revision;
                 Assert.Equal(-1160f, window.SlideSetNodeFromMenu("Color1", StageSide.Left, leaving: false));
                 Assert.Equal(revision + 1, editor.Revision);
                 Assert.Equal(new[] { (0f, -1160f), (0.25f, -1160f), (0.75f, 0f), (1f, 0f) },
-                    editor.Document.Find("set_in")!.FindChannel("Color1", MotionChannelKind.Position)!.X!.Keys.Select(k => (k.T, k.V)));
+                    editor.Document.Find("set_in")!.FindChannel("Color1", ChannelKind.Position)!.X!.Keys.Select(k => (k.T, k.V)));
                 Assert.Equal(0, window.ProblemRowsShown);
 
                 // 뷰포트: 0.1초에는 무대 밖(왼쪽), 끝에는 제자리.

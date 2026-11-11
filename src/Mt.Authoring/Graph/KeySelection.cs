@@ -102,8 +102,8 @@ public sealed class KeySelection : IReadOnlyCollection<KeyRef>
     }
 
     /// <summary>문서가 바뀐 뒤 더는 없는 키를 턴다(자리가 밀렸거나 지워졌다).</summary>
-    public int Prune(MotionAsset? motion)
-        => RemoveWhere(k => motion is null || k.Resolve(motion) is null);
+    public int Prune(TimelineAsset? timeline)
+        => RemoveWhere(k => timeline is null || k.Resolve(timeline) is null);
 
     private void Raise() => Changed?.Invoke(this, EventArgs.Empty);
 }

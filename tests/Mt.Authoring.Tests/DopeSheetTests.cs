@@ -6,7 +6,7 @@ namespace Mt.Authoring.Tests;
 
 public class KeySelectionTests
 {
-    private static readonly CurveRef Y = new("N", MotionChannelKind.Position, Axis.Y);
+    private static readonly CurveRef Y = new("N", ChannelKind.Position, Axis.Y);
 
     [Fact]
     public void 바뀔_때만_한_번_알린다()
@@ -34,8 +34,8 @@ public class KeySelectionTests
     [Fact]
     public void 문서가_바뀌면_없는_키를_턴다()
     {
-        MotionDocument document = Fixtures.ActorDocument();
-        var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+        AuthoringDocument document = Fixtures.ActorDocument();
+        var y = new CurveRef("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
         var selection = new KeySelection();
         selection.Set(new[] { new KeyRef(y, 2), new KeyRef(y, 9) });
 
@@ -48,9 +48,9 @@ public class KeySelectionTests
 
 public class KeyOpsTests
 {
-    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
 
-    private static MotionAsset Nod() => Fixtures.ActorDocument().Find("nod")!;
+    private static TimelineAsset Nod() => Fixtures.ActorDocument().Find("nod")!;
 
     [Fact]
     public void 이동은_선택만_옮기고_0_아래로_내려가지_않는다()
@@ -115,7 +115,7 @@ public class KeyOpsTests
     [Fact]
     public void 편집기_명령은_한_번의_조작이고_선택_시각을_돌려준다()
     {
-        var editor = new MotionEditor(Fixtures.ActorDocument());
+        var editor = new DocumentEditor(Fixtures.ActorDocument());
         long before = editor.Revision;
 
         List<(CurveRef Curve, float T)> moved = editor.MoveKeys("nod", new[] { new KeyRef(Y, 1), new KeyRef(Y, 2) }, 0.2f);
@@ -140,7 +140,7 @@ public class DopeSheetRowsTests
     [Fact]
     public void 노드_채널_성분_트리와_요약_블록()
     {
-        MotionAsset bow = Fixtures.ActorDocument().Find("bow")!;
+        TimelineAsset bow = Fixtures.ActorDocument().Find("bow")!;
 
         List<DopeRow> rows = DopeSheetRows.Build(bow);
 
@@ -162,14 +162,14 @@ public class DopeSheetRowsTests
     [Fact]
     public void 접힌_노드는_요약_행만_남고_Covers는_계층대로다()
     {
-        MotionDocument document = Fixtures.ActorDocument();
+        AuthoringDocument document = Fixtures.ActorDocument();
         List<DopeRow> rows = DopeSheetRows.Build(document.Find("nod")!, node => true);
 
         DopeRow only = Assert.Single(rows);
         Assert.Equal(DopeRowLevel.Node, only.Level);
-        var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+        var y = new CurveRef("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
         Assert.True(only.Covers(new KeyRef(y, 1)));
-        Assert.False(only.Covers(new KeyRef(new CurveRef("Other", MotionChannelKind.Position, Axis.Y), 1)));
+        Assert.False(only.Covers(new KeyRef(new CurveRef("Other", ChannelKind.Position, Axis.Y), 1)));
 
         List<DopeRow> open = DopeSheetRows.Build(document.Find("nod")!);
         Assert.Equal(3, open.Count);
@@ -179,7 +179,7 @@ public class DopeSheetRowsTests
     [Fact]
     public void 채널이_없으면_행이_없다()
     {
-        Assert.Empty(DopeSheetRows.Build(new MotionAsset { Name = "a", Rig = Fixtures.Actor, Duration = 1f }));
+        Assert.Empty(DopeSheetRows.Build(new TimelineAsset { Name = "a", Set = Fixtures.Actor, Duration = 1f }));
     }
 }
 
@@ -211,12 +211,12 @@ public class RelativeInputTests
 
 public class KeyValueOpsTests
 {
-    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
 
     [Fact]
     public void 값만_바꾸고_시각은_그대로라_선택이_유효하다()
     {
-        var editor = new MotionEditor(Fixtures.ActorDocument());
+        var editor = new DocumentEditor(Fixtures.ActorDocument());
         long before = editor.Revision;
 
         editor.SetKeyValues("nod", new[] { new KeyRef(Y, 1), new KeyRef(Y, 9) }, k => k.V * 2f);
@@ -241,13 +241,13 @@ public class KeyValueOpsTests
 
 public class KeyClipboardTests
 {
-    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
-    private static readonly CurveRef Z = new("CharacterPortrait_SwayPivot", MotionChannelKind.Euler, Axis.Z);
+    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
+    private static readonly CurveRef Z = new("CharacterPortrait_SwayPivot", ChannelKind.Euler, Axis.Z);
 
     [Fact]
     public void 복사는_사본이고_기준은_가장_이른_키다()
     {
-        MotionAsset nod = Fixtures.ActorDocument().Find("nod")!;
+        TimelineAsset nod = Fixtures.ActorDocument().Find("nod")!;
 
         KeyClipboard clipboard = KeyClipboard.Copy(nod, new[] { new KeyRef(Y, 2), new KeyRef(Y, 1), new KeyRef(Y, 9) })!;
 
@@ -263,8 +263,8 @@ public class KeyClipboardTests
     [Fact]
     public void 붙여넣기는_현재_시각에_기준을_맞추고_같은_시각은_바꾸며_없는_채널은_만든다()
     {
-        var editor = new MotionEditor(Fixtures.ActorDocument());
-        MotionAsset nod = editor.Document.Find("nod")!;
+        var editor = new DocumentEditor(Fixtures.ActorDocument());
+        TimelineAsset nod = editor.Document.Find("nod")!;
         KeyClipboard clipboard = KeyClipboard.Copy(nod, new[] { new KeyRef(Y, 1), new KeyRef(Y, 2) })!; // 0.3(-18) · 0.6(0)
         long before = editor.Revision;
 

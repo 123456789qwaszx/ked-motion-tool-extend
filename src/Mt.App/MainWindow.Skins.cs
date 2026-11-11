@@ -4,7 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Model;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 
 namespace Mt.App;
 
@@ -75,7 +75,7 @@ public partial class MainWindow
         try
         {
             string? kind = _viewport.SetView;
-            IReadOnlyList<string> parts = kind is null ? Array.Empty<string>() : RigParts.Of(_session.Rig, kind);
+            IReadOnlyList<string> parts = kind is null ? Array.Empty<string>() : ObjectParts.Of(_session.Built, kind);
             _skinPanel.IsVisible = parts.Count > 0;
             _skinParts.Children.Clear();
             _skinSetupBoxes.Clear();
@@ -86,7 +86,7 @@ public partial class MainWindow
             }
 
             // 스킨이 하나라도 있으면 그 가운데 하나를 입혀 본다(뷰포트가 첫 스킨을 고른다) — 없을 때만 "(없음)".
-            List<string> choices = _session.Editor.Document.Skins.Where(s => s.Rig == kind).Select(s => s.Name).ToList();
+            List<string> choices = _session.Editor.Document.Skins.Where(s => s.Set == kind).Select(s => s.Name).ToList();
 
             if (choices.Count == 0)
             {
@@ -245,12 +245,12 @@ public partial class MainWindow
     /// <summary>연 컷/세트의 새 스킨을 만들어 입혀 본다 — 되돌리기 한 번.</summary>
     private string? AddSkin()
     {
-        if (_viewport.SetView is not { } rig)
+        if (_viewport.SetView is not { } set)
         {
             return null;
         }
 
-        MotionEditor editor = _session.Editor;
+        DocumentEditor editor = _session.Editor;
         string name = "skin";
 
         for (int n = 2; editor.Document.FindSkin(name) is not null; n++)
@@ -258,7 +258,7 @@ public partial class MainWindow
             name = $"skin_{n}";
         }
 
-        editor.AddSkin(name, rig);
+        editor.AddSkin(name, set);
         _viewport.SetSkin = name;
         RefreshSkinPanel();
         return name;
@@ -274,12 +274,12 @@ public partial class MainWindow
 
     /// <summary>그 세트의 제 조각 — 품은 세트의 조각(경로 이름 <c>인스턴스.이름</c>)은 뺀다. 그 그림은 품은 세트의 스킨에 있다.</summary>
     private static IEnumerable<string> OwnParts(IReadOnlyList<string> parts)
-        => parts.Where(p => !p.Contains(Mt.Authoring.Model.RigAssetCodec.PathSeparator, StringComparison.Ordinal));
+        => parts.Where(p => !p.Contains(Mt.Authoring.Model.SetCodec.PathSeparator, StringComparison.Ordinal));
 
     /// <summary>품은 세트의 조각을 알리는 줄 — 인스턴스마다 한 줄("그림 없음"으로 보이지 않게, 어디서 고치는지와 함께).</summary>
     private static IEnumerable<Control> NestedPartNotes(IReadOnlyList<string> parts)
-        => parts.Where(p => p.Contains(Mt.Authoring.Model.RigAssetCodec.PathSeparator, StringComparison.Ordinal))
-            .GroupBy(p => p.Split(Mt.Authoring.Model.RigAssetCodec.PathSeparator)[0])
+        => parts.Where(p => p.Contains(Mt.Authoring.Model.SetCodec.PathSeparator, StringComparison.Ordinal))
+            .GroupBy(p => p.Split(Mt.Authoring.Model.SetCodec.PathSeparator)[0])
             .Select(g => (Control)new TextBlock
             {
                 Text = $"{g.Key} — 품은 세트의 조각 {g.Count()}개. 그림은 그 세트를 열어 그 스킨에서 고친다",

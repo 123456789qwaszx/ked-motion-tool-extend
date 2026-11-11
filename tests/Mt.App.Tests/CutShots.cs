@@ -23,7 +23,7 @@ public class CutShots
 
         HeadlessUi.Run(() =>
         {
-            string settings = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"settings-{Guid.NewGuid():N}.json");
+            string settings = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"settings-{Guid.NewGuid():N}.json");
             Directory.CreateDirectory(Path.GetDirectoryName(settings)!);
             File.WriteAllText(settings, "{}");
             var window = new MainWindow(settings);
@@ -47,7 +47,7 @@ public class CutShots
                 // 새 컷에 층 표를 들이고, 층마다 깊이를 주고, 카메라에 키를 놓는다.
                 window.NewCutFromForm();
                 window.ImportLayerSheetFromForm(TestDocuments.ArtPath("layers.tsv"));
-                MotionEditor editor = window.Session.Editor;
+                DocumentEditor editor = window.Session.Editor;
                 editor.SetCutNodeDepth("cut", "sign", 6f);
                 editor.SetCutNodeDepth("cut", "microbe_sun", 20f);
                 editor.SetCutCameraKey("cut", 0f, new CameraSettings());
@@ -58,7 +58,7 @@ public class CutShots
 
                 window.Graph.CurrentTime = 4.0;
                 window.InspectorTab = 2;
-                Shot("cut-motion-tab");
+                Shot("cut-timeline-tab");
             }
             finally
             {

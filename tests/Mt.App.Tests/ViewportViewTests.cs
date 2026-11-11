@@ -12,9 +12,9 @@ namespace Mt.App.Tests;
 
 public class ViewportViewTests
 {
-    private static (Window Window, ViewportView View, MotionEditor Editor) Show()
+    private static (Window Window, ViewportView View, DocumentEditor Editor) Show()
     {
-        MotionEditor editor = TestDocuments.Nod();
+        DocumentEditor editor = TestDocuments.Nod();
         var view = new ViewportView { SnapStep = 1.0 / 60 }; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var window = new Window { Width = 900, Height = 600, Content = view };
         window.Show();
@@ -88,7 +88,7 @@ public class ViewportViewTests
 
         try
         {
-            Assert.True(view.HasRig);
+            Assert.True(view.HasSet);
             Assert.True(view.CurrentPose()!.Contains("set/CharacterPortrait_Track_Move_Y")); // 노드 키는 set/ 접두사
             Quad rest = view.ShownQuad() ?? throw new InvalidOperationException("세트가 안 섰다");
             Assert.Equal(0f, rest.Center.Y, 2);
@@ -171,7 +171,7 @@ public class ViewportViewTests
     [Fact]
     public void 이동_매니퓰레이터는_AutoKey면_놓을_때_바뀐_성분만_키로_놓는다() => HeadlessUi.Run(() =>
     {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
+        (Window window, ViewportView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -194,7 +194,7 @@ public class ViewportViewTests
 
             Assert.Equal(before + 1, editor.Revision);
             Assert.False(view.HasPending);
-            ChannelAsset channel = editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!;
+            ChannelAsset channel = editor.Document.Find("nod")!.FindChannel(node, ChannelKind.Position)!;
             Assert.Null(channel.X); // 세로로만 끌었으니 x는 건드리지 않는다
             KeyAsset key = channel.Y!.Keys.Single(k => Math.Abs(k.T - 0.3f) < 1e-4);
             Assert.Equal(-18.0 - 20.0 / scale, key.V, 1);
@@ -208,7 +208,7 @@ public class ViewportViewTests
     [Fact]
     public void AutoKey가_꺼져_있으면_키_없는_포즈로_남고_S가_키를_놓고_시각을_옮기면_버린다() => HeadlessUi.Run(() =>
     {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
+        (Window window, ViewportView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -230,12 +230,12 @@ public class ViewportViewTests
             Assert.Equal(before, editor.Revision);
             Assert.True(view.HasPending);
             Assert.True(pendingChanges > 0);
-            Assert.Equal(3, editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys.Count);
+            Assert.Equal(3, editor.Document.Find("nod")!.FindChannel(node, ChannelKind.Position)!.Y!.Keys.Count);
 
             view.SetKey();
             Assert.False(view.HasPending);
             Assert.Equal(before + 1, editor.Revision);
-            List<KeyAsset> keys = editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys;
+            List<KeyAsset> keys = editor.Document.Find("nod")!.FindChannel(node, ChannelKind.Position)!.Y!.Keys;
             Assert.Equal(4, keys.Count);
             Assert.Contains(keys, k => Math.Abs(k.T - 0.15f) < 1e-4 && k.V > -9f);
 
@@ -267,7 +267,7 @@ public class ViewportViewTests
     [Fact]
     public void 배율_매니퓰레이터는_팔_방향_투영이라_안으로_끌면_줄고_가운데를_넘어도_커지지_않는다() => HeadlessUi.Run(() =>
     {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
+        (Window window, ViewportView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -285,7 +285,7 @@ public class ViewportViewTests
             window.MouseMove(halfway, RawInputModifiers.LeftMouseButton);
             window.MouseUp(halfway, MouseButton.Left);
 
-            ChannelAsset channel = editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Scale)!;
+            ChannelAsset channel = editor.Document.Find("nod")!.FindChannel(node, ChannelKind.Scale)!;
             Assert.Null(channel.Y); // x 팔만 끌었다
             Assert.Equal(0.5f, channel.X!.Keys.Single(k => Math.Abs(k.T - 0.3f) < 1e-4).V, 2);
 
@@ -309,7 +309,7 @@ public class ViewportViewTests
     [Fact]
     public void 손잡이는_노드_원점이_그림_밖이어도_그림_안에_서고_무대_밖_오브젝트도_사각형이_있다() => HeadlessUi.Run(() =>
     {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
+        (Window window, ViewportView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -326,7 +326,7 @@ public class ViewportViewTests
             }
 
             // 무대 밖으로 보낸 오브젝트도 잘리지 않는다 — 사각형이 있다.
-            editor.UpdateRigNode(TestDocuments.Actor, "CharSlot_Track", new RigNodeAsset { X = 1500f });
+            editor.UpdateObject(TestDocuments.Actor, "CharSlot_Track", new ObjectAsset { X = 1500f });
             TestDocuments.Open(view, editor); // 고친 세트를 다시 세운다(창에서는 세션이 한다)
             Quad outside = view.ShownQuad()!.Value;
             Assert.True(view.ToScreen(outside.Center).X > view.StageRect.Right);
@@ -340,7 +340,7 @@ public class ViewportViewTests
     [Fact]
     public void 회전_매니퓰레이터는_고리를_끌어_z_회전_키를_놓는다() => HeadlessUi.Run(() =>
     {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
+        (Window window, ViewportView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -360,7 +360,7 @@ public class ViewportViewTests
             window.MouseUp(rotated, MouseButton.Left);
 
             Assert.Equal(before + 1, editor.Revision);
-            ChannelAsset channel = editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Euler)!;
+            ChannelAsset channel = editor.Document.Find("nod")!.FindChannel(node, ChannelKind.Euler)!;
             Assert.Null(channel.X);
             Assert.Null(channel.Y);
             Assert.Equal(90f, channel.Z!.Keys[0].V, 1);
@@ -378,7 +378,7 @@ public class ViewportViewTests
 
         try
         {
-            var y = new Mt.Authoring.Graph.CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Mt.Authoring.Model.Axis.Y);
+            var y = new Mt.Authoring.Graph.CurveRef("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Mt.Authoring.Model.Axis.Y);
             view.ScrubTo(0.3);
             Assert.Equal(-18f, view.ShownQuad()!.Value.Center.Y, 2);
 
@@ -397,8 +397,8 @@ public class ViewportViewTests
     [Fact]
     public void 아무것도_안_열면_빈_무대이고_다른_것의_모션은_얹히지_않는다() => HeadlessUi.Run(() =>
     {
-        MotionEditor editor = TestDocuments.Nod();
-        editor.AddMotion("robot_wave", "robot", 1f);
+        DocumentEditor editor = TestDocuments.Nod();
+        editor.AddTimeline("robot_wave", "robot", 1f);
         var view = new ViewportView { SnapStep = 1.0 / 60 }; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var window = new Window { Width = 600, Height = 400, Content = view };
         window.Show();
@@ -407,7 +407,7 @@ public class ViewportViewTests
         {
             // 아무것도 안 열었다 — 빈 무대. 포즈를 물어도 던지지 않는다.
             view.Bind(editor, "nod");
-            Assert.False(view.HasRig);
+            Assert.False(view.HasSet);
             Assert.Null(view.SetView);
             Assert.Null(view.CurrentPose());
             Assert.Null(view.ShownQuad());
@@ -416,13 +416,13 @@ public class ViewportViewTests
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
             TestDocuments.Open(view, editor);
-            Assert.True(view.HasRig);
+            Assert.True(view.HasSet);
             view.ScrubTo(0.3);
             Assert.Equal(-18f, view.ShownQuad()!.Value.Center.Y, 2);
 
             // 다른 것의 모션: 세트는 그대로 서고, 그 모션은 얹히지 않는다.
             view.Bind(editor, "robot_wave");
-            Assert.True(view.HasRig);
+            Assert.True(view.HasSet);
             view.ScrubTo(0.3);
             Assert.Equal(0f, view.ShownQuad()!.Value.Center.Y, 2);
             view.InvalidateVisual();
@@ -430,7 +430,7 @@ public class ViewportViewTests
 
             // 닫으면 다시 빈 무대.
             view.SetView = null;
-            Assert.False(view.HasRig);
+            Assert.False(view.HasSet);
             Assert.Null(view.CurrentPose());
         }
         finally
@@ -442,7 +442,7 @@ public class ViewportViewTests
     [Fact]
     public void 키_없는_포즈도_되돌리기_다시하기가_되고_S로_키한_것을_되돌리면_그_포즈로_돌아온다() => HeadlessUi.Run(() =>
     {
-        (Window window, ViewportView view, MotionEditor editor) = Show();
+        (Window window, ViewportView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -451,7 +451,7 @@ public class ViewportViewTests
             view.Manipulator = ManipulatorMode.Move;
             view.AutoKey = false;
             view.ScrubTo(0.15); // 키가 없는 시각
-            float start = view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value;
+            float start = view.ComponentValue(node, ChannelKind.Position, Axis.Y)!.Value;
             long revision = editor.Revision;
 
             void Drag()
@@ -465,35 +465,35 @@ public class ViewportViewTests
             // 드래그 한 번 = 포즈 칸 하나(문서는 그대로).
             Drag();
             Assert.True(view.HasPending);
-            float posed = view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value;
+            float posed = view.ComponentValue(node, ChannelKind.Position, Axis.Y)!.Value;
             Assert.NotEqual(start, posed);
             Assert.Equal(revision, editor.Revision);
 
             editor.Undo();
             Assert.False(view.HasPending);
-            Assert.Equal(start, view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value, 3);
+            Assert.Equal(start, view.ComponentValue(node, ChannelKind.Position, Axis.Y)!.Value, 3);
             editor.Redo();
             Assert.True(view.HasPending);
-            Assert.Equal(posed, view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value, 3);
+            Assert.Equal(posed, view.ComponentValue(node, ChannelKind.Position, Axis.Y)!.Value, 3);
 
             // S = 키 확정 한 칸. 되돌리면 키 확정 직전의 포즈로, 한 번 더 되돌리면 그 전으로. 다시하기는 같은 순서.
             view.SetKey();
             Assert.False(view.HasPending);
             Assert.Equal(revision + 1, editor.Revision);
-            Assert.Equal(4, editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys.Count);
+            Assert.Equal(4, editor.Document.Find("nod")!.FindChannel(node, ChannelKind.Position)!.Y!.Keys.Count);
 
             editor.Undo();
-            Assert.Equal(3, editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys.Count);
+            Assert.Equal(3, editor.Document.Find("nod")!.FindChannel(node, ChannelKind.Position)!.Y!.Keys.Count);
             Assert.True(view.HasPending);
-            Assert.Equal(posed, view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value, 3);
+            Assert.Equal(posed, view.ComponentValue(node, ChannelKind.Position, Axis.Y)!.Value, 3);
             editor.Undo();
             Assert.False(view.HasPending);
-            Assert.Equal(start, view.ComponentValue(node, MotionChannelKind.Position, Axis.Y)!.Value, 3);
+            Assert.Equal(start, view.ComponentValue(node, ChannelKind.Position, Axis.Y)!.Value, 3);
             editor.Redo();
             Assert.True(view.HasPending);
             editor.Redo();
             Assert.False(view.HasPending);
-            Assert.Equal(4, editor.Document.Find("nod")!.FindChannel(node, MotionChannelKind.Position)!.Y!.Keys.Count);
+            Assert.Equal(4, editor.Document.Find("nod")!.FindChannel(node, ChannelKind.Position)!.Y!.Keys.Count);
 
             // Esc로 버린 포즈도, 스크럽으로 사라진 포즈도 되돌리기로 돌아온다.
             view.ScrubTo(0.2);
@@ -517,7 +517,7 @@ public class ViewportViewTests
             Assert.True(view.HasPending);
 
             // 문서를 갈아 끼우면 이전 문서의 포즈·이력은 남지 않는다.
-            view.Bind(new MotionEditor(new MotionDocument()), null);
+            view.Bind(new DocumentEditor(new AuthoringDocument()), null);
             Assert.False(view.HasPending);
         }
         finally

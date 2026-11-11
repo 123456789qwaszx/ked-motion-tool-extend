@@ -44,7 +44,7 @@ public sealed class CurveSlot
 /// - 시간 스냅 1/60초(끌 수 있다). 값 스냅 없음.
 ///
 /// <b>드래그 중간값은 렌더만이고, 놓는 순간이 편집 하나다</b>(되돌리기 한 번 = 조작 하나). 문서에 닿는 길은
-/// <see cref="MotionEditor"/>뿐이다. 좌표 변환·히트 테스트·탄젠트 산수는 전부 <c>Mt.Authoring.Graph</c>의 순수 함수다 —
+/// <see cref="DocumentEditor"/>뿐이다. 좌표 변환·히트 테스트·탄젠트 산수는 전부 <c>Mt.Authoring.Graph</c>의 순수 함수다 —
 /// 여기에는 그리기와 입력만 있다.
 /// </summary>
 public sealed class GraphEditorView : Control
@@ -83,8 +83,8 @@ public sealed class GraphEditorView : Control
     private readonly List<CurveSlot> _curves = new();
     private KeySelection _selection = new();
 
-    private MotionEditor? _editor;
-    private string? _motionName;
+    private DocumentEditor? _editor;
+    private string? _timelineName;
     private GraphCamera _camera = new(-0.1, -1, 400, 100);
     private bool _cameraFitted;
     private double _currentTime;
@@ -154,10 +154,10 @@ public sealed class GraphEditorView : Control
     /// <summary>선택한 커브마다 그 시각(스냅)에 곡선 위 값으로 키 하나(한 조작). 마야 Insert Key(MMB 클릭).</summary>
     public List<KeyRef> InsertKeysOnSelectedCurves(double seconds)
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         var inserted = new List<KeyRef>();
 
-        if (motion is null || _editor is null || _motionName is null || _selectedCurves.Count == 0)
+        if (timeline is null || _editor is null || _timelineName is null || _selectedCurves.Count == 0)
         {
             return inserted;
         }
@@ -168,7 +168,7 @@ public sealed class GraphEditorView : Control
 
         foreach (CurveRef curve in _selectedCurves)
         {
-            if (_flags.IsLocked(curve) || curve.Resolve(motion) is not { } component)
+            if (_flags.IsLocked(curve) || curve.Resolve(timeline) is not { } component)
             {
                 continue;
             }
@@ -182,7 +182,7 @@ public sealed class GraphEditorView : Control
             return inserted;
         }
 
-        _editor.SetKeysMany(_motionName, edits);
+        _editor.SetKeysMany(_timelineName, edits);
         SelectByTime(targets);
         return _selection.ToList();
     }
@@ -197,11 +197,11 @@ public sealed class GraphEditorView : Control
     {
         _buffer.Clear();
 
-        if (Motion is { } motion)
+        if (Timeline is { } timeline)
         {
             foreach (CurveSlot slot in _curves)
             {
-                if (slot.Visible && slot.Curve.Resolve(motion) is { } curve)
+                if (slot.Visible && slot.Curve.Resolve(timeline) is { } curve)
                 {
                     _buffer[slot.Curve] = curve.Keys.Select(k => new KeyAsset
                     {
@@ -217,9 +217,9 @@ public sealed class GraphEditorView : Control
     /// <summary>버퍼와 지금 커브를 바꾼다(마야 Swap Buffer Curve). 한 번의 조작.</summary>
     public void SwapBuffer()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (_editor is null || _motionName is null || motion is null || _buffer.Count == 0)
+        if (_editor is null || _timelineName is null || timeline is null || _buffer.Count == 0)
         {
             return;
         }
@@ -229,7 +229,7 @@ public sealed class GraphEditorView : Control
 
         foreach ((CurveRef curveRef, List<KeyAsset> buffered) in _buffer)
         {
-            if (curveRef.Resolve(motion) is not { } current)
+            if (curveRef.Resolve(timeline) is not { } current)
             {
                 continue;
             }
@@ -246,7 +246,7 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        _editor.SetKeysMany(_motionName, edits);
+        _editor.SetKeysMany(_timelineName, edits);
         _buffer.Clear();
 
         foreach ((CurveRef curveRef, List<KeyAsset> keys) in next)
@@ -265,15 +265,15 @@ public sealed class GraphEditorView : Control
 
     public void CopySelection()
     {
-        if (Motion is { } motion && _selection.Count > 0)
+        if (Timeline is { } timeline && _selection.Count > 0)
         {
-            Clipboard.Current = KeyClipboard.Copy(motion, _selection) ?? Clipboard.Current;
+            Clipboard.Current = KeyClipboard.Copy(timeline, _selection) ?? Clipboard.Current;
         }
     }
 
     public void CutSelection()
     {
-        if (Motion is { } motion && _selection.Count > 0 && KeyClipboard.Copy(motion, _selection) is { } copied)
+        if (Timeline is { } timeline && _selection.Count > 0 && KeyClipboard.Copy(timeline, _selection) is { } copied)
         {
             Clipboard.Current = copied;
             DeleteSelection();
@@ -287,13 +287,13 @@ public sealed class GraphEditorView : Control
     /// </summary>
     public void Paste()
     {
-        if (_editor is null || _motionName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
+        if (_editor is null || _timelineName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
         {
             return;
         }
 
         float at = (float)SnapTime(CurrentTime);
-        List<KeyRef> pasted = _editor.PasteKeys(_motionName, clipboard, at, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null, PasteTargets(clipboard));
+        List<KeyRef> pasted = _editor.PasteKeys(_timelineName, clipboard, at, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null, PasteTargets(clipboard));
         _selection.Set(pasted);
     }
 
@@ -373,9 +373,9 @@ public sealed class GraphEditorView : Control
     /// <summary>리전 상자 = 선택 키의 (시간, 보기값) 범위. 점이면 조금 벌린다.</summary>
     private void UpdateRegion()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (motion is null || _selection.Count == 0)
+        if (timeline is null || _selection.Count == 0)
         {
             _region = null;
             return;
@@ -385,7 +385,7 @@ public sealed class GraphEditorView : Control
 
         foreach (KeyRef key in _selection)
         {
-            if (key.Resolve(motion) is not { } k)
+            if (key.Resolve(timeline) is not { } k)
             {
                 continue;
             }
@@ -420,11 +420,11 @@ public sealed class GraphEditorView : Control
 
     public event EventHandler? CurvesChanged;
 
-    public MotionEditor? Editor => _editor;
+    public DocumentEditor? Editor => _editor;
 
-    public string? MotionName => _motionName;
+    public string? TimelineName => _timelineName;
 
-    public MotionAsset? Motion => _editor is not null && _motionName is not null ? _editor.Document.Find(_motionName) : null;
+    public TimelineAsset? Timeline => _editor is not null && _timelineName is not null ? _editor.Document.Find(_timelineName) : null;
 
     public IReadOnlyList<CurveSlot> Curves => _curves;
 
@@ -482,7 +482,7 @@ public sealed class GraphEditorView : Control
     // ── 바인딩 ────────────────────────────────────────────────────────
 
     /// <summary>편집기와 모션을 싣는다. 모션이 null이면 빈 그래프다. 커브 목록·선택이 새로 선다.</summary>
-    public void Bind(MotionEditor? editor, string? motionName)
+    public void Bind(DocumentEditor? editor, string? timelineName)
     {
         if (_editor is not null)
         {
@@ -490,7 +490,7 @@ public sealed class GraphEditorView : Control
         }
 
         _editor = editor;
-        _motionName = motionName;
+        _timelineName = timelineName;
 
         if (_editor is not null)
         {
@@ -548,7 +548,7 @@ public sealed class GraphEditorView : Control
         InvalidateVisual();
     }
 
-    private void OnEditorChanged(object? sender, MotionChangedEventArgs e)
+    private void OnEditorChanged(object? sender, DocumentChangedEventArgs e)
     {
         ReloadCurves();
         PruneSelection();
@@ -567,17 +567,17 @@ public sealed class GraphEditorView : Control
         }
 
         _curves.Clear();
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (motion is null)
+        if (timeline is null)
         {
             CurvesChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
-        for (int c = 0; c < motion.Channels.Count; c++)
+        for (int c = 0; c < timeline.Channels.Count; c++)
         {
-            ChannelAsset channel = motion.Channels[c];
+            ChannelAsset channel = timeline.Channels[c];
 
             foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
             {
@@ -586,7 +586,7 @@ public sealed class GraphEditorView : Control
                     continue;
                 }
 
-                var curve = new CurveRef(channel.Node, channel.Kind, axis);
+                var curve = new CurveRef(channel.Object, channel.Kind, axis);
                 var slot = new CurveSlot(curve, ColorFor(axis, c));
 
                 if (visible.TryGetValue(curve, out bool wasVisible))
@@ -603,12 +603,12 @@ public sealed class GraphEditorView : Control
 
     private void PruneSelection()
     {
-        _selection.Prune(Motion);
+        _selection.Prune(Timeline);
         _selectedCurves.RemoveWhere(c => !_curves.Any(s => s.Curve == c));
     }
 
     /// <summary>보이는 커브 선 중 가장 가까운 것(6px 안). 잠긴 커브는 뺀다.</summary>
-    private bool TryHitCurve(MotionAsset motion, Pixel at, out CurveRef hit)
+    private bool TryHitCurve(TimelineAsset timeline, Pixel at, out CurveRef hit)
     {
         hit = default;
         double best = 6;
@@ -617,7 +617,7 @@ public sealed class GraphEditorView : Control
 
         foreach (CurveSlot slot in _curves)
         {
-            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(motion) is not { } curve || curve.Keys.Count == 0)
+            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(timeline) is not { } curve || curve.Keys.Count == 0)
             {
                 continue;
             }
@@ -670,8 +670,8 @@ public sealed class GraphEditorView : Control
     /// <summary>키의 화면 좌표(이 컨트롤 기준). 테스트와 인스펙터가 쓴다.</summary>
     public Point? ScreenPositionOf(KeyRef key)
     {
-        MotionAsset? motion = Motion;
-        KeyAsset? asset = motion is null ? null : key.Resolve(motion);
+        TimelineAsset? timeline = Timeline;
+        KeyAsset? asset = timeline is null ? null : key.Resolve(timeline);
         return asset is null ? null : ScreenOf(key.Curve, asset.T, asset.V);
     }
 
@@ -683,29 +683,29 @@ public sealed class GraphEditorView : Control
 
     public void FitAll()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         var keys = new List<KeyAsset>();
 
-        if (motion is not null)
+        if (timeline is not null)
         {
             foreach (CurveSlot slot in _curves)
             {
-                if (slot.Visible && slot.Curve.Resolve(motion) is { } curve)
+                if (slot.Visible && slot.Curve.Resolve(timeline) is { } curve)
                 {
                     keys.AddRange(curve.Keys.Select(k => new KeyAsset { T = k.T, V = k.V }));
                 }
             }
         }
 
-        double duration = motion?.Duration ?? 1f;
+        double duration = timeline?.Duration ?? 1f;
         FitTo(keys, 0, Math.Max(duration, 0.1));
     }
 
     public void FitSelection()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (motion is null || _selection.Count == 0)
+        if (timeline is null || _selection.Count == 0)
         {
             FitAll();
             return;
@@ -715,7 +715,7 @@ public sealed class GraphEditorView : Control
 
         foreach (KeyRef key in _selection)
         {
-            if (key.Resolve(motion) is { } k)
+            if (key.Resolve(timeline) is { } k)
             {
                 keys.Add(new KeyAsset { T = k.T, V = k.V });
             }
@@ -727,16 +727,16 @@ public sealed class GraphEditorView : Control
     /// <summary>마야 "Frame Playback Range" — 시간은 재생 범위, 값은 그 안의 키.</summary>
     public void FitRange()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         double start = RangeStart;
-        double end = RangeEnd > RangeStart ? RangeEnd : (motion?.Duration ?? 1f);
+        double end = RangeEnd > RangeStart ? RangeEnd : (timeline?.Duration ?? 1f);
         var keys = new List<KeyAsset>();
 
-        if (motion is not null)
+        if (timeline is not null)
         {
             foreach (CurveSlot slot in _curves)
             {
-                if (slot.Visible && slot.Curve.Resolve(motion) is { } curve)
+                if (slot.Visible && slot.Curve.Resolve(timeline) is { } curve)
                 {
                     keys.AddRange(curve.Keys.Where(k => k.T >= start - 1e-6 && k.T <= end + 1e-6).Select(k => new KeyAsset { T = k.T, V = k.V }));
                 }
@@ -802,14 +802,14 @@ public sealed class GraphEditorView : Control
 
     public void SelectAll()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         var all = new List<KeyRef>();
 
-        if (motion is not null)
+        if (timeline is not null)
         {
             foreach (CurveSlot slot in _curves)
             {
-                if (slot.Visible && slot.Curve.Resolve(motion) is { } curve)
+                if (slot.Visible && slot.Curve.Resolve(timeline) is { } curve)
                 {
                     for (int i = 0; i < curve.Keys.Count; i++)
                     {
@@ -838,22 +838,22 @@ public sealed class GraphEditorView : Control
 
     public void DeleteSelection()
     {
-        if (_editor is null || _motionName is null || _selection.Count == 0)
+        if (_editor is null || _timelineName is null || _selection.Count == 0)
         {
             return;
         }
 
         List<KeyRef> doomed = _selection.ToList();
         _selection.Clear();
-        _editor.RemoveKeys(_motionName, doomed);
+        _editor.RemoveKeys(_timelineName, doomed);
     }
 
     /// <summary>보이는 커브 전부에 현재 시각의 키를 끼운다(값은 곡선 위). 선택이 있으면 선택된 키의 커브에만.</summary>
     public void InsertKeyAtCurrentTime()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (_editor is null || _motionName is null || motion is null)
+        if (_editor is null || _timelineName is null || timeline is null)
         {
             return;
         }
@@ -868,7 +868,7 @@ public sealed class GraphEditorView : Control
 
         foreach (CurveRef curveRef in targets)
         {
-            if (curveRef.Resolve(motion) is not { } curve)
+            if (curveRef.Resolve(timeline) is not { } curve)
             {
                 continue;
             }
@@ -882,36 +882,36 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        _editor.SetKeysMany(_motionName, edits);
+        _editor.SetKeysMany(_timelineName, edits);
         SelectByTime(inserted);
     }
 
     public void SetTangentMode(TangentMode mode)
     {
-        if (_editor is not null && _motionName is not null && _selection.Count > 0)
+        if (_editor is not null && _timelineName is not null && _selection.Count > 0)
         {
-            _editor.SetTangentMode(_motionName, _selection.ToList(), mode);
+            _editor.SetTangentMode(_timelineName, _selection.ToList(), mode);
         }
     }
 
     public void SetBroken(bool broken)
     {
-        if (_editor is not null && _motionName is not null && _selection.Count > 0)
+        if (_editor is not null && _timelineName is not null && _selection.Count > 0)
         {
-            _editor.SetBroken(_motionName, _selection.ToList(), broken);
+            _editor.SetBroken(_timelineName, _selection.ToList(), broken);
         }
     }
 
     private void SelectByTime(IEnumerable<(CurveRef Curve, float T)> targets)
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         var next = new List<KeyRef>();
 
-        if (motion is not null)
+        if (timeline is not null)
         {
             foreach ((CurveRef curveRef, float t) in targets)
             {
-                if (curveRef.Resolve(motion) is not { } curve)
+                if (curveRef.Resolve(timeline) is not { } curve)
                 {
                     continue;
                 }
@@ -932,12 +932,12 @@ public sealed class GraphEditorView : Control
     /// <summary>다음/이전 키 시각으로 현재 시각을 옮긴다(`.` `,`).</summary>
     public bool JumpToKey(bool forward)
     {
-        if (Motion is not { } motion)
+        if (Timeline is not { } timeline)
         {
             return false;
         }
 
-        List<float> times = KeyTimes.All(motion);
+        List<float> times = KeyTimes.All(timeline);
         float? target = forward ? KeyTimes.Next(times, CurrentTime) : KeyTimes.Previous(times, CurrentTime);
 
         if (target is null)
@@ -957,10 +957,10 @@ public sealed class GraphEditorView : Control
         Rect plot = Plot;
         context.FillRectangle(PlotBackground, plot);
 
-        MotionAsset? motion = Motion;
-        DrawGrid(context, plot, motion);
+        TimelineAsset? timeline = Timeline;
+        DrawGrid(context, plot, timeline);
 
-        if (motion is null)
+        if (timeline is null)
         {
             DrawLabel(context, "모션을 고르면 여기에 커브가 보입니다.", new Point(plot.X + 12, plot.Y + 12), LabelBrush, 12);
             return;
@@ -985,7 +985,7 @@ public sealed class GraphEditorView : Control
                     continue;
                 }
 
-                List<KeyAsset> keys = KeysForRender(slot.Curve, motion);
+                List<KeyAsset> keys = KeysForRender(slot.Curve, timeline);
 
                 if (keys.Count == 0)
                 {
@@ -1021,7 +1021,7 @@ public sealed class GraphEditorView : Control
                     continue;
                 }
 
-                List<KeyAsset> keys = KeysForRender(slot.Curve, motion);
+                List<KeyAsset> keys = KeysForRender(slot.Curve, timeline);
                 bool locked = _flags.IsLocked(slot.Curve);
                 IBrush keyBrush = locked ? new SolidColorBrush(Color.FromArgb(110, 0xF2, 0xA3, 0x3A)) : KeyBrush;
 
@@ -1073,14 +1073,14 @@ public sealed class GraphEditorView : Control
         }
     }
 
-    private List<KeyAsset> KeysForRender(CurveRef curveRef, MotionAsset motion)
+    private List<KeyAsset> KeysForRender(CurveRef curveRef, TimelineAsset timeline)
     {
         if (_preview.TryGetValue(curveRef, out List<KeyAsset>? preview))
         {
             return preview;
         }
 
-        return curveRef.Resolve(motion)?.Keys ?? new List<KeyAsset>();
+        return curveRef.Resolve(timeline)?.Keys ?? new List<KeyAsset>();
     }
 
     private void DrawHandles(DrawingContext context, List<KeyAsset> keys, int index, Point center, KeyRef keyRef)
@@ -1107,13 +1107,13 @@ public sealed class GraphEditorView : Control
     private static void DrawHandleEnd(DrawingContext context, Point end, bool selected)
         => context.FillRectangle(selected ? SelectedKeyBrush : HandleBrush, selected ? new Rect(end.X - 3.5, end.Y - 3.5, 7, 7) : new Rect(end.X - 2.5, end.Y - 2.5, 5, 5));
 
-    private void DrawGrid(DrawingContext context, Rect plot, MotionAsset? motion)
+    private void DrawGrid(DrawingContext context, Rect plot, TimelineAsset? timeline)
     {
         GraphPoint bottomLeft = ToGraph(new Point(plot.X, plot.Bottom));
         GraphPoint topRight = ToGraph(new Point(plot.Right, plot.Y));
 
         // 재생 범위 안은 밝게(마야).
-        double rangeEnd = RangeEnd > RangeStart ? RangeEnd : (motion?.Duration ?? -1);
+        double rangeEnd = RangeEnd > RangeStart ? RangeEnd : (timeline?.Duration ?? -1);
 
         if (rangeEnd > RangeStart)
         {
@@ -1187,9 +1187,9 @@ public sealed class GraphEditorView : Control
         context.DrawLine(AxisPen, new Point(plot.X, zero.Y), new Point(plot.Right, zero.Y));
         context.DrawLine(AxisPen, new Point(zero.X, plot.Y), new Point(zero.X, plot.Bottom));
 
-        if (motion is not null)
+        if (timeline is not null)
         {
-            Point end = ToScreen(new GraphPoint(motion.Duration, 0));
+            Point end = ToScreen(new GraphPoint(timeline.Duration, 0));
             context.DrawLine(DurationPen, new Point(end.X, plot.Y), new Point(end.X, plot.Bottom));
         }
 
@@ -1210,13 +1210,13 @@ public sealed class GraphEditorView : Control
 
     // ── 입력 ──────────────────────────────────────────────────────────
 
-    private List<(KeyRef Item, Pixel At)> KeyCandidates(MotionAsset motion)
+    private List<(KeyRef Item, Pixel At)> KeyCandidates(TimelineAsset timeline)
     {
         var candidates = new List<(KeyRef, Pixel)>();
 
         foreach (CurveSlot slot in _curves)
         {
-            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(motion) is not { } curve)
+            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(timeline) is not { } curve)
             {
                 continue;
             }
@@ -1230,9 +1230,9 @@ public sealed class GraphEditorView : Control
         return candidates;
     }
 
-    private bool TryHitHandle(MotionAsset motion, Pixel at, out KeyRef key, out bool inward)
+    private bool TryHitHandle(TimelineAsset timeline, Pixel at, out KeyRef key, out bool inward)
     {
-        if (GraphHitTest.TryNearest(HandleCandidates(motion), at, GraphHitTest.HandleRadius, out (KeyRef Key, bool Inward) hit))
+        if (GraphHitTest.TryNearest(HandleCandidates(timeline), at, GraphHitTest.HandleRadius, out (KeyRef Key, bool Inward) hit))
         {
             key = hit.Key;
             inward = hit.Inward;
@@ -1245,13 +1245,13 @@ public sealed class GraphEditorView : Control
     }
 
     /// <summary>고른 키들의 핸들 끝(in·out) 픽셀 — 핸들 클릭·박스 선택의 후보.</summary>
-    private List<((KeyRef Key, bool Inward) Item, Pixel At)> HandleCandidates(MotionAsset motion)
+    private List<((KeyRef Key, bool Inward) Item, Pixel At)> HandleCandidates(TimelineAsset timeline)
     {
         var candidates = new List<((KeyRef Key, bool Inward) Item, Pixel At)>();
 
         foreach (KeyRef keyRef in _selection)
         {
-            if (keyRef.Curve.Resolve(motion) is not { } curve || keyRef.Index < 0 || keyRef.Index >= curve.Keys.Count)
+            if (keyRef.Curve.Resolve(timeline) is not { } curve || keyRef.Index < 0 || keyRef.Index >= curve.Keys.Count)
             {
                 continue;
             }
@@ -1284,7 +1284,7 @@ public sealed class GraphEditorView : Control
         bool alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
 
         bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        MotionAsset? pressedMotion = Motion;
+        TimelineAsset? pressedTimeline = Timeline;
 
         // 마야 내비게이션: Alt+MMB 팬 · Alt+RMB 줌 드래그 · Alt+LMB 팬(호환).
         if (alt && (point.Properties.IsMiddleButtonPressed || point.Properties.IsLeftButtonPressed))
@@ -1304,16 +1304,16 @@ public sealed class GraphEditorView : Control
         // MMB 드래그 = 선택 키 이동(마야). 툴과 무관하다. MMB 클릭(안 움직임) = 선택한 커브에 키 끼우기. 팬은 RMB(소유자 — 그래프는 우클릭만).
         if (point.Properties.IsMiddleButtonPressed)
         {
-            if (pressedMotion is not null && _selectedHandles.Count > 0 && BeginHandleDrag(pressedMotion))
+            if (pressedTimeline is not null && _selectedHandles.Count > 0 && BeginHandleDrag(pressedTimeline))
             {
                 StartDrag(Drag.Handles, position, e);
             }
-            else if (pressedMotion is not null && _selection.Count > 0)
+            else if (pressedTimeline is not null && _selection.Count > 0)
             {
-                BeginPreview(pressedMotion, _selection.Select(k => k.Curve).Distinct());
+                BeginPreview(pressedTimeline, _selection.Select(k => k.Curve).Distinct());
                 StartDrag(Drag.Keys, position, e);
             }
-            else if (pressedMotion is not null && _selectedCurves.Count > 0)
+            else if (pressedTimeline is not null && _selectedCurves.Count > 0)
             {
                 StartDrag(Drag.CurveInsert, position, e);
             }
@@ -1325,9 +1325,9 @@ public sealed class GraphEditorView : Control
         // 빈 자리에서 누르면 화면 이동(팬).
         if (point.Properties.IsRightButtonPressed)
         {
-            if (pressedMotion is not null && _selection.Count > 0 && SelectionScreenBounds(pressedMotion) is { } bounds && bounds.Inflate(12).Contains(position))
+            if (pressedTimeline is not null && _selection.Count > 0 && SelectionScreenBounds(pressedTimeline) is { } bounds && bounds.Inflate(12).Contains(position))
             {
-                BeginPreview(pressedMotion, _selection.Select(k => k.Curve).Distinct());
+                BeginPreview(pressedTimeline, _selection.Select(k => k.Curve).Distinct());
                 _axisLockDecided = false;
                 StartDrag(Drag.KeysAxis, position, e);
                 return;
@@ -1353,9 +1353,9 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (motion is null || _editor is null || _motionName is null)
+        if (timeline is null || _editor is null || _timelineName is null)
         {
             return;
         }
@@ -1364,16 +1364,16 @@ public sealed class GraphEditorView : Control
 
         if (e.ClickCount == 2)
         {
-            InsertKeyAt(motion, position);
+            InsertKeyAt(timeline, position);
             e.Handled = true;
             return;
         }
 
-        if (TryHitHandle(motion, at, out KeyRef handleKey, out bool inward))
+        if (TryHitHandle(timeline, at, out KeyRef handleKey, out bool inward))
         {
             _drag = inward ? Drag.InHandle : Drag.OutHandle;
             _handleKey = handleKey;
-            BeginPreview(motion, new[] { handleKey.Curve });
+            BeginPreview(timeline, new[] { handleKey.Curve });
             _dragStart = position;
             _dragMoved = false;
             e.Pointer.Capture(this);
@@ -1416,7 +1416,7 @@ public sealed class GraphEditorView : Control
                     _regionEdge = region.V0;
                 }
 
-                BeginPreview(motion, _selection.Select(k => k.Curve).Distinct());
+                BeginPreview(timeline, _selection.Select(k => k.Curve).Distinct());
                 StartDrag(regionDrag == Drag.None ? Drag.Keys : regionDrag, position, e);
                 return;
             }
@@ -1425,8 +1425,8 @@ public sealed class GraphEditorView : Control
         // 스케일 툴(R): LMB 드래그 = 선택 키를 선택 중심 기준으로 값·시간 스케일.
         if (Tool == GraphTool.Scale && _selection.Count > 0 && !ctrl)
         {
-            _scalePivot = SelectionCenter(motion);
-            BeginPreview(motion, _selection.Select(k => k.Curve).Distinct());
+            _scalePivot = SelectionCenter(timeline);
+            BeginPreview(timeline, _selection.Select(k => k.Curve).Distinct());
             StartDrag(Drag.Scale, position, e);
             return;
         }
@@ -1445,7 +1445,7 @@ public sealed class GraphEditorView : Control
             return;
         }
 
-        if (GraphHitTest.TryNearest(KeyCandidates(motion), at, GraphHitTest.KeyRadius, out KeyRef hit))
+        if (GraphHitTest.TryNearest(KeyCandidates(timeline), at, GraphHitTest.KeyRadius, out KeyRef hit))
         {
             if (shift)
             {
@@ -1459,7 +1459,7 @@ public sealed class GraphEditorView : Control
             // 이동 툴(W)에서만 LMB 드래그가 이동이다. 선택 툴(Q)은 고르기만 — 마야처럼 MMB로 옮긴다.
             if (Tool == GraphTool.Move && _selection.Contains(hit))
             {
-                BeginPreview(motion, _selection.Select(k => k.Curve).Distinct());
+                BeginPreview(timeline, _selection.Select(k => k.Curve).Distinct());
                 StartDrag(Drag.Keys, position, e);
                 return;
             }
@@ -1470,7 +1470,7 @@ public sealed class GraphEditorView : Control
         }
 
         // 커브 선 클릭 = 그 커브 선택(마야). Shift = 더하기/빼기.
-        if (TryHitCurve(motion, at, out CurveRef curveHit))
+        if (TryHitCurve(timeline, at, out CurveRef curveHit))
         {
             if (!shift)
             {
@@ -1500,13 +1500,13 @@ public sealed class GraphEditorView : Control
 
     /// <summary>선택 키들의 가운데(시각·값) — 스케일 툴의 피벗.</summary>
     /// <summary>선택 키들의 화면 둘레. 없으면 null.</summary>
-    private Rect? SelectionScreenBounds(MotionAsset motion)
+    private Rect? SelectionScreenBounds(TimelineAsset timeline)
     {
         double left = double.PositiveInfinity, top = double.PositiveInfinity, right = double.NegativeInfinity, bottom = double.NegativeInfinity;
 
         foreach (KeyRef keyRef in _selection)
         {
-            if (keyRef.Resolve(motion) is not { } k)
+            if (keyRef.Resolve(timeline) is not { } k)
             {
                 continue;
             }
@@ -1522,7 +1522,7 @@ public sealed class GraphEditorView : Control
     }
 
     /// <summary>박스가 지나는 보이는 커브들 — 박스 드래그로 커브를 고를 때.</summary>
-    private List<CurveRef> CurvesInBox(MotionAsset motion, Pixel a, Pixel b)
+    private List<CurveRef> CurvesInBox(TimelineAsset timeline, Pixel a, Pixel b)
     {
         var hits = new List<CurveRef>();
         GraphPoint left = ToGraph(new Point(Plot.X, Plot.Y));
@@ -1530,7 +1530,7 @@ public sealed class GraphEditorView : Control
 
         foreach (CurveSlot slot in _curves)
         {
-            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(motion) is not { } curve || curve.Keys.Count == 0)
+            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(timeline) is not { } curve || curve.Keys.Count == 0)
             {
                 continue;
             }
@@ -1546,13 +1546,13 @@ public sealed class GraphEditorView : Control
         return hits;
     }
 
-    private GraphPoint SelectionCenter(MotionAsset motion)
+    private GraphPoint SelectionCenter(TimelineAsset timeline)
     {
         var keys = new List<KeyAsset>();
 
         foreach (KeyRef keyRef in _selection)
         {
-            if (keyRef.Resolve(motion) is { } k)
+            if (keyRef.Resolve(timeline) is { } k)
             {
                 keys.Add(k);
             }
@@ -1564,7 +1564,7 @@ public sealed class GraphEditorView : Control
     }
 
     /// <summary>더블클릭 — 가장 가까운 보이는 커브 위, 그 시각(스냅)에 키.</summary>
-    private void InsertKeyAt(MotionAsset motion, Point position)
+    private void InsertKeyAt(TimelineAsset timeline, Point position)
     {
         Pixel at = ToPixel(position);
         GraphPoint left = ToGraph(new Point(Plot.X, Plot.Y));
@@ -1574,7 +1574,7 @@ public sealed class GraphEditorView : Control
 
         foreach (CurveSlot slot in _curves)
         {
-            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(motion) is not { } curve)
+            if (!slot.Visible || _flags.IsLocked(slot.Curve) || slot.Curve.Resolve(timeline) is not { } curve)
             {
                 continue;
             }
@@ -1589,24 +1589,24 @@ public sealed class GraphEditorView : Control
             }
         }
 
-        if (best is not { } target || _editor is null || _motionName is null || target.Resolve(motion) is not { } targetCurve)
+        if (best is not { } target || _editor is null || _timelineName is null || target.Resolve(timeline) is not { } targetCurve)
         {
             return;
         }
 
         float t = (float)SnapTime(ToGraph(position).T);
-        _editor.SetKeysMany(_motionName, new[] { (target, (IEnumerable<KeyAsset>)KeyOps.WithKeyOnCurve(targetCurve.Keys, t)) });
+        _editor.SetKeysMany(_timelineName, new[] { (target, (IEnumerable<KeyAsset>)KeyOps.WithKeyOnCurve(targetCurve.Keys, t)) });
         SelectByTime(new[] { (target, t) });
     }
 
-    private void BeginPreview(MotionAsset motion, IEnumerable<CurveRef> curves)
+    private void BeginPreview(TimelineAsset timeline, IEnumerable<CurveRef> curves)
     {
         _preview.Clear();
         _previewKeys.Clear();
 
         foreach (CurveRef curveRef in curves)
         {
-            if (curveRef.Resolve(motion) is not { } curve)
+            if (curveRef.Resolve(timeline) is not { } curve)
             {
                 continue;
             }
@@ -1657,7 +1657,7 @@ public sealed class GraphEditorView : Control
         }
 
         _dragMoved = true;
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
         switch (_drag)
         {
@@ -1679,9 +1679,9 @@ public sealed class GraphEditorView : Control
             }
 
             case Drag.Scale:
-                if (motion is not null)
+                if (timeline is not null)
                 {
-                    ScaleSelectionPreview(motion, dx, dy, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                    ScaleSelectionPreview(timeline, dx, dy, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 }
 
                 break;
@@ -1690,23 +1690,23 @@ public sealed class GraphEditorView : Control
             case Drag.RegionRight:
             case Drag.RegionTop:
             case Drag.RegionBottom:
-                if (motion is not null)
+                if (timeline is not null)
                 {
-                    RegionScalePreview(motion, position);
+                    RegionScalePreview(timeline, position);
                 }
 
                 break;
 
             case Drag.Keys:
-                if (motion is not null)
+                if (timeline is not null)
                 {
-                    MoveSelectionPreview(motion, dx, dy, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                    MoveSelectionPreview(timeline, dx, dy, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 }
 
                 break;
 
             case Drag.KeysAxis:
-                if (motion is not null)
+                if (timeline is not null)
                 {
                     if (!_axisLockDecided)
                     {
@@ -1714,7 +1714,7 @@ public sealed class GraphEditorView : Control
                         _axisLockDecided = true;
                     }
 
-                    MoveSelectionPreview(motion, _axisLockHorizontal ? dx : 0, _axisLockHorizontal ? 0 : dy, axisLock: false, wholeSnap: e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                    MoveSelectionPreview(timeline, _axisLockHorizontal ? dx : 0, _axisLockHorizontal ? 0 : dy, axisLock: false, wholeSnap: e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 }
 
                 break;
@@ -1724,21 +1724,21 @@ public sealed class GraphEditorView : Control
 
             case Drag.InHandle:
             case Drag.OutHandle:
-                if (motion is not null)
+                if (timeline is not null)
                 {
-                    DragHandlePreview(motion, position, _drag == Drag.InHandle);
+                    DragHandlePreview(timeline, position, _drag == Drag.InHandle);
                 }
 
                 break;
 
             case Drag.Handles:
-                if (motion is not null)
+                if (timeline is not null)
                 {
                     Pixel delta = new(ToPixel(position).X - ToPixel(_dragStart).X, ToPixel(position).Y - ToPixel(_dragStart).Y);
 
                     foreach (((KeyRef key, bool inward), Pixel end) in _handleDrag)
                     {
-                        ApplyHandleSlope(motion, key, inward, new Pixel(end.X + delta.X, end.Y + delta.Y));
+                        ApplyHandleSlope(timeline, key, inward, new Pixel(end.X + delta.X, end.Y + delta.Y));
                     }
                 }
 
@@ -1752,7 +1752,7 @@ public sealed class GraphEditorView : Control
         e.Handled = true;
     }
 
-    private void MoveSelectionPreview(MotionAsset motion, double dx, double dy, bool axisLock, bool wholeSnap = false)
+    private void MoveSelectionPreview(TimelineAsset timeline, double dx, double dy, bool axisLock, bool wholeSnap = false)
     {
         if (axisLock)
         {
@@ -1770,7 +1770,7 @@ public sealed class GraphEditorView : Control
 
         foreach (KeyRef keyRef in _selection)
         {
-            if (keyRef.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
+            if (keyRef.Resolve(timeline) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
             {
                 continue;
             }
@@ -1798,7 +1798,7 @@ public sealed class GraphEditorView : Control
     private float SnapValue(float value) => ValueSnapEnabled ? MathF.Round(value) : value;
 
     /// <summary>리전 모서리 드래그 — 한 축만, 반대쪽 모서리(<see cref="_scalePivot"/>, 보기값) 기준. 시간 축은 값을 안 건드린다.</summary>
-    private void RegionScalePreview(MotionAsset motion, Point position)
+    private void RegionScalePreview(TimelineAsset timeline, Point position)
     {
         GraphPoint at = ToGraph(position);
         double timeFactor = 1;
@@ -1817,7 +1817,7 @@ public sealed class GraphEditorView : Control
 
         foreach (KeyRef keyRef in _selection)
         {
-            if (keyRef.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
+            if (keyRef.Resolve(timeline) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
             {
                 continue;
             }
@@ -1828,7 +1828,7 @@ public sealed class GraphEditorView : Control
     }
 
     /// <summary>스케일 툴 — 오른쪽으로 끌면 시간이, 위로 끌면 값이 피벗 기준으로 늘어난다(1px = 1%). Shift = 한 축만.</summary>
-    private void ScaleSelectionPreview(MotionAsset motion, double dx, double dy, bool axisLock)
+    private void ScaleSelectionPreview(TimelineAsset timeline, double dx, double dy, bool axisLock)
     {
         if (axisLock)
         {
@@ -1847,7 +1847,7 @@ public sealed class GraphEditorView : Control
 
         foreach (KeyRef keyRef in _selection)
         {
-            if (keyRef.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
+            if (keyRef.Resolve(timeline) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
             {
                 continue;
             }
@@ -1857,17 +1857,17 @@ public sealed class GraphEditorView : Control
         }
     }
 
-    private void DragHandlePreview(MotionAsset motion, Point position, bool inward)
-        => ApplyHandleSlope(motion, _handleKey, inward, ToPixel(position));
+    private void DragHandlePreview(TimelineAsset timeline, Point position, bool inward)
+        => ApplyHandleSlope(timeline, _handleKey, inward, ToPixel(position));
 
     /// <summary>MMB 핸들 드래그 시작 — 고른 핸들 끝의 지금 픽셀을 기억하고 그 커브들을 미리보기로 든다.</summary>
-    private bool BeginHandleDrag(MotionAsset motion)
+    private bool BeginHandleDrag(TimelineAsset timeline)
     {
         _handleDrag.Clear();
 
         foreach ((KeyRef key, bool inward) in _selectedHandles)
         {
-            if (key.Resolve(motion) is not { } k)
+            if (key.Resolve(timeline) is not { } k)
             {
                 continue;
             }
@@ -1881,14 +1881,14 @@ public sealed class GraphEditorView : Control
             return false;
         }
 
-        BeginPreview(motion, _handleDrag.Select(h => h.Handle.Key.Curve).Distinct());
+        BeginPreview(timeline, _handleDrag.Select(h => h.Handle.Key.Curve).Distinct());
         return true;
     }
 
     /// <summary>핸들 끝 픽셀 → 기울기 미리보기. 끊긴 키는 그쪽만, 아니면 양쪽 같이.</summary>
-    private void ApplyHandleSlope(MotionAsset motion, KeyRef keyRef, bool inward, Pixel handleEnd)
+    private void ApplyHandleSlope(TimelineAsset timeline, KeyRef keyRef, bool inward, Pixel handleEnd)
     {
-        if (keyRef.Resolve(motion) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
+        if (keyRef.Resolve(timeline) is not { } original || !_previewKeys.TryGetValue(keyRef, out KeyAsset? preview))
         {
             return;
         }
@@ -1926,7 +1926,7 @@ public sealed class GraphEditorView : Control
         Drag drag = _drag;
         _drag = Drag.None;
         e.Pointer.Capture(null);
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
         try
         {
@@ -1941,13 +1941,13 @@ public sealed class GraphEditorView : Control
                     break;
 
                 case Drag.Keys:
-                    if (!_dragMoved && motion is not null && _selectedCurves.Count > 0)
+                    if (!_dragMoved && timeline is not null && _selectedCurves.Count > 0)
                     {
                         InsertKeysOnSelectedCurves(ToGraph(_dragStart).T);
                     }
-                    else if (_dragMoved && motion is not null)
+                    else if (_dragMoved && timeline is not null)
                     {
-                        CommitMove(motion);
+                        CommitMove(timeline);
                     }
 
                     break;
@@ -1958,17 +1958,17 @@ public sealed class GraphEditorView : Control
                 case Drag.RegionRight:
                 case Drag.RegionTop:
                 case Drag.RegionBottom:
-                    if (_dragMoved && motion is not null)
+                    if (_dragMoved && timeline is not null)
                     {
-                        CommitMove(motion);
+                        CommitMove(timeline);
                     }
 
                     break;
 
                 case Drag.Lasso:
-                    if (motion is not null)
+                    if (timeline is not null)
                     {
-                        _selection.AddRange(GraphHitTest.InPolygon(KeyCandidates(motion), _lasso.Select(ToPixel).ToList()));
+                        _selection.AddRange(GraphHitTest.InPolygon(KeyCandidates(timeline), _lasso.Select(ToPixel).ToList()));
                     }
 
                     _lasso.Clear();
@@ -1976,22 +1976,22 @@ public sealed class GraphEditorView : Control
 
                 case Drag.InHandle:
                 case Drag.OutHandle:
-                    if (_dragMoved && motion is not null && _editor is not null && _motionName is not null
+                    if (_dragMoved && timeline is not null && _editor is not null && _timelineName is not null
                         && _previewKeys.TryGetValue(_handleKey, out KeyAsset? preview))
                     {
-                        _editor.SetTangents(_motionName, _handleKey, preview.InTangent, preview.OutTangent);
+                        _editor.SetTangents(_timelineName, _handleKey, preview.InTangent, preview.OutTangent);
                     }
 
                     break;
 
                 case Drag.Handles:
-                    if (_dragMoved && motion is not null && _editor is not null && _motionName is not null)
+                    if (_dragMoved && timeline is not null && _editor is not null && _timelineName is not null)
                     {
-                        string name = _motionName;
+                        string name = _timelineName;
                         var keep = _selectedHandles.ToList();
                         List<(KeyRef Key, KeyAsset Preview)> edits = _handleDrag.Select(h => h.Handle.Key).Distinct()
                             .Where(k => _previewKeys.ContainsKey(k)).Select(k => (k, _previewKeys[k])).ToList();
-                        _editor.Batch(MotionChangeKind.Keys, () =>
+                        _editor.Batch(DocumentChangeKind.Keys, () =>
                         {
                             foreach ((KeyRef key, KeyAsset p) in edits)
                             {
@@ -2006,12 +2006,12 @@ public sealed class GraphEditorView : Control
                     break;
 
                 case Drag.Box:
-                    if (motion is not null && _dragMoved)
+                    if (timeline is not null && _dragMoved)
                     {
                         Pixel a = ToPixel(_dragStart);
                         Pixel b = ToPixel(_dragNow);
-                        List<KeyRef> inBox = GraphHitTest.InBox(KeyCandidates(motion), a, b);
-                        List<(KeyRef Key, bool Inward)> handlesInBox = GraphHitTest.InBox(HandleCandidates(motion), a, b);
+                        List<KeyRef> inBox = GraphHitTest.InBox(KeyCandidates(timeline), a, b);
+                        List<(KeyRef Key, bool Inward)> handlesInBox = GraphHitTest.InBox(HandleCandidates(timeline), a, b);
 
                         if (inBox.Count == 0 && handlesInBox.Count > 0)
                         {
@@ -2040,7 +2040,7 @@ public sealed class GraphEditorView : Control
                             else
                             {
                                 // 키 없이 커브만 지나면 커브 선택(정확히 선을 안 눌러도 고를 수 있다).
-                                foreach (CurveRef curve in CurvesInBox(motion, a, b))
+                                foreach (CurveRef curve in CurvesInBox(timeline, a, b))
                                 {
                                     _selectedCurves.Add(curve);
                                 }
@@ -2070,9 +2070,9 @@ public sealed class GraphEditorView : Control
     }
 
     /// <summary>드래그 확정 — 건드린 커브마다 키 목록을 통째로, 한 번의 조작으로. 선택은 새 시각으로 다시 푼다.</summary>
-    private void CommitMove(MotionAsset motion)
+    private void CommitMove(TimelineAsset timeline)
     {
-        if (_editor is null || _motionName is null)
+        if (_editor is null || _timelineName is null)
         {
             return;
         }
@@ -2088,7 +2088,7 @@ public sealed class GraphEditorView : Control
         }
 
         var edits = _preview.Select(pair => (pair.Key, (IEnumerable<KeyAsset>)pair.Value)).ToList();
-        _editor.SetKeysMany(_motionName, edits);
+        _editor.SetKeysMany(_timelineName, edits);
         SelectByTime(moved);
         UpdateRegion();
     }

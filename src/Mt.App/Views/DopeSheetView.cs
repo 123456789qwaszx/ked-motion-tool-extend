@@ -51,7 +51,7 @@ public sealed class DopeSheetView : Control
 
     private KeySelection _selection = new();
     private CurveFlags _flags = new();
-    private MotionEditor? _editor;
+    private DocumentEditor? _editor;
 
     public CurveFlags Flags
     {
@@ -79,7 +79,7 @@ public sealed class DopeSheetView : Control
     }
 
     private bool IsLocked(DopeBlock block) => block.Keys.Count > 0 && block.Keys.All(k => _flags.IsLocked(k.Curve));
-    private string? _motionName;
+    private string? _timelineName;
     private double _timeOrigin = -0.05;
     private double _pixelsPerSecond = 400;
     private bool _fitted;
@@ -140,15 +140,15 @@ public sealed class DopeSheetView : Control
 
     public void CopySelection()
     {
-        if (Motion is { } motion && _selection.Count > 0)
+        if (Timeline is { } timeline && _selection.Count > 0)
         {
-            Clipboard.Current = KeyClipboard.Copy(motion, _selection) ?? Clipboard.Current;
+            Clipboard.Current = KeyClipboard.Copy(timeline, _selection) ?? Clipboard.Current;
         }
     }
 
     public void CutSelection()
     {
-        if (Motion is { } motion && _selection.Count > 0 && KeyClipboard.Copy(motion, _selection) is { } copied)
+        if (Timeline is { } timeline && _selection.Count > 0 && KeyClipboard.Copy(timeline, _selection) is { } copied)
         {
             Clipboard.Current = copied;
             DeleteSelection();
@@ -157,18 +157,18 @@ public sealed class DopeSheetView : Control
 
     public void Paste()
     {
-        if (_editor is null || _motionName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
+        if (_editor is null || _timelineName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
         {
             return;
         }
 
         float at = (float)SnapTime(CurrentTime);
-        _selection.Set(_editor.PasteKeys(_motionName, clipboard, at, Snapper()));
+        _selection.Set(_editor.PasteKeys(_timelineName, clipboard, at, Snapper()));
     }
 
-    public string? MotionName => _motionName;
+    public string? TimelineName => _timelineName;
 
-    public MotionAsset? Motion => _editor is not null && _motionName is not null ? _editor.Document.Find(_motionName) : null;
+    public TimelineAsset? Timeline => _editor is not null && _timelineName is not null ? _editor.Document.Find(_timelineName) : null;
 
     public IReadOnlyList<DopeRow> Rows => _rows;
 
@@ -200,7 +200,7 @@ public sealed class DopeSheetView : Control
 
     // ── 바인딩 ────────────────────────────────────────────────────────
 
-    public void Bind(MotionEditor? editor, string? motionName)
+    public void Bind(DocumentEditor? editor, string? timelineName)
     {
         if (_editor is not null)
         {
@@ -208,7 +208,7 @@ public sealed class DopeSheetView : Control
         }
 
         _editor = editor;
-        _motionName = motionName;
+        _timelineName = timelineName;
 
         if (_editor is not null)
         {
@@ -220,10 +220,10 @@ public sealed class DopeSheetView : Control
         FitAll();
     }
 
-    private void OnEditorChanged(object? sender, MotionChangedEventArgs e)
+    private void OnEditorChanged(object? sender, DocumentChangedEventArgs e)
     {
         RebuildRows();
-        _selection.Prune(Motion);
+        _selection.Prune(Timeline);
         InvalidateVisual();
     }
 
@@ -231,9 +231,9 @@ public sealed class DopeSheetView : Control
     {
         _rows.Clear();
 
-        if (Motion is { } motion)
+        if (Timeline is { } timeline)
         {
-            _rows.AddRange(DopeSheetRows.Build(motion, node => _collapsed.Contains(node)));
+            _rows.AddRange(DopeSheetRows.Build(timeline, node => _collapsed.Contains(node)));
         }
     }
 
@@ -282,8 +282,8 @@ public sealed class DopeSheetView : Control
 
     public void FitAll()
     {
-        MotionAsset? motion = Motion;
-        double end = Math.Max(motion?.Duration ?? 1f, 0.1);
+        TimelineAsset? timeline = Timeline;
+        double end = Math.Max(timeline?.Duration ?? 1f, 0.1);
 
         foreach (DopeRow row in _rows)
         {
@@ -315,59 +315,59 @@ public sealed class DopeSheetView : Control
 
     public void DeleteSelection()
     {
-        if (_editor is null || _motionName is null || _selection.Count == 0)
+        if (_editor is null || _timelineName is null || _selection.Count == 0)
         {
             return;
         }
 
         List<KeyRef> doomed = _selection.ToList();
         _selection.Clear();
-        _editor.RemoveKeys(_motionName, doomed);
+        _editor.RemoveKeys(_timelineName, doomed);
     }
 
     /// <summary>성분 행의 그 시각에 키(값은 곡선 위). 요약 행이면 아무것도 안 한다.</summary>
     public void InsertKey(DopeRow row, double seconds)
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (_editor is null || _motionName is null || motion is null || row.Curve is not { } curveRef || curveRef.Resolve(motion) is not { } curve)
+        if (_editor is null || _timelineName is null || timeline is null || row.Curve is not { } curveRef || curveRef.Resolve(timeline) is not { } curve)
         {
             return;
         }
 
         float t = (float)Math.Max(0, SnapTime(seconds));
-        _editor.SetKeysMany(_motionName, new[] { (curveRef, (IEnumerable<KeyAsset>)KeyOps.WithKeyOnCurve(curve.Keys, t)) });
+        _editor.SetKeysMany(_timelineName, new[] { (curveRef, (IEnumerable<KeyAsset>)KeyOps.WithKeyOnCurve(curve.Keys, t)) });
         SelectByTime(new[] { (curveRef, t) });
     }
 
     public void MoveSelection(double deltaSeconds)
     {
-        if (_editor is null || _motionName is null || _selection.Count == 0)
+        if (_editor is null || _timelineName is null || _selection.Count == 0)
         {
             return;
         }
 
-        SelectByTime(_editor.MoveKeys(_motionName, _selection.ToList(), (float)deltaSeconds, Snapper()));
+        SelectByTime(_editor.MoveKeys(_timelineName, _selection.ToList(), (float)deltaSeconds, Snapper()));
     }
 
     public void DuplicateSelection(double offsetSeconds)
     {
-        if (_editor is null || _motionName is null || _selection.Count == 0)
+        if (_editor is null || _timelineName is null || _selection.Count == 0)
         {
             return;
         }
 
-        SelectByTime(_editor.DuplicateKeys(_motionName, _selection.ToList(), (float)offsetSeconds, Snapper()));
+        SelectByTime(_editor.DuplicateKeys(_timelineName, _selection.ToList(), (float)offsetSeconds, Snapper()));
     }
 
     public void ScaleSelection(double pivotSeconds, double factor)
     {
-        if (_editor is null || _motionName is null || _selection.Count == 0 || !(factor > 0))
+        if (_editor is null || _timelineName is null || _selection.Count == 0 || !(factor > 0))
         {
             return;
         }
 
-        SelectByTime(_editor.ScaleKeys(_motionName, _selection.ToList(), (float)pivotSeconds, (float)factor, Snapper()));
+        SelectByTime(_editor.ScaleKeys(_timelineName, _selection.ToList(), (float)pivotSeconds, (float)factor, Snapper()));
     }
 
     private Func<float, float>? Snapper() => SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null;
@@ -375,9 +375,9 @@ public sealed class DopeSheetView : Control
     /// <summary>선택 키들의 시각 범위. 둘 이상 다른 시각일 때만 있다 — 스케일 핸들의 조건.</summary>
     public (double Min, double Max)? SelectionRange()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (motion is null)
+        if (timeline is null)
         {
             return null;
         }
@@ -387,7 +387,7 @@ public sealed class DopeSheetView : Control
 
         foreach (KeyRef key in _selection)
         {
-            if (key.Resolve(motion) is { } k)
+            if (key.Resolve(timeline) is { } k)
             {
                 min = Math.Min(min, k.T);
                 max = Math.Max(max, k.T);
@@ -399,14 +399,14 @@ public sealed class DopeSheetView : Control
 
     private void SelectByTime(IEnumerable<(CurveRef Curve, float T)> targets)
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         var next = new List<KeyRef>();
 
-        if (motion is not null)
+        if (timeline is not null)
         {
             foreach ((CurveRef curveRef, float t) in targets)
             {
-                if (curveRef.Resolve(motion) is not { } curve)
+                if (curveRef.Resolve(timeline) is not { } curve)
                 {
                     continue;
                 }
@@ -434,9 +434,9 @@ public sealed class DopeSheetView : Control
         DrawRuler(context);
         DrawRange(context);
 
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (motion is null)
+        if (timeline is null)
         {
             DrawLabel(context, "모션을 고르면 여기에 키가 보입니다.", new Point(8, RulerHeight + RangeHeight + 6), LabelBrush);
             return;
@@ -548,9 +548,9 @@ public sealed class DopeSheetView : Control
             DrawLabel(context, TimeText.Format(t, TimeDisplay), new Point(x + 3, ruler.Y + 2), DimLabelBrush);
         }
 
-        if (Motion is { } motion)
+        if (Timeline is { } timeline)
         {
-            double x = XAtTime(motion.Duration);
+            double x = XAtTime(timeline.Duration);
             context.DrawLine(DurationPen, new Point(x, ruler.Y), new Point(x, Bounds.Height));
         }
     }
@@ -683,7 +683,7 @@ public sealed class DopeSheetView : Control
             return;
         }
 
-        if (Motion is null)
+        if (Timeline is null)
         {
             return;
         }
@@ -808,7 +808,7 @@ public sealed class DopeSheetView : Control
         Drag drag = _drag;
         _drag = Drag.None;
         e.Pointer.Capture(null);
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
         try
         {
@@ -824,7 +824,7 @@ public sealed class DopeSheetView : Control
                 case Drag.ScaleRight when _dragMoved:
                     ScaleSelection(_previewPivot, _previewFactor);
                     break;
-                case Drag.Box when motion is not null:
+                case Drag.Box when timeline is not null:
                     SelectInBox(new Rect(_dragStart, _dragNow));
                     break;
             }
@@ -914,9 +914,9 @@ public sealed class DopeSheetView : Control
                 break;
             case Key.OemPeriod:
             case Key.OemComma:
-                if (Motion is { } motion)
+                if (Timeline is { } timeline)
                 {
-                    List<float> times = KeyTimes.All(motion);
+                    List<float> times = KeyTimes.All(timeline);
                     float? target = e.Key == Key.OemPeriod ? KeyTimes.Next(times, CurrentTime) : KeyTimes.Previous(times, CurrentTime);
 
                     if (target is not null)

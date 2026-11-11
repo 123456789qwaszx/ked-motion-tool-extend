@@ -13,12 +13,12 @@ namespace Mt.App.Tests;
 public class TimeSliderViewTests
 {
     private const string Node = "CharacterPortrait_Track_Move_Y";
-    private static readonly CurveRef Y = new(Node, MotionChannelKind.Position, Axis.Y);
+    private static readonly CurveRef Y = new(Node, ChannelKind.Position, Axis.Y);
     private const double Frame = 1.0 / 24.0;
 
-    private static (Window Window, TimeSliderView Slider, ViewportView Viewport, MotionEditor Editor) Show()
+    private static (Window Window, TimeSliderView Slider, ViewportView Viewport, DocumentEditor Editor) Show()
     {
-        MotionEditor editor = TestDocuments.Nod();
+        DocumentEditor editor = TestDocuments.Nod();
         var viewport = new ViewportView { Height = 200, SnapStep = 1.0 / 60 }; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var slider = new TimeSliderView { SnapStep = 1.0 / 60 };
         var panel = new StackPanel { Children = { viewport, slider } };
@@ -35,7 +35,7 @@ public class TimeSliderViewTests
     private static Point At(Window window, TimeSliderView slider, double seconds)
         => slider.TranslatePoint(new Point(slider.XAtTime(seconds), slider.Bounds.Height / 2), window) ?? throw new InvalidOperationException("슬라이더가 창에 없다");
 
-    private static IReadOnlyList<KeyAsset> Keys(MotionEditor editor) => Y.Resolve(editor.Document.Find("nod")!)!.Keys;
+    private static IReadOnlyList<KeyAsset> Keys(DocumentEditor editor) => Y.Resolve(editor.Document.Find("nod")!)!.Keys;
 
     [Fact]
     public void 클릭은_스크럽이고_눈금은_재생_범위를_꽉_채운다() => HeadlessUi.Run(() =>
@@ -64,7 +64,7 @@ public class TimeSliderViewTests
     [Fact]
     public void Shift_드래그는_프레임_범위를_고르고_MMB_드래그가_범위의_키를_옮긴다() => HeadlessUi.Run(() =>
     {
-        (Window window, TimeSliderView slider, _, MotionEditor editor) = Show();
+        (Window window, TimeSliderView slider, _, DocumentEditor editor) = Show();
 
         try
         {
@@ -98,7 +98,7 @@ public class TimeSliderViewTests
     [Fact]
     public void 범위_끝을_끌면_반대쪽_끝_기준으로_시간_스케일이다() => HeadlessUi.Run(() =>
     {
-        (Window window, TimeSliderView slider, _, MotionEditor editor) = Show();
+        (Window window, TimeSliderView slider, _, DocumentEditor editor) = Show();
 
         try
         {
@@ -125,14 +125,14 @@ public class TimeSliderViewTests
     [Fact]
     public void MMB_스크럽은_포즈를_든_채_시각만_옮기고_S가_그_포즈를_키한다() => HeadlessUi.Run(() =>
     {
-        (Window window, TimeSliderView slider, ViewportView viewport, MotionEditor editor) = Show();
+        (Window window, TimeSliderView slider, ViewportView viewport, DocumentEditor editor) = Show();
 
         try
         {
             viewport.ScrubTo(0.3);
             string key = "set/" + Node; // 연 세트의 노드 키는 set/ 접두사를 갖는다
-            float heldY = PoseEdit.Component(MotionChannelKind.Position, viewport.PoseAt(0.3)!.GetState(key), Axis.Y);
-            float restY = PoseEdit.Component(MotionChannelKind.Position, viewport.PoseAt(0.45)!.GetState(key), Axis.Y);
+            float heldY = PoseEdit.Component(ChannelKind.Position, viewport.PoseAt(0.3)!.GetState(key), Axis.Y);
+            float restY = PoseEdit.Component(ChannelKind.Position, viewport.PoseAt(0.45)!.GetState(key), Axis.Y);
             Assert.NotEqual(heldY, restY);
 
             Point from = At(window, slider, 0.3);
@@ -144,7 +144,7 @@ public class TimeSliderViewTests
             Assert.Equal(0.45, viewport.Time, 3);
             Assert.True(viewport.IsHoldingPose);
             Assert.True(viewport.HasPending);
-            Assert.Equal(heldY, PoseEdit.Component(MotionChannelKind.Position, viewport.CurrentPose()!.GetState(key), Axis.Y), 3);
+            Assert.Equal(heldY, PoseEdit.Component(ChannelKind.Position, viewport.CurrentPose()!.GetState(key), Axis.Y), 3);
 
             long before = editor.Revision;
             viewport.SetKey();
@@ -165,7 +165,7 @@ public class TimeSliderViewTests
     [Fact]
     public void 메뉴_명령은_범위의_키를_복사_붙여넣기_삭제_스냅하고_재생_범위를_선택으로_한다() => HeadlessUi.Run(() =>
     {
-        (Window window, TimeSliderView slider, ViewportView viewport, MotionEditor editor) = Show();
+        (Window window, TimeSliderView slider, ViewportView viewport, DocumentEditor editor) = Show();
 
         try
         {

@@ -16,7 +16,7 @@ using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 using Mt.Authoring.Settings;
 using Mt.Authoring.Validation;
 using Avalonia.Threading;
@@ -26,7 +26,7 @@ namespace Mt.App;
 
 /// <summary>
 /// 셸 — 왼쪽 컷·세트·하이어아키·모션 목록, 가운데 뷰포트와 그래프, 오른쪽 인스펙터, 아래 상태·문제.
-/// 모든 편집은 <see cref="MotionEditor"/> 명령이고, 화면은 <see cref="MotionEditor.Changed"/>를 듣고 다시 읽는다.
+/// 모든 편집은 <see cref="DocumentEditor"/> 명령이고, 화면은 <see cref="DocumentEditor.Changed"/>를 듣고 다시 읽는다.
 /// 파일은 <see cref="DocumentSession"/>을 지난다.
 /// </summary>
 public partial class MainWindow : Window
@@ -85,16 +85,16 @@ public partial class MainWindow : Window
     // 채널 박스(마야) — 선택 노드의 Translate/Rotate/Scale. 칸에 값을 넣으면 매니퓰레이터를 놓은 것과 같다.
     private readonly TextBlock _channelBoxTitle = new() { FontSize = 11, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Avalonia.Thickness(0, 2) };
     private readonly StackPanel _channelBoxPanel = new() { Spacing = 1 };
-    private readonly Dictionary<(MotionChannelKind Kind, Axis Axis), (Border Row, TextBox Box)> _channelBoxRows = new();
-    private static readonly (MotionChannelKind Kind, Axis Axis, string Label)[] ChannelBoxComponents =
+    private readonly Dictionary<(ChannelKind Kind, Axis Axis), (Border Row, TextBox Box)> _channelBoxRows = new();
+    private static readonly (ChannelKind Kind, Axis Axis, string Label)[] ChannelBoxComponents =
     {
-        (MotionChannelKind.Position, Axis.X, "Translate X"),
-        (MotionChannelKind.Position, Axis.Y, "Translate Y"),
-        (MotionChannelKind.Euler, Axis.X, "Rotate X"),
-        (MotionChannelKind.Euler, Axis.Y, "Rotate Y"),
-        (MotionChannelKind.Euler, Axis.Z, "Rotate Z"),
-        (MotionChannelKind.Scale, Axis.X, "Scale X"),
-        (MotionChannelKind.Scale, Axis.Y, "Scale Y"),
+        (ChannelKind.Position, Axis.X, "Translate X"),
+        (ChannelKind.Position, Axis.Y, "Translate Y"),
+        (ChannelKind.Euler, Axis.X, "Rotate X"),
+        (ChannelKind.Euler, Axis.Y, "Rotate Y"),
+        (ChannelKind.Euler, Axis.Z, "Rotate Z"),
+        (ChannelKind.Scale, Axis.X, "Scale X"),
+        (ChannelKind.Scale, Axis.Y, "Scale Y"),
     };
     private static readonly IBrush ChannelBoxKeyedHere = new SolidColorBrush(Color.FromArgb(150, 0xC8, 0x3C, 0x3C)); // 이 시각에 키(마야 빨강)
     private static readonly IBrush ChannelBoxKeyed = new SolidColorBrush(Color.FromArgb(110, 0xB4, 0x5A, 0x5A)); // 어딘가에 키(마야 연한 빨강)
@@ -126,15 +126,15 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _collapsedHierarchy = new();
     private readonly Dictionary<TreeViewItem, TreeViewItem?> _hierarchyParents = new();
     private readonly ContextMenu _hierarchyMenu = new();
-    private readonly TextBlock _motionHeader = Header("모션");
+    private readonly TextBlock _timelineHeader = Header("모션");
 
     /// <summary>"모션 추가 · 모션 삭제" — 컷을 연 동안은 숨긴다(컷에는 타임라인이 하나다).</summary>
-    private readonly StackPanel _motionButtons = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+    private readonly StackPanel _timelineButtons = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private object? _menuTarget;
     private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
 
     // 왼쪽
-    private readonly ListBox _motionList = new() { MinHeight = 120 };
+    private readonly ListBox _timelineList = new() { MinHeight = 120 };
     private readonly StackPanel _channelRows = new() { Spacing = 0 };
     private Grid? _centerGrid;
     private readonly TextBox _outlinerSearch = new() { PlaceholderText = "검색…", FontSize = 11, Margin = new Avalonia.Thickness(2) };
@@ -146,8 +146,8 @@ public partial class MainWindow : Window
     private TimeDisplay Display => _settings.TimeDisplay;
 
     // 오른쪽 — 모션
-    private readonly TextBox _motionName = new() { FontSize = 11 };
-    private readonly TextBox _motionDuration = new() { FontSize = 11 };
+    private readonly TextBox _timelineName = new() { FontSize = 11 };
+    private readonly TextBox _timelineDuration = new() { FontSize = 11 };
 
     // 오른쪽 — 키
     private readonly TextBox _keyValue = new() { FontSize = 11 };
@@ -400,13 +400,13 @@ public partial class MainWindow : Window
     /// <summary>마야 timeSliderCopyKey — 현재 시각의 키 전부(모든 커브)를 클립보드에.</summary>
     internal void CopyKeysAtCurrentTime()
     {
-        if (_graph.Motion is not { } motion)
+        if (_graph.Timeline is not { } timeline)
         {
             return;
         }
 
-        List<KeyRef> keys = TimeSliderOps.KeysAt(motion, _viewport.Time);
-        KeyClipboard? clipboard = KeyClipboard.Copy(motion, keys);
+        List<KeyRef> keys = TimeSliderOps.KeysAt(timeline, _viewport.Time);
+        KeyClipboard? clipboard = KeyClipboard.Copy(timeline, keys);
 
         if (clipboard is null || clipboard.Count == 0)
         {
@@ -421,7 +421,7 @@ public partial class MainWindow : Window
     /// <summary>마야 timeSliderPasteKey — 클립보드를 현재 시각에(같은 시각은 덮어씀, 없는 채널은 만든다).</summary>
     internal void PasteKeysAtCurrentTime()
     {
-        if (_graph.MotionName is not { } name)
+        if (_graph.TimelineName is not { } name)
         {
             return;
         }
@@ -441,7 +441,7 @@ public partial class MainWindow : Window
     /// <summary>마야 timeSliderClearKey — 현재 시각의 키를 모든 커브에서 지운다.</summary>
     internal void ClearKeysAtCurrentTime()
     {
-        if (_graph.MotionName is { } name && !_session.Editor.RemoveKeysAt(name, _viewport.Time))
+        if (_graph.TimelineName is { } name && !_session.Editor.RemoveKeysAt(name, _viewport.Time))
         {
             _session.SetStatus("현재 시각에 키가 없다.");
         }
@@ -450,7 +450,7 @@ public partial class MainWindow : Window
     /// <summary>마야 removeInbetween — 현재 시각 뒤의 키를 한 프레임 당긴다.</summary>
     internal void RemoveInbetween()
     {
-        if (_graph.MotionName is { } name && !_session.Editor.ShiftKeysAfter(name, (float)_viewport.Time, -FrameSeconds))
+        if (_graph.TimelineName is { } name && !_session.Editor.ShiftKeysAfter(name, (float)_viewport.Time, -FrameSeconds))
         {
             _session.SetStatus("현재 시각 뒤에 키가 없다.");
         }
@@ -459,7 +459,7 @@ public partial class MainWindow : Window
     /// <summary>마야 addInbetween — 현재 시각 뒤의 키를 한 프레임 민다.</summary>
     internal void AddInbetween()
     {
-        if (_graph.MotionName is { } name && !_session.Editor.ShiftKeysAfter(name, (float)_viewport.Time, FrameSeconds))
+        if (_graph.TimelineName is { } name && !_session.Editor.ShiftKeysAfter(name, (float)_viewport.Time, FrameSeconds))
         {
             _session.SetStatus("현재 시각 뒤에 키가 없다.");
         }
@@ -620,43 +620,43 @@ public partial class MainWindow : Window
         set => _autoKeyToggle.IsChecked = value;
     }
 
-    internal string? SelectedMotion => _motionList.SelectedItem as string;
+    internal string? SelectedTimeline => _timelineList.SelectedItem as string;
 
     /// <summary>테스트 손잡이 — 모션 목록에 보이는 이름들과 그 머리글.</summary>
-    internal (string Header, IReadOnlyList<string> Names) MotionListState => (_motionHeader.Text ?? "", (_motionList.ItemsSource as IEnumerable<string> ?? Array.Empty<string>()).ToList());
+    internal (string Header, IReadOnlyList<string> Names) TimelineListState => (_timelineHeader.Text ?? "", (_timelineList.ItemsSource as IEnumerable<string> ?? Array.Empty<string>()).ToList());
 
     /// <summary>테스트 손잡이 — "모션 추가" 버튼(이름·리그는 툴이 정한다).</summary>
-    internal void AddMotionFromButton() => AddMotion();
+    internal void AddTimelineFromButton() => AddTimeline();
 
     /// <summary>테스트 손잡이 — 목록에서 모션을 고른 것과 같다.</summary>
-    internal void SelectMotion(string name) => _motionList.SelectedItem = name;
+    internal void SelectTimeline(string name) => _timelineList.SelectedItem = name;
 
     /// <summary>헤드리스 테스트가 폼을 채우는 손잡이 — 화면과 같은 명령 경로를 지난다.</summary>
-    internal void AddMotionFromForm(string name, string rig, string duration)
+    internal void AddTimelineFromForm(string name, string set, string duration)
     {
         if (!TryFloat(duration, out float seconds))
         {
             throw new InvalidOperationException("길이는 초 단위 숫자다.");
         }
 
-        AddMotion(name, rig, seconds);
+        AddTimeline(name, set, seconds);
     }
 
     /// <summary>테스트 손잡이 — 채널을 바로 더한다(UI에는 "채널 추가"가 없다: 채널 박스·매니퓰레이터가 첫 키에서 만든다).</summary>
-    internal void AddChannelFromForm(string node, MotionChannelKind kind)
+    internal void AddChannelFromForm(string node, ChannelKind kind)
     {
-        MotionAsset motion = _graph.Motion ?? throw new InvalidOperationException("먼저 모션을 고른다.");
-        _session.Editor.AddChannel(motion.Name, node, kind);
+        TimelineAsset timeline = _graph.Timeline ?? throw new InvalidOperationException("먼저 모션을 고른다.");
+        _session.Editor.AddChannel(timeline.Name, node, kind);
     }
 
     /// <summary>테스트 손잡이 — 채널 박스 칸에 값을 넣고 Enter.</summary>
-    internal void SetChannelBoxValue(MotionChannelKind kind, Axis axis, string text) => CommitChannelBox(kind, axis, text);
+    internal void SetChannelBoxValue(ChannelKind kind, Axis axis, string text) => CommitChannelBox(kind, axis, text);
 
     /// <summary>테스트 손잡이 — 채널 박스 칸의 글자.</summary>
-    internal string ChannelBoxValue(MotionChannelKind kind, Axis axis) => _channelBoxRows[(kind, axis)].Box.Text ?? "";
+    internal string ChannelBoxValue(ChannelKind kind, Axis axis) => _channelBoxRows[(kind, axis)].Box.Text ?? "";
 
     /// <summary>테스트 손잡이 — 채널 박스 ●(이 성분을 지금 키).</summary>
-    internal void KeyChannelBoxComponent(MotionChannelKind kind, Axis axis) => KeyChannelBox(kind, axis);
+    internal void KeyChannelBoxComponent(ChannelKind kind, Axis axis) => KeyChannelBox(kind, axis);
 
     /// <summary>채널 박스가 보여 주는 노드.</summary>
     internal string? ChannelBoxNode => _viewport.SelectedNode;
@@ -668,7 +668,7 @@ public partial class MainWindow : Window
         WithSingleKey((key, k) => { if (TryFloat(text, out float v) && v != k.V) UpdateKey(key, k, value: v); });
     }
 
-    internal IReadOnlyList<MotionProblem> ProblemsShown => _session.Problems;
+    internal IReadOnlyList<ValidationProblem> ProblemsShown => _session.Problems;
 
     // ── 구성 ──────────────────────────────────────────────────────────
 
@@ -733,7 +733,7 @@ public partial class MainWindow : Window
             }
         });
         ToolTip.SetTip(playBack, "거꾸로 재생");
-        OnCommit(_animEnd, text => WithMotion(m =>
+        OnCommit(_animEnd, text => WithTimeline(m =>
         {
             if (TimeText.TryParse(text, Display, out double v) && Math.Abs(v - m.Duration) > 1e-6)
             {
@@ -995,20 +995,20 @@ public partial class MainWindow : Window
 
         try
         {
-            MotionAsset? motion = _graph.Motion;
+            TimelineAsset? timeline = _graph.Timeline;
             EnsureChannelBoxRows();
             float time = (float)(_viewport.SnapEnabled ? TimeSnap.Snap(_viewport.Time, _viewport.SnapStep) : _viewport.Time);
 
             string? node = _viewport.SelectedNode;
-            bool hasNode = node is not null && _viewport.HasRig;
+            bool hasNode = node is not null && _viewport.HasSet;
             _channelBoxTitle.Text = !hasNode
                 ? "(컷이나 세트를 열고 하이어아키에서 오브젝트를 고른다)"
-                : motion is null ? $"{node} — 애니메이션을 고르면 키를 놓을 수 있다" : node!;
+                : timeline is null ? $"{node} — 애니메이션을 고르면 키를 놓을 수 있다" : node!;
 
-            foreach (((MotionChannelKind kind, Axis axis), (Border row, TextBox box)) in _channelBoxRows)
+            foreach (((ChannelKind kind, Axis axis), (Border row, TextBox box)) in _channelBoxRows)
             {
                 float? value = hasNode ? _viewport.ComponentValue(node!, kind, axis) : null;
-                box.IsEnabled = value is not null && motion is not null;
+                box.IsEnabled = value is not null && timeline is not null;
                 string text = value is null ? "" : F(value.Value);
 
                 if (!box.IsFocused && box.Text != text)
@@ -1016,7 +1016,7 @@ public partial class MainWindow : Window
                     box.Text = text;
                 }
 
-                ComponentCurve? curve = hasNode && motion is not null ? motion.FindChannel(node!, kind)?.Get(axis) : null;
+                ComponentCurve? curve = hasNode && timeline is not null ? timeline.FindChannel(node!, kind)?.Get(axis) : null;
                 bool keyedHere = curve?.Keys.Any(k => Math.Abs(k.T - time) <= KeyTimes.Tolerance) == true;
                 bool pending = hasNode && _viewport.IsPending(node!, kind, axis);
                 row.Background = pending ? ChannelBoxPending : keyedHere ? ChannelBoxKeyedHere : curve is not null ? ChannelBoxKeyed : Brushes.Transparent;
@@ -1036,14 +1036,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        foreach ((MotionChannelKind kind, Axis axis, string label) in ChannelBoxComponents)
+        foreach ((ChannelKind kind, Axis axis, string label) in ChannelBoxComponents)
         {
             (Border row, TextBox box) = ChannelBoxRow(label,
                 text => CommitChannelBox(kind, axis, text),
                 () => KeyChannelBox(kind, axis),
                 additive =>
                 {
-                    if (_viewport.SelectedNode is { } node && _graph.Motion?.FindChannel(node, kind)?.Get(axis) is not null)
+                    if (_viewport.SelectedNode is { } node && _graph.Timeline?.FindChannel(node, kind)?.Get(axis) is not null)
                     {
                         ShowCurves(new[] { new CurveRef(node, kind, axis) }, additive);
                     }
@@ -1077,9 +1077,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>노드 칸 입력: 숫자는 절대값, <c>+=</c>·<c>-=</c>·<c>*=</c>·<c>/=</c>는 지금 값에 상대.</summary>
-    private void CommitChannelBox(MotionChannelKind kind, Axis axis, string text)
+    private void CommitChannelBox(ChannelKind kind, Axis axis, string text)
     {
-        if (_refreshing || _viewport.SelectedNode is not { } node || _graph.Motion is null || !RelativeInput.TryParse(text, out Func<float, float> apply))
+        if (_refreshing || _viewport.SelectedNode is not { } node || _graph.Timeline is null || !RelativeInput.TryParse(text, out Func<float, float> apply))
         {
             RefreshChannelBox();
             return;
@@ -1097,9 +1097,9 @@ public partial class MainWindow : Window
         RefreshChannelBox();
     }
 
-    private void KeyChannelBox(MotionChannelKind kind, Axis axis)
+    private void KeyChannelBox(ChannelKind kind, Axis axis)
     {
-        if (_viewport.SelectedNode is { } node && _graph.Motion is not null)
+        if (_viewport.SelectedNode is { } node && _graph.Timeline is not null)
         {
             Guard("키 놓기", () => _viewport.KeyComponent(node, kind, axis));
         }
@@ -1148,10 +1148,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BindMotion(string? name)
+    private void BindTimeline(string? name)
     {
         // 세트 보기는 그 세트의 모션만 연기한다 — 다른 리그의 모션을 골랐으면 세트를 닫는다.
-        if (SelectedSet is { } openSet && name is not null && _session.Editor.Document.Find(name)?.Rig != openSet)
+        if (SelectedSet is { } openSet && name is not null && _session.Editor.Document.Find(name)?.Set != openSet)
         {
             DeselectSet();
             return; // DeselectSet이 다시 묶는다
@@ -1169,10 +1169,10 @@ public partial class MainWindow : Window
     /// <summary>뷰포트가 축을 그릴 노드 — 선택한 키의 노드, 없으면 첫 채널의 노드.</summary>
     private void RefreshSelectedNode()
     {
-        MotionAsset? motion = _graph.Motion;
+        TimelineAsset? timeline = _graph.Timeline;
         string? node = _graph.Selection.Count > 0
             ? _graph.Selection.First().Curve.Node
-            : motion?.Channels.FirstOrDefault()?.Node;
+            : timeline?.Channels.FirstOrDefault()?.Object;
 
         if (_followSelection || _viewport.SelectedNode is null)
         {
@@ -1190,7 +1190,7 @@ public partial class MainWindow : Window
     private void RefreshAssets()
     {
         AssetRefreshCount++;
-        _viewport.SetRig(_session.Rig);
+        _viewport.SetBuilt(_session.Built);
         _viewport.SetDepth(_session.Depth);
         _viewport.StageSize = _session.StageSize;
         _viewport.ClearImages();
@@ -1251,15 +1251,15 @@ public partial class MainWindow : Window
         LeftPanel.Children.Add(_hierarchy);
         ToolTip.SetTip(_hierarchy, "연 컷/세트의 오브젝트 계층. 클릭 = 고르기(채널 박스·매니퓰레이터의 손잡이, \"오브젝트\" 탭의 칸). 우클릭 = 더하기 · 세트 넣기 · 따로 보기 · 순서 · 부모 · 새 세트로 빼기 · 지우기. Del 지우기 · F2 이름 바꾸기");
 
-        LeftPanel.Children.Add(_motionHeader);
-        _motionList.SelectionChanged += (_, _) => OnMotionSelected();
-        LeftPanel.Children.Add(_motionList);
+        LeftPanel.Children.Add(_timelineHeader);
+        _timelineList.SelectionChanged += (_, _) => OnTimelineSelected();
+        LeftPanel.Children.Add(_timelineList);
 
-        var addMotionButton = SmallButton("모션 추가", (_, _) => Guard("모션 추가", () => AddMotion()));
-        ToolTip.SetTip(addMotionButton, "연 세트의 애니메이션을 만든다 — 이름(motion, motion_2…)·길이 1초. 오른쪽 인스펙터에서 바꾼다. 컷에는 타임라인이 하나라 더하지 않는다");
-        _motionButtons.Children.Add(addMotionButton);
-        _motionButtons.Children.Add(SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveMotion)));
-        LeftPanel.Children.Add(_motionButtons);
+        var addTimelineButton = SmallButton("모션 추가", (_, _) => Guard("모션 추가", () => AddTimeline()));
+        ToolTip.SetTip(addTimelineButton, "연 세트의 애니메이션을 만든다 — 이름(timeline, timeline_2…)·길이 1초. 오른쪽 인스펙터에서 바꾼다. 컷에는 타임라인이 하나라 더하지 않는다");
+        _timelineButtons.Children.Add(addTimelineButton);
+        _timelineButtons.Children.Add(SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveTimeline)));
+        LeftPanel.Children.Add(_timelineButtons);
 
         BuildSetLeft();
         BuildCutLeft();
@@ -1275,7 +1275,7 @@ public partial class MainWindow : Window
         {
             new TabItem { Header = "채널 박스", Content = BuildChannelBoxTab(), FontSize = 12 },
             new TabItem { Header = "오브젝트", Content = BuildObjectTab(), FontSize = 12 },
-            new TabItem { Header = "모션", Content = BuildMotionTab(), FontSize = 12 },
+            new TabItem { Header = "모션", Content = BuildTimelineTab(), FontSize = 12 },
         };
         _inspectorTabs.SelectionChanged += (_, _) =>
         {
@@ -1327,26 +1327,26 @@ public partial class MainWindow : Window
         return panel;
     }
 
-    private Control BuildMotionTab()
+    private Control BuildTimelineTab()
     {
         var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
-        panel.Children.Add(Labeled("이름", _motionName));
-        panel.Children.Add(Labeled("길이(초)", _motionDuration));
+        panel.Children.Add(Labeled("이름", _timelineName));
+        panel.Children.Add(Labeled("길이(초)", _timelineDuration));
 
         panel.Children.Add(BuildAlphaPanel());
         panel.Children.Add(BuildEventPanel());
         panel.Children.Add(BuildPlayPanel());
-        panel.Children.Add(BuildSwapPanel());
+        panel.Children.Add(BuildImageKeyPanel());
 
-        OnCommit(_motionName, text => WithMotion(m =>
+        OnCommit(_timelineName, text => WithTimeline(m =>
         {
             if (text != m.Name)
             {
-                _session.Editor.RenameMotion(m.Name, text);
-                _motionList.SelectedItem = text;
+                _session.Editor.RenameTimeline(m.Name, text);
+                _timelineList.SelectedItem = text;
             }
         }));
-        OnCommit(_motionDuration, text => WithMotion(m => { if (TryFloat(text, out float v) && v != m.Duration) _session.Editor.SetDuration(m.Name, v); }));
+        OnCommit(_timelineDuration, text => WithTimeline(m => { if (TryFloat(text, out float v) && v != m.Duration) _session.Editor.SetDuration(m.Name, v); }));
         return panel;
     }
 
@@ -1515,16 +1515,16 @@ public partial class MainWindow : Window
     private void OnDocumentReplaced()
     {
         _session.Editor.Changed += (_, _) => OnEditorChanged();
-        BindMotion(null);
+        BindTimeline(null);
         RefreshAll();
         RefreshAssets();
     }
 
     private void OnEditorChanged()
     {
-        RefreshMotionList();
+        RefreshTimelineList();
         RefreshSets();
-        RefreshMotionInspector();
+        RefreshTimelineInspector();
         RefreshKeyInspector();
         RefreshProblems();
         RefreshObjects();
@@ -1579,7 +1579,7 @@ public partial class MainWindow : Window
         TreeViewItem? selectedItem = null;
         var itemsByNode = new Dictionary<string, TreeViewItem>(StringComparer.Ordinal);
 
-        if (_session.Rig.TryGetRig(kind, out HierarchyDto dto))
+        if (_session.Built.TryGetSet(kind, out HierarchyDto dto))
         {
             foreach (HierarchyNodeDto node in dto.nodes)
             {
@@ -1604,7 +1604,7 @@ public partial class MainWindow : Window
                 nodeItem.Opacity = shown ? 1 : 0.45;
 
                 // 품은 세트 안쪽의 것 — 참조다: 여기서는 못 고치고 그 세트를 열어 고친다.
-                if (node.id.Contains(RigAssetCodec.PathSeparator, StringComparison.Ordinal))
+                if (node.id.Contains(SetCodec.PathSeparator, StringComparison.Ordinal))
                 {
                     nodeItem.Opacity *= 0.7;
                 }
@@ -1695,10 +1695,10 @@ public partial class MainWindow : Window
             case PhysicalKey.Delete:
                 Guard("오브젝트 지우기", RemoveSelectedSetNode);
                 break;
-            case PhysicalKey.F2 when EditedRigNode is not null:
+            case PhysicalKey.F2 when EditedObject is not null:
                 _inspectorTabs.SelectedIndex = 1; // 이름 칸은 "오브젝트" 탭에 있다
-                _rigNodeId.Focus();
-                _rigNodeId.SelectAll();
+                _objectId.Focus();
+                _objectId.SelectAll();
                 break;
             default:
                 return;
@@ -1734,7 +1734,7 @@ public partial class MainWindow : Window
     /// <summary>오브젝트 항목: "오브젝트" 탭의 칸과 채널 박스·매니퓰레이터가 그 오브젝트를 본다. 키 따라가기는 끈다(사용자가 직접 골랐다).</summary>
     private void SelectNodeInHierarchy(string nodeId)
     {
-        _rigNodeSelected = nodeId;
+        _objectSelected = nodeId;
         RefreshSetNodePanel();
         _followSelection = false;
         _viewport.SelectedNode = nodeId;
@@ -1761,52 +1761,52 @@ public partial class MainWindow : Window
 
     private void RefreshAll()
     {
-        RefreshMotionList();
+        RefreshTimelineList();
         RefreshSets();
         RefreshChannels();
-        RefreshMotionInspector();
+        RefreshTimelineInspector();
         RefreshKeyInspector();
         RefreshProblems();
         StatusText.Text = _session.Status;
     }
 
-    private void RefreshMotionList()
+    private void RefreshTimelineList()
     {
         _refreshDepth++;
 
         try
         {
-            string? selected = SelectedMotion ?? _graph.MotionName;
+            string? selected = SelectedTimeline ?? _graph.TimelineName;
             // 세트나 컷을 열었으면 그것의 애니메이션만 — 다른 것의 모션은 이것이 연기할 수 없다.
             // 아무것도 안 열었으면 전부(주인별로 묶어 이름순) — 주인이 사라진 모션도 여기서 고르고 지운다.
             string? openSet = SelectedSet;
             bool cutOpen = openSet is not null && _session.Editor.Document.FindCut(openSet) is not null;
-            _motionHeader.Text = openSet is null ? "모션" : cutOpen ? $"타임라인 — 컷 {openSet}" : $"애니메이션 — 세트 {openSet}";
-            _motionButtons.IsVisible = !cutOpen;
+            _timelineHeader.Text = openSet is null ? "모션" : cutOpen ? $"타임라인 — 컷 {openSet}" : $"애니메이션 — 세트 {openSet}";
+            _timelineButtons.IsVisible = !cutOpen;
             // 컷은 제 타임라인 하나만(컷과 같은 이름) — 옛 문서에 그 컷의 애니메이션이 더 있어도 여기서는 안 보인다(아무것도 안 연 목록에서 지운다).
-            List<string> names = _session.Editor.Document.Motions
-                .Where(m => openSet is null || (cutOpen ? m.Name == openSet : m.Rig == openSet))
-                .OrderBy(m => m.Rig, StringComparer.Ordinal).ThenBy(m => m.Name, StringComparer.Ordinal)
+            List<string> names = _session.Editor.Document.Timelines
+                .Where(m => openSet is null || (cutOpen ? m.Name == openSet : m.Set == openSet))
+                .OrderBy(m => m.Set, StringComparer.Ordinal).ThenBy(m => m.Name, StringComparer.Ordinal)
                 .Select(m => m.Name).ToList();
-            _motionList.ItemsSource = names;
-            _motionList.ItemTemplate ??= new Avalonia.Controls.Templates.FuncDataTemplate<string>((name, _) =>
+            _timelineList.ItemsSource = names;
+            _timelineList.ItemTemplate ??= new Avalonia.Controls.Templates.FuncDataTemplate<string>((name, _) =>
             {
-                MotionAsset? motion = _session.Editor.Document.Find(name);
+                TimelineAsset? timeline = _session.Editor.Document.Find(name);
                 var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Opacity = string.IsNullOrEmpty(name) ? 0.6 : 1 };
                 row.Children.Add(new TextBlock { Text = string.IsNullOrEmpty(name) ? "(이름 없음 — 아래 문제 칸의 '이름 고치기')" : name, FontSize = 11 });
-                row.Children.Add(new TextBlock { Text = motion?.Rig ?? "", FontSize = 10, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center });
+                row.Children.Add(new TextBlock { Text = timeline?.Set ?? "", FontSize = 10, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center });
                 return row;
             });
             int index = selected is null ? -1 : names.IndexOf(selected);
-            _motionList.SelectedIndex = index;
+            _timelineList.SelectedIndex = index;
 
-            if (index < 0 && _graph.MotionName is not null)
+            if (index < 0 && _graph.TimelineName is not null)
             {
-                BindMotion(null);
+                BindTimeline(null);
             }
-            else if (index >= 0 && _graph.MotionName != names[index])
+            else if (index >= 0 && _graph.TimelineName != names[index])
             {
-                BindMotion(names[index]);
+                BindTimeline(names[index]);
             }
         }
         finally
@@ -1815,15 +1815,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnMotionSelected()
+    private void OnTimelineSelected()
     {
         if (_refreshing)
         {
             return;
         }
 
-        BindMotion(SelectedMotion);
-        RefreshMotionInspector();
+        BindTimeline(SelectedTimeline);
+        RefreshTimelineInspector();
         RefreshKeyInspector();
     }
 
@@ -1834,9 +1834,9 @@ public partial class MainWindow : Window
     private void RefreshChannels()
     {
         _channelRows.Children.Clear();
-        MotionAsset? motion = _graph.Motion;
+        TimelineAsset? timeline = _graph.Timeline;
 
-        if (motion is null)
+        if (timeline is null)
         {
             _channelRows.Children.Add(new TextBlock { Text = "(모션 없음)", FontSize = 11, Opacity = 0.6, Margin = new Avalonia.Thickness(6, 4) });
             return;
@@ -1844,24 +1844,24 @@ public partial class MainWindow : Window
 
         string query = (_outlinerSearch.Text ?? "").Trim();
 
-        foreach (ChannelAsset channel in motion.Channels)
+        foreach (ChannelAsset channel in timeline.Channels)
         {
-            string node = channel.Node;
-            MotionChannelKind kind = channel.Kind;
+            string node = channel.Object;
+            ChannelKind kind = channel.Kind;
 
             if (query.Length > 0 && !node.Contains(query, StringComparison.OrdinalIgnoreCase) && !ChannelKindLabel.Of(kind).Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            Axis[] possibleAxes = kind == MotionChannelKind.Euler ? new[] { Axis.X, Axis.Y, Axis.Z } : new[] { Axis.X, Axis.Y };
+            Axis[] possibleAxes = kind == ChannelKind.Euler ? new[] { Axis.X, Axis.Y, Axis.Z } : new[] { Axis.X, Axis.Y };
             CurveRef[] axesOfChannel = possibleAxes.Select(a => new CurveRef(node, kind, a)).ToArray();
-            CurveRef[] existing = axesOfChannel.Where(cr => cr.Resolve(motion) is not null).ToArray();
+            CurveRef[] existing = axesOfChannel.Where(cr => cr.Resolve(timeline) is not null).ToArray();
             bool anyLocked = existing.Any(_flags.IsLocked);
             bool anyMuted = existing.Any(_flags.IsMuted);
 
             var header = new DockPanel { Margin = new Avalonia.Thickness(2, 3, 2, 0) };
-            Button remove = SmallButton("×", (_, _) => Guard("채널 삭제", () => _session.Editor.RemoveChannel(motion.Name, node, kind)));
+            Button remove = SmallButton("×", (_, _) => Guard("채널 삭제", () => _session.Editor.RemoveChannel(timeline.Name, node, kind)));
             ToolTip.SetTip(remove, "채널 삭제(성분 전부)");
             Button lockButton = SmallButton(anyLocked ? "🔒" : "🔓", (_, _) =>
             {
@@ -1902,13 +1902,13 @@ public partial class MainWindow : Window
 
             foreach (CurveRef curveRef in axesOfChannel)
             {
-                _channelRows.Children.Add(ComponentRow(motion, curveRef, $"{ChannelKindLabel.Of(kind)} {curveRef.Axis.ToString().ToUpperInvariant()}"));
+                _channelRows.Children.Add(ComponentRow(timeline, curveRef, $"{ChannelKindLabel.Of(kind)} {curveRef.Axis.ToString().ToUpperInvariant()}"));
             }
         }
 
-        AddUnkeyedRows(motion, query);
+        AddUnkeyedRows(timeline, query);
 
-        if (motion.Channels.Count == 0)
+        if (timeline.Channels.Count == 0)
         {
             _channelRows.Children.Add(new TextBlock { Text = "(채널 없음 — 하이어아키에서 노드를 고르고 채널 박스에 값을 넣거나 매니퓰레이터로 끌면 생긴다)", FontSize = 11, Opacity = 0.6, TextWrapping = TextWrapping.Wrap, Margin = new Avalonia.Thickness(6, 4) });
         }
@@ -1918,40 +1918,40 @@ public partial class MainWindow : Window
     private const int UnkeyedRowsMaxNodes = 16;
 
     /// <summary>테스트 손잡이 — 그래프 목록의 "키 없음" 줄들(노드 · 종류).</summary>
-    internal IReadOnlyList<(string Node, MotionChannelKind Kind)> UnkeyedRows => _unkeyedRows;
+    internal IReadOnlyList<(string Node, ChannelKind Kind)> UnkeyedRows => _unkeyedRows;
 
-    internal void KeyUnkeyedRow(string node, MotionChannelKind kind) => KeyUnkeyed(node, kind);
+    internal void KeyUnkeyedRow(string node, ChannelKind kind) => KeyUnkeyed(node, kind);
 
-    private readonly List<(string Node, MotionChannelKind Kind)> _unkeyedRows = new();
+    private readonly List<(string Node, ChannelKind Kind)> _unkeyedRows = new();
 
     /// <summary>
     /// 아직 키가 없는 채널들을 흐리게 — 이 모션이 안 건드리는 노드·종류(위치·배율·회전·불투명도)도 보이고, 눌러서 그 노드를 고르거나 ＋로 지금 값에 키를 놓는다.
     /// "배율만 있는 모션에 살짝 위치도" 같은 손을 목록에서 바로 간다.
     /// </summary>
-    private void AddUnkeyedRows(MotionAsset motion, string query)
+    private void AddUnkeyedRows(TimelineAsset timeline, string query)
     {
         _unkeyedRows.Clear();
 
-        RigSchemaFile rig = _session.Rig;
+        BuiltSets set = _session.Built;
 
-        if (!rig.NodeIds.TryGetValue(motion.Rig, out ICollection<string>? nodes) || nodes.Count > UnkeyedRowsMaxNodes)
+        if (!set.NodeIds.TryGetValue(timeline.Set, out ICollection<string>? nodes) || nodes.Count > UnkeyedRowsMaxNodes)
         {
             return;
         }
 
-        rig.AlphaNodeIds.TryGetValue(motion.Rig, out ICollection<string>? alphaNodes);
+        set.AlphaNodeIds.TryGetValue(timeline.Set, out ICollection<string>? alphaNodes);
         bool headed = false;
 
         foreach (string node in nodes)
         {
-            if (node == RigAssetCodec.RootId)
+            if (node == SetCodec.RootId)
             {
                 continue;
             }
 
-            foreach (MotionChannelKind kind in new[] { MotionChannelKind.Position, MotionChannelKind.Scale, MotionChannelKind.Euler, MotionChannelKind.Alpha })
+            foreach (ChannelKind kind in new[] { ChannelKind.Position, ChannelKind.Scale, ChannelKind.Euler, ChannelKind.Alpha })
             {
-                if (motion.FindChannel(node, kind) is not null || (kind == MotionChannelKind.Alpha && alphaNodes?.Contains(node) != true))
+                if (timeline.FindChannel(node, kind) is not null || (kind == ChannelKind.Alpha && alphaNodes?.Contains(node) != true))
                 {
                     continue;
                 }
@@ -1969,7 +1969,7 @@ public partial class MainWindow : Window
 
                 _unkeyedRows.Add((node, kind));
                 string capturedNode = node;
-                MotionChannelKind capturedKind = kind;
+                ChannelKind capturedKind = kind;
                 var row = new DockPanel { Margin = new Avalonia.Thickness(2, 1, 2, 0), Opacity = 0.5 };
                 Button add = SmallButton("＋", (_, _) => Guard("키 놓기", () => KeyUnkeyed(capturedNode, capturedKind)));
                 ToolTip.SetTip(add, "지금 값을 현재 시각에 키 — 채널이 생긴다. 그 뒤 그래프·뷰포트에서 고친다");
@@ -1997,24 +1997,24 @@ public partial class MainWindow : Window
     }
 
     /// <summary>키 없는 채널에 지금 값을 지금 시각의 키로 — 채널이 생긴다. 뷰포트의 길로 놓는다.</summary>
-    private void KeyUnkeyed(string node, MotionChannelKind kind)
+    private void KeyUnkeyed(string node, ChannelKind kind)
     {
         _viewport.SelectedNode = node;
 
-        if (kind == MotionChannelKind.Alpha)
+        if (kind == ChannelKind.Alpha)
         {
             _viewport.SetAlphaValue(node, _viewport.AlphaValue(node) ?? 1f);
             return;
         }
 
-        _viewport.KeyComponents(node, kind, kind == MotionChannelKind.Euler ? new[] { Axis.Z } : new[] { Axis.X, Axis.Y });
+        _viewport.KeyComponents(node, kind, kind == ChannelKind.Euler ? new[] { Axis.Z } : new[] { Axis.X, Axis.Y });
     }
 
     /// <summary>성분 행: 색 네모 + 이름 + (있으면) ×. 보이는 행은 파랗게(마야 선택). 없는 성분은 흐리고, 클릭해도 만들지 않는다.</summary>
-    private Border ComponentRow(MotionAsset motion, CurveRef curveRef, string label)
+    private Border ComponentRow(TimelineAsset timeline, CurveRef curveRef, string label)
     {
         CurveSlot? slot = _graph.Curves.FirstOrDefault(s => s.Curve == curveRef);
-        bool exists = curveRef.Resolve(motion) is not null;
+        bool exists = curveRef.Resolve(timeline) is not null;
         bool visible = slot?.Visible == true;
         Color color = slot?.Color ?? Color.FromRgb(0x80, 0x80, 0x80);
         var content = new DockPanel { Opacity = exists ? 1 : 0.45 };
@@ -2023,7 +2023,7 @@ public partial class MainWindow : Window
         {
             Button remove = SmallButton("×", (_, e) =>
             {
-                Guard("성분 삭제", () => RemoveComponent(_graph.Motion ?? motion, curveRef));
+                Guard("성분 삭제", () => RemoveComponent(_graph.Timeline ?? timeline, curveRef));
                 e.Handled = true;
             });
             ToolTip.SetTip(remove, "이 성분의 키만 삭제 — 다른 성분은 남는다(마지막 성분이면 채널이 없어진다)");
@@ -2063,9 +2063,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>성분 하나의 키를 지운다 — 다른 성분은 남고, 마지막 성분이면 채널이 없어진다(빈 채널은 규약에 없다).</summary>
-    private void RemoveComponent(MotionAsset motion, CurveRef curve)
+    private void RemoveComponent(TimelineAsset timeline, CurveRef curve)
     {
-        if (motion.FindChannel(curve.Node, curve.Kind) is not { } channel || channel.Get(curve.Axis) is null)
+        if (timeline.FindChannel(curve.Node, curve.Kind) is not { } channel || channel.Get(curve.Axis) is null)
         {
             return;
         }
@@ -2074,11 +2074,11 @@ public partial class MainWindow : Window
 
         if (remaining <= 1)
         {
-            _session.Editor.RemoveChannel(motion.Name, curve.Node, curve.Kind);
+            _session.Editor.RemoveChannel(timeline.Name, curve.Node, curve.Kind);
             return;
         }
 
-        _session.Editor.SetKeys(motion.Name, curve.Node, curve.Kind, curve.Axis, Array.Empty<KeyAsset>());
+        _session.Editor.SetKeys(timeline.Name, curve.Node, curve.Kind, curve.Axis, Array.Empty<KeyAsset>());
     }
 
     /// <summary>
@@ -2086,7 +2086,7 @@ public partial class MainWindow : Window
     /// </summary>
     internal void OutlinerClick(CurveRef curve, bool additive)
     {
-        if (_graph.Motion is not { } motion || curve.Resolve(motion) is null)
+        if (_graph.Timeline is not { } timeline || curve.Resolve(timeline) is null)
         {
             return;
         }
@@ -2105,14 +2105,14 @@ public partial class MainWindow : Window
     /// S(Set Key) — 키 없는 포즈(드래그·채널 박스·MMB 스크럽)가 있으면 그것을 키로, 없으면 뷰포트의 선택 노드를 지금 값으로 현재 시각에 키(뷰포트 <see cref="ViewportView.SetKey"/>).
     /// </summary>
     private void SetKeySelected()
-        => Guard("키 놓기", () => _session.Editor.Batch(MotionChangeKind.Keys, _viewport.SetKey)); // 키 없는 포즈 전부가 되돌리기 한 칸
+        => Guard("키 놓기", () => _session.Editor.Batch(DocumentChangeKind.Keys, _viewport.SetKey)); // 키 없는 포즈 전부가 되돌리기 한 칸
 
     /// <summary>테스트 손잡이 — 성분 행의 ×.</summary>
     internal void RemoveComponentFromOutliner(CurveRef curve)
     {
-        if (_graph.Motion is { } motion)
+        if (_graph.Timeline is { } timeline)
         {
-            RemoveComponent(motion, curve);
+            RemoveComponent(timeline, curve);
         }
     }
 
@@ -2144,21 +2144,21 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshMotionInspector()
+    private void RefreshTimelineInspector()
     {
         _refreshDepth++;
 
         try
         {
-            MotionAsset? motion = _graph.Motion;
-            bool has = motion is not null;
+            TimelineAsset? timeline = _graph.Timeline;
+            bool has = timeline is not null;
             // 컷의 타임라인은 이름·길이를 컷의 칸에서 고친다.
-            bool free = has && _session.Editor.Document.FindCut(motion!.Rig) is null;
-            _motionName.IsEnabled = free;
-            _motionDuration.IsEnabled = free;
+            bool free = has && _session.Editor.Document.FindCut(timeline!.Set) is null;
+            _timelineName.IsEnabled = free;
+            _timelineDuration.IsEnabled = free;
 
-            _motionName.Text = motion?.Name ?? "";
-            _motionDuration.Text = motion is null ? "" : motion.Duration.ToString("0.###", CultureInfo.InvariantCulture);
+            _timelineName.Text = timeline?.Name ?? "";
+            _timelineDuration.Text = timeline is null ? "" : timeline.Duration.ToString("0.###", CultureInfo.InvariantCulture);
         }
         finally
         {
@@ -2166,7 +2166,7 @@ public partial class MainWindow : Window
             RefreshAlphaPanel(); // 같은 때(문서·선택이 바뀔 때)에 같이 다시 읽는다
             RefreshEventPanel();
             RefreshPlayPanel();
-            RefreshSwapPanel();
+            RefreshImageKeyPanel();
         }
     }
 
@@ -2176,9 +2176,9 @@ public partial class MainWindow : Window
 
         try
         {
-            MotionAsset? motion = _graph.Motion;
+            TimelineAsset? timeline = _graph.Timeline;
             int count = _graph.Selection.Count;
-            KeyAsset? single = count == 1 && motion is not null ? _graph.Selection.First().Resolve(motion) : null;
+            KeyAsset? single = count == 1 && timeline is not null ? _graph.Selection.First().Resolve(timeline) : null;
             _keyValue.IsEnabled = count > 0;
 
             _keyValue.Text = single is null ? (count > 0 ? "+=0" : "") : F(single.V);
@@ -2192,11 +2192,11 @@ public partial class MainWindow : Window
 
     private void RefreshProblems()
     {
-        IReadOnlyList<MotionProblem> problems = _session.Problems;
+        IReadOnlyList<ValidationProblem> problems = _session.Problems;
         ProblemsPanel.Children.Clear();
         ProblemsPanel.IsVisible = problems.Count > 0;
 
-        foreach (MotionProblem problem in problems)
+        foreach (ValidationProblem problem in problems)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
             row.Children.Add(new TextBlock
@@ -2209,15 +2209,15 @@ public partial class MainWindow : Window
                 MaxWidth = 700,
             });
 
-            foreach (MotionFix fix in MotionFixes.Suggest(problem))
+            foreach (ValidationFix fix in ValidationFixes.Suggest(problem))
             {
-                string motionName = problem.MotionName;
-                MotionFix captured = fix;
-                row.Children.Add(SmallButton(MotionFixes.Label(fix), (_, _) => Guard("돕는 손", () =>
+                string timelineName = problem.TimelineName;
+                ValidationFix captured = fix;
+                row.Children.Add(SmallButton(ValidationFixes.Label(fix), (_, _) => Guard("돕는 손", () =>
                 {
-                    if (!MotionFixes.Apply(_session.Editor, motionName, captured))
+                    if (!ValidationFixes.Apply(_session.Editor, timelineName, captured))
                     {
-                        _session.SetStatus($"{MotionFixes.Label(captured)}: 바꿀 것이 없다.");
+                        _session.SetStatus($"{ValidationFixes.Label(captured)}: 바꿀 것이 없다.");
                     }
                 })));
             }
@@ -2227,47 +2227,47 @@ public partial class MainWindow : Window
     }
 
     /// <summary>테스트가 문제 행의 돕는 손을 누른 것과 같다.</summary>
-    internal bool ApplyFix(string motionName, MotionFix fix) => MotionFixes.Apply(_session.Editor, motionName, fix);
+    internal bool ApplyFix(string timelineName, ValidationFix fix) => ValidationFixes.Apply(_session.Editor, timelineName, fix);
 
     internal int ProblemRowsShown => ProblemsPanel.Children.Count;
 
     // ── 명령 ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// 모션 추가 — 이름은 motion, motion_2…, 주인은 연 세트, 길이 1초.
+    /// 모션 추가 — 이름은 timeline, timeline_2…, 주인은 연 세트, 길이 1초.
     /// 전부 오른쪽 인스펙터에서 바꾼다. 테스트 손잡이는 값을 준다. 컷에는 더하지 않는다 — 컷의 타임라인은 하나다(컷을 만들 때 선다).
     /// </summary>
-    private void AddMotion(string? name = null, string? rig = null, float duration = 1f)
+    private void AddTimeline(string? name = null, string? set = null, float duration = 1f)
     {
         name = (name ?? "").Trim();
 
-        // 이름을 비우면 motion, motion_2…로 만든다 — 빈 이름의 모션은 목록에서 안 보여 규칙 위반이 "안 없어지는" 것처럼 보인다.
+        // 이름을 비우면 timeline, timeline_2…로 만든다 — 빈 이름의 모션은 목록에서 안 보여 규칙 위반이 "안 없어지는" 것처럼 보인다.
         if (name.Length == 0)
         {
-            name = MotionNames.Unique(_session.Editor.Document, MotionNames.Fallback);
+            name = NameRules.Unique(_session.Editor.Document, NameRules.Fallback);
         }
 
-        rig ??= SelectedSet ?? throw new InvalidOperationException("세트를 먼저 연다 — 애니메이션은 그 안의 오브젝트를 움직인다.");
+        set ??= SelectedSet ?? throw new InvalidOperationException("세트를 먼저 연다 — 애니메이션은 그 안의 오브젝트를 움직인다.");
 
-        if (_session.Editor.Document.FindCut(rig) is not null)
+        if (_session.Editor.Document.FindCut(set) is not null)
         {
-            throw new InvalidOperationException($"컷 '{rig}'에는 타임라인이 하나다 — 애니메이션을 더하지 않는다(키는 그 타임라인에 놓는다).");
+            throw new InvalidOperationException($"컷 '{set}'에는 타임라인이 하나다 — 애니메이션을 더하지 않는다(키는 그 타임라인에 놓는다).");
         }
 
-        _session.Editor.AddMotion(name, rig, duration);
-        _motionList.SelectedItem = name;
+        _session.Editor.AddTimeline(name, set, duration);
+        _timelineList.SelectedItem = name;
     }
 
-    private void RemoveMotion()
+    private void RemoveTimeline()
     {
-        if (SelectedMotion is { } name)
+        if (SelectedTimeline is { } name)
         {
             if (_session.Editor.Document.FindCut(name) is not null)
             {
                 throw new InvalidOperationException($"'{name}'은 컷의 타임라인이다 — 지우려면 컷을 지운다.");
             }
 
-            _session.Editor.RemoveMotion(name);
+            _session.Editor.RemoveTimeline(name);
         }
     }
 
@@ -2278,18 +2278,18 @@ public partial class MainWindow : Window
     /// <summary>값 칸 — 선택 키 전부에 적용(숫자는 절대값, +=·-=·*=·/=는 상대). 시각 칸은 없다(소유자, 2026-10-28): 시각은 끌거나 도프 시트로.</summary>
     private void ApplyValueToSelectedKeys(string text)
     {
-        if (_refreshing || _graph.Motion is not { } motion || _graph.Selection.Count == 0 || !RelativeInput.TryParse(text, out Func<float, float> apply))
+        if (_refreshing || _graph.Timeline is not { } timeline || _graph.Selection.Count == 0 || !RelativeInput.TryParse(text, out Func<float, float> apply))
         {
             return;
         }
 
         List<KeyRef> keys = _graph.Selection.ToList();
-        Guard("키 값", () => _session.Editor.SetKeyValues(motion.Name, keys, k => apply(k.V)));
+        Guard("키 값", () => _session.Editor.SetKeyValues(timeline.Name, keys, k => apply(k.V)));
     }
 
     private void UpdateKey(KeyRef key, KeyAsset current, float? t = null, float? value = null)
     {
-        _session.Editor.UpdateKey(_graph.MotionName!, key.Curve.Node, key.Curve.Kind, key.Curve.Axis, key.Index, new KeyAsset
+        _session.Editor.UpdateKey(_graph.TimelineName!, key.Curve.Node, key.Curve.Kind, key.Curve.Axis, key.Index, new KeyAsset
         {
             T = t ?? current.T,
             V = value ?? current.V,
@@ -2301,26 +2301,26 @@ public partial class MainWindow : Window
         _graph.Select(new[] { key }, additive: false);
     }
 
-    private void WithMotion(Action<MotionAsset> action)
+    private void WithTimeline(Action<TimelineAsset> action)
     {
-        if (_refreshing || _graph.Motion is not { } motion)
+        if (_refreshing || _graph.Timeline is not { } timeline)
         {
             return;
         }
 
-        Guard("모션 편집", () => action(motion));
+        Guard("모션 편집", () => action(timeline));
     }
 
     private void WithSingleKey(Action<KeyRef, KeyAsset> action)
     {
-        if (_refreshing || _graph.Motion is not { } motion || _graph.Selection.Count != 1)
+        if (_refreshing || _graph.Timeline is not { } timeline || _graph.Selection.Count != 1)
         {
             return;
         }
 
         KeyRef key = _graph.Selection.First();
 
-        if (key.Resolve(motion) is { } asset)
+        if (key.Resolve(timeline) is { } asset)
         {
             Guard("키 편집", () => action(key, asset));
         }
@@ -2390,7 +2390,7 @@ public partial class MainWindow : Window
 
     private async Task SaveAsAsync()
     {
-        string? path = await PickSaveAsync("저작 원본 저장", "motions" + AuthoringFormat.AuthoringExtension,
+        string? path = await PickSaveAsync("저작 원본 저장", "timelines" + AuthoringFormat.AuthoringExtension,
             new FilePickerFileType("모션 저작 원본") { Patterns = new[] { "*" + AuthoringFormat.AuthoringExtension } });
 
         if (path is not null)

@@ -4,17 +4,17 @@ namespace Mt.Authoring.Graph;
 
 /// <summary>
 /// 마야 타임 슬라이더의 키 조작 — 현재 시각의 키 전부를 한 덩어리로 다룬다(복사·지우기·인비트윈).
-/// 순수 산수. 편집은 <c>MotionEditor</c>가 한다.
+/// 순수 산수. 편집은 <c>DocumentEditor</c>가 한다.
 /// </summary>
 public static class TimeSliderOps
 {
     /// <summary>모든 커브에서 그 시각(허용 오차 안)의 키.</summary>
-    public static List<KeyRef> KeysAt(MotionAsset motion, double seconds)
+    public static List<KeyRef> KeysAt(TimelineAsset timeline, double seconds)
     {
-        ArgumentNullException.ThrowIfNull(motion);
+        ArgumentNullException.ThrowIfNull(timeline);
         var result = new List<KeyRef>();
 
-        foreach (ChannelAsset channel in motion.Channels)
+        foreach (ChannelAsset channel in timeline.Channels)
         {
             foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
             {
@@ -27,7 +27,7 @@ public static class TimeSliderOps
                 {
                     if (Math.Abs(curve.Keys[i].T - seconds) <= KeyTimes.Tolerance)
                     {
-                        result.Add(new KeyRef(new CurveRef(channel.Node, channel.Kind, axis), i));
+                        result.Add(new KeyRef(new CurveRef(channel.Object, channel.Kind, axis), i));
                     }
                 }
             }
@@ -37,14 +37,14 @@ public static class TimeSliderOps
     }
 
     /// <summary>모든 커브에서 [a, b] 구간(허용 오차 포함)의 키 — 타임 슬라이더의 빨간 범위 선택.</summary>
-    public static List<KeyRef> KeysBetween(MotionAsset motion, double a, double b)
+    public static List<KeyRef> KeysBetween(TimelineAsset timeline, double a, double b)
     {
-        ArgumentNullException.ThrowIfNull(motion);
+        ArgumentNullException.ThrowIfNull(timeline);
         double lo = Math.Min(a, b) - KeyTimes.Tolerance;
         double hi = Math.Max(a, b) + KeyTimes.Tolerance;
         var result = new List<KeyRef>();
 
-        foreach (ChannelAsset channel in motion.Channels)
+        foreach (ChannelAsset channel in timeline.Channels)
         {
             foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
             {
@@ -57,7 +57,7 @@ public static class TimeSliderOps
                 {
                     if (curve.Keys[i].T >= lo && curve.Keys[i].T <= hi)
                     {
-                        result.Add(new KeyRef(new CurveRef(channel.Node, channel.Kind, axis), i));
+                        result.Add(new KeyRef(new CurveRef(channel.Object, channel.Kind, axis), i));
                     }
                 }
             }
@@ -72,9 +72,9 @@ public static class TimeSliderOps
     /// 뺄 때 <paramref name="atSeconds"/> 아래로는 안 내려가고, 닿은 자리의 키는 움직인 키가 이긴다.
     /// 돌려주는 것은 바뀐 커브만 — 그대로 <c>SetKeysMany</c>에 준다.
     /// </summary>
-    public static List<(CurveRef Curve, IEnumerable<KeyAsset> Keys)> Inbetween(MotionAsset motion, float atSeconds, float deltaSeconds)
+    public static List<(CurveRef Curve, IEnumerable<KeyAsset> Keys)> Inbetween(TimelineAsset timeline, float atSeconds, float deltaSeconds)
     {
-        ArgumentNullException.ThrowIfNull(motion);
+        ArgumentNullException.ThrowIfNull(timeline);
         var edits = new List<(CurveRef, IEnumerable<KeyAsset>)>();
 
         if (Math.Abs(deltaSeconds) <= KeyTimes.Tolerance)
@@ -82,7 +82,7 @@ public static class TimeSliderOps
             return edits;
         }
 
-        foreach (ChannelAsset channel in motion.Channels)
+        foreach (ChannelAsset channel in timeline.Channels)
         {
             foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
             {
@@ -120,7 +120,7 @@ public static class TimeSliderOps
                     kept.Add(key);
                 }
 
-                edits.Add((new CurveRef(channel.Node, channel.Kind, axis), kept));
+                edits.Add((new CurveRef(channel.Object, channel.Kind, axis), kept));
             }
         }
 

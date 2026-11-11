@@ -10,8 +10,8 @@ public sealed class SkinAsset
     /// <summary>문서에서 하나뿐인 이름. 한글도 된다(파일 규약의 이름이 아니다).</summary>
     public string Name { get; set; } = "";
 
-    /// <summary>이 스킨이 입히는 리그(rigKind).</summary>
-    public string Rig { get; set; } = "";
+    /// <summary>이 스킨이 입히는 리그(setName).</summary>
+    public string Set { get; set; } = "";
 
     /// <summary>조각 노드 id → 그림(문서 기준 상대 경로). 노드 이름순으로 적힌다.</summary>
     public SortedDictionary<string, string> Parts { get; set; } = new(StringComparer.Ordinal);

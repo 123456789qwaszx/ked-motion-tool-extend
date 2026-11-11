@@ -3,7 +3,7 @@ using System.Text.Json;
 using Ked.Presentation.Core;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 
 namespace Mt.Authoring.Serialization;
 
@@ -25,7 +25,7 @@ public static class CutFileJson
 
     /// <summary>컷을 파일의 모양으로 — 펼치고 굽는다.</summary>
     /// <param name="rebaseImage">문서 기준의 그림 경로를 컷 파일 기준으로 바꾼다. 없으면 그대로.</param>
-    public static CutFileDto Build(MotionDocument document, CutAsset cut, Vec2 stageSize, Func<string, string>? rebaseImage = null)
+    public static CutFileDto Build(AuthoringDocument document, CutAsset cut, Vec2 stageSize, Func<string, string>? rebaseImage = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(cut);
@@ -47,16 +47,16 @@ public static class CutFileJson
         };
 
         // 오브젝트 — 품은 세트를 펼친 것. 그림은 실제로 입는 스킨(제 스킨 + 품은 세트들의 스킨)에서.
-        SkinAsset? skin = RigAssets.EffectiveSkin(document, cut.Name, document.Skins.FirstOrDefault(s => s.Rig == cut.Name)?.Name);
+        SkinAsset? skin = SetBuilder.EffectiveSkin(document, cut.Name, document.Skins.FirstOrDefault(s => s.Set == cut.Name)?.Name);
 
-        foreach (HierarchyNodeDto node in RigAssetCodec.ToDto(cut.Rig, stageSize, document.FindRig).nodes.Where(n => n.id != RigAssetCodec.RootId))
+        foreach (HierarchyNodeDto node in SetCodec.ToDto(cut.AsSet, stageSize, document.FindSetOrCut).nodes.Where(n => n.id != SetCodec.RootId))
         {
-            bool top = node.parent == RigAssetCodec.RootId;
+            bool top = node.parent == SetCodec.RootId;
             file.objects.Add(new CutObjectDto
             {
                 id = node.id,
                 parent = top ? "" : node.parent,
-                depth = top ? cut.Rig.Find(node.id)?.Depth ?? CutMath.DefaultDepth : 0f,
+                depth = top ? cut.AsSet.Find(node.id)?.Depth ?? CutMath.DefaultDepth : 0f,
                 x = node.anchoredPosition.x,
                 y = node.anchoredPosition.y,
                 rotation = node.localEulerAngles.z,
@@ -70,8 +70,8 @@ public static class CutFileJson
         }
 
         // 타임라인 — 재생 블록을 구운 것. 채널마다 성분별 트랙으로, 카메라와 깊이의 점은 제 자리로.
-        MotionAsset? timeline = document.Find(cut.Name);
-        MotionAsset? baked = timeline is null ? null : timeline.Flattened ?? timeline;
+        TimelineAsset? timeline = document.Find(cut.Name);
+        TimelineAsset? baked = timeline is null ? null : timeline.Flattened ?? timeline;
 
         foreach (ChannelAsset channel in baked?.Channels ?? new List<ChannelAsset>())
         {
@@ -97,16 +97,16 @@ public static class CutFileJson
             }
         }
 
-        foreach (IGrouping<string, MotionSwapAsset> swaps in (baked?.Swaps ?? new List<MotionSwapAsset>()).GroupBy(s => s.Node))
+        foreach (IGrouping<string, ImageKeyAsset> imageKeys in (baked?.ImageKeys ?? new List<ImageKeyAsset>()).GroupBy(s => s.Object))
         {
             file.images.Add(new CutImageTrackDto
             {
-                target = swaps.Key,
-                keys = swaps.OrderBy(s => s.T).Select(s => new CutImageKeyDto { f = Frame(s.T * fps), v = Image(s.Image) }).ToList(),
+                target = imageKeys.Key,
+                keys = imageKeys.OrderBy(s => s.T).Select(s => new CutImageKeyDto { f = Frame(s.T * fps), v = Image(s.Image) }).ToList(),
             });
         }
 
-        foreach (MotionEventAsset e in baked?.Events ?? new List<MotionEventAsset>())
+        foreach (EventKeyAsset e in baked?.Events ?? new List<EventKeyAsset>())
         {
             file.events.Add(new CutEventDto { f = Frame(e.T * fps), name = e.Name, value = e.Value });
         }
@@ -120,32 +120,32 @@ public static class CutFileJson
     /// <summary>채널의 성분이 컷 파일의 어느 트랙인가 — 카메라·깊이의 점은 제 자리로. 실리지 않는 성분이면 null.</summary>
     private static (string Target, string What)? TrackOf(ChannelAsset channel, Axis axis)
     {
-        if (channel.Node == CutStage.CameraPan)
+        if (channel.Object == CutStage.CameraPan)
         {
-            return channel.Kind == MotionChannelKind.Position && axis != Axis.Z ? (CutPlayer.CameraTarget, axis == Axis.X ? "panX" : "panY") : null;
+            return channel.Kind == ChannelKind.Position && axis != Axis.Z ? (CutPlayer.CameraTarget, axis == Axis.X ? "panX" : "panY") : null;
         }
 
-        if (channel.Node == CutStage.CameraZoom)
+        if (channel.Object == CutStage.CameraZoom)
         {
-            return channel.Kind == MotionChannelKind.Position && axis == Axis.X ? (CutPlayer.CameraTarget, "zoom") : null;
+            return channel.Kind == ChannelKind.Position && axis == Axis.X ? (CutPlayer.CameraTarget, "zoom") : null;
         }
 
-        if (CutStage.IsDepthNode(channel.Node))
+        if (CutStage.IsDepthNode(channel.Object))
         {
-            return channel.Kind == MotionChannelKind.Position && axis == Axis.X ? (channel.Node[..^CutStage.DepthSuffix.Length], "depth") : null;
+            return channel.Kind == ChannelKind.Position && axis == Axis.X ? (channel.Object[..^CutStage.DepthSuffix.Length], "depth") : null;
         }
 
         string? what = (channel.Kind, axis) switch
         {
-            (MotionChannelKind.Position, Axis.X) => "x",
-            (MotionChannelKind.Position, Axis.Y) => "y",
-            (MotionChannelKind.Scale, Axis.X) => "scaleX",
-            (MotionChannelKind.Scale, Axis.Y) => "scaleY",
-            (MotionChannelKind.Euler, Axis.Z) => "rotation",
-            (MotionChannelKind.Alpha, Axis.X) => "alpha",
+            (ChannelKind.Position, Axis.X) => "x",
+            (ChannelKind.Position, Axis.Y) => "y",
+            (ChannelKind.Scale, Axis.X) => "scaleX",
+            (ChannelKind.Scale, Axis.Y) => "scaleY",
+            (ChannelKind.Euler, Axis.Z) => "rotation",
+            (ChannelKind.Alpha, Axis.X) => "alpha",
             _ => null,
         };
-        return what is null ? null : (channel.Node, what);
+        return what is null ? null : (channel.Object, what);
     }
 
     public static string Write(CutFileDto file)

@@ -6,30 +6,30 @@ using Ked.Presentation.Core;
 using Mt.Authoring;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 using Mt.Authoring.Serialization;
 using Mt.Authoring.Validation;
 
 namespace Mt.Cli;
 
 /// <summary>
-/// <c>mt</c> — 툴의 명령줄 입구. 창 없이 저작 원본(<c>*.motion-authoring.json</c>)을 읽어 검증 · 컷 내보내기 · 포즈 조회를 한다.
+/// <c>mt</c> — 툴의 명령줄 입구. 창 없이 저작 원본(<c>*.cut-authoring.json</c>)을 읽어 검증 · 컷 내보내기 · 포즈 조회를 한다.
 ///
 /// 설계 원칙: **결과는 표준 출력에 JSON 하나**(기계가 읽는다), 사람에게 하는 말은 표준 오류, 종료 코드는 0 = 됨 · 1 = 막는 문제가 있다 · 2 = 쓰는 법이 틀렸다.
-/// 화면과 같은 함수를 지난다(<see cref="MotionValidator"/> · <see cref="CutFileJson"/> · <see cref="MotionPreview"/>) —
+/// 화면과 같은 함수를 지난다(<see cref="DocumentValidator"/> · <see cref="CutFileJson"/> · <see cref="TimelinePose"/>) —
 /// 여기서 통과한 것은 앱에서도 통과하고, 여기서 읽은 포즈는 뷰포트가 보이는 포즈다.
 /// </summary>
 public static class MtCli
 {
     public const string Usage = """
-        mt — ked-motion-tool 명령줄 (결과는 stdout의 JSON, 종료 코드 0 됨 · 1 막는 문제 · 2 쓰는 법)
+        mt — ked-timeline-tool 명령줄 (결과는 stdout의 JSON, 종료 코드 0 됨 · 1 막는 문제 · 2 쓰는 법)
 
           mt info     <문서>                              애니메이션·스킨·컷·세트의 목록
           mt validate <문서>                              문제 목록. 막는 문제가 있으면 종료 코드 1
           mt cut      <문서> <컷 이름> -o <파일>           컷 파일(cut/1) 내보내기 — 그 컷에 막는 문제가 없어야 나간다
-          mt pose     <문서> --motion <이름> --time <초>  그 시각의 포즈 — 그 애니메이션이 얹히는 세트·컷에서 그것이 건드리는 오브젝트의 값, 불투명도, 방금 울린 이벤트
+          mt pose     <문서> --timeline <이름> --time <초>  그 시각의 포즈 — 그 애니메이션이 얹히는 세트·컷에서 그것이 건드리는 오브젝트의 값, 불투명도, 방금 울린 이벤트
 
-          <문서>  *.motion-authoring.json
+          <문서>  *.cut-authoring.json
         """;
 
     private static readonly JsonSerializerOptions Output = new()
@@ -82,17 +82,17 @@ public static class MtCli
 
     private static int Info(Options options, TextWriter stdout)
     {
-        MotionDocument document = Load(options, out _);
-        var motions = new JsonArray();
+        AuthoringDocument document = Load(options, out _);
+        var timelines = new JsonArray();
 
-        foreach (MotionAsset m in document.Motions)
+        foreach (TimelineAsset m in document.Timelines)
         {
-            motions.Add(new JsonObject
+            timelines.Add(new JsonObject
             {
                 ["name"] = m.Name,
-                ["rig"] = m.Rig,
+                ["set"] = m.Set,
                 ["duration"] = m.Duration,
-                ["channels"] = new JsonArray(m.Channels.Select(c => (JsonNode)$"{c.Node} {ChannelKindLabel.Of(c.Kind)}").ToArray()),
+                ["channels"] = new JsonArray(m.Channels.Select(c => (JsonNode)$"{c.Object} {ChannelKindLabel.Of(c.Kind)}").ToArray()),
                 ["events"] = m.Events.Count,
             });
         }
@@ -101,18 +101,18 @@ public static class MtCli
         {
             ["ok"] = true,
             ["schema"] = document.Schema,
-            ["motions"] = motions,
-            ["skins"] = new JsonArray(document.Skins.Select(s => (JsonNode)new JsonObject { ["name"] = s.Name, ["rig"] = s.Rig, ["parts"] = s.Parts.Count }).ToArray()),
-            ["cuts"] = new JsonArray(document.Cuts.Select(c => (JsonNode)new JsonObject { ["name"] = c.Name, ["frames"] = c.Frames, ["objects"] = c.Nodes.Count }).ToArray()),
-            ["sets"] = new JsonArray(document.Rigs.Select(r => (JsonNode)new JsonObject { ["name"] = r.Kind, ["objects"] = r.Nodes.Count }).ToArray()),
+            ["timelines"] = timelines,
+            ["skins"] = new JsonArray(document.Skins.Select(s => (JsonNode)new JsonObject { ["name"] = s.Name, ["set"] = s.Set, ["parts"] = s.Parts.Count }).ToArray()),
+            ["cuts"] = new JsonArray(document.Cuts.Select(c => (JsonNode)new JsonObject { ["name"] = c.Name, ["frames"] = c.Frames, ["objects"] = c.Objects.Count }).ToArray()),
+            ["sets"] = new JsonArray(document.Sets.Select(r => (JsonNode)new JsonObject { ["name"] = r.Name, ["objects"] = r.Objects.Count }).ToArray()),
         });
         return 0;
     }
 
     private static int Validate(Options options, TextWriter stdout)
     {
-        MotionDocument document = Load(options, out RigSchemaFile rig);
-        (JsonArray problems, bool blocking) = Problems(document, rig);
+        AuthoringDocument document = Load(options, out BuiltSets set);
+        (JsonArray problems, bool blocking) = Problems(document, set);
         Write(stdout, new JsonObject { ["ok"] = !blocking, ["problems"] = problems });
         return blocking ? 1 : 0;
     }
@@ -121,18 +121,18 @@ public static class MtCli
     {
         string cutName = options.Positional(1, "컷 이름");
         string target = options.Value("o") ?? throw new UsageException("cut에는 -o <파일>이 있어야 한다");
-        MotionDocument document = Load(options, out RigSchemaFile rig);
+        AuthoringDocument document = Load(options, out BuiltSets set);
         CutAsset cut = document.FindCut(cutName) ?? throw new KeyNotFoundException($"컷 '{cutName}'이 없다.");
 
         // 앱의 "컷 내보내기"와 같은 문을 지난다.
-        List<MotionProblem> blocking = MotionValidator.BlockingCutExport(document, cutName, rig.NodeIds, rig.AlphaNodeIds);
+        List<ValidationProblem> blocking = DocumentValidator.BlockingCutExport(document, cutName, set.NodeIds, set.AlphaNodeIds);
 
         if (blocking.Count > 0)
         {
             Write(stdout, new JsonObject
             {
                 ["ok"] = false,
-                ["problems"] = new JsonArray(blocking.Select(p => (JsonNode)new JsonObject { ["name"] = p.MotionName, ["message"] = p.Message, ["blocking"] = true }).ToArray()),
+                ["problems"] = new JsonArray(blocking.Select(p => (JsonNode)new JsonObject { ["name"] = p.TimelineName, ["message"] = p.Message, ["blocking"] = true }).ToArray()),
             });
             return 1;
         }
@@ -140,7 +140,7 @@ public static class MtCli
         // 그림 경로는 컷 파일 기준으로 적는다(문서 기준 → 파일 기준). 그림은 복사하지 않는다.
         string documentFolder = Path.GetDirectoryName(Path.GetFullPath(options.Positional(0, "문서 경로"))) ?? ".";
         string folder = Path.GetDirectoryName(Path.GetFullPath(target)) ?? ".";
-        CutFileDto file = CutFileJson.Build(document, cut, rig.Dto.stageSize.ToVec2(),
+        CutFileDto file = CutFileJson.Build(document, cut, set.Dto.stageSize.ToVec2(),
             image => Path.GetRelativePath(folder, Path.GetFullPath(Path.Combine(documentFolder, image))).Replace('\\', '/'));
         File.WriteAllBytes(target, new System.Text.UTF8Encoding(false).GetBytes(CutFileJson.Write(file)));
         Write(stdout, new JsonObject
@@ -159,33 +159,33 @@ public static class MtCli
 
     private static int Pose(Options options, TextWriter stdout)
     {
-        MotionDocument document = Load(options, out RigSchemaFile rig);
+        AuthoringDocument document = Load(options, out BuiltSets set);
         double time = options.Number("time");
         var alphas = new Dictionary<string, float>(StringComparer.Ordinal);
         var result = new JsonObject { ["ok"] = true, ["time"] = time };
 
-        string motionName = options.Value("motion") ?? throw new UsageException("pose에는 --motion이 있어야 한다");
-        MotionAsset motion = document.Find(motionName) ?? throw new KeyNotFoundException($"모션 '{motionName}'이 없다.");
-        result["motion"] = motion.Name;
-        result["duration"] = motion.Duration;
+        string timelineName = options.Value("timeline") ?? throw new UsageException("pose에는 --timeline이 있어야 한다");
+        TimelineAsset timeline = document.Find(timelineName) ?? throw new KeyNotFoundException($"모션 '{timelineName}'이 없다.");
+        result["timeline"] = timeline.Name;
+        result["duration"] = timeline.Duration;
 
-        if (!rig.TryGetRig(motion.Rig, out _))
+        if (!set.TryGetSet(timeline.Set, out _))
         {
-            throw new InvalidOperationException($"모션 '{motion.Name}'이 얹히는 세트나 컷 '{motion.Rig}'가 없다.");
+            throw new InvalidOperationException($"모션 '{timeline.Name}'이 얹히는 세트나 컷 '{timeline.Set}'가 없다.");
         }
 
-        RectNodeTree pose = PoseOf(document, rig, motion, time, alphas);
+        RectNodeTree pose = PoseOf(document, set, timeline, time, alphas);
         var nodes = new JsonObject();
 
-        foreach (ChannelAsset channel in motion.Channels)
+        foreach (ChannelAsset channel in timeline.Channels)
         {
             AddNodeValue(nodes, pose, alphas, channel);
         }
 
-        result["rig"] = motion.Rig;
+        result["set"] = timeline.Set;
         result["nodes"] = nodes;
 
-        result["events"] = new JsonArray(MotionEvents.Between(motion, time - EventWindow, time)
+        result["events"] = new JsonArray(EventKeys.Between(timeline, time - EventWindow, time)
             .Select(e => (JsonNode)new JsonObject { ["time"] = e.T, ["name"] = e.Name, ["value"] = e.Value }).ToArray());
 
         Write(stdout, result);
@@ -197,14 +197,14 @@ public static class MtCli
     /// <summary>pose가 "방금 울린 이벤트"로 치는 구간(초) — 앱의 뷰포트와 같다.</summary>
     private const double EventWindow = 0.4;
 
-    private static (JsonArray Problems, bool Blocking) Problems(MotionDocument document, RigSchemaFile rig)
+    private static (JsonArray Problems, bool Blocking) Problems(AuthoringDocument document, BuiltSets set)
     {
         var problems = new JsonArray();
         bool blocking = false;
 
-        foreach (MotionProblem p in MotionValidator.Validate(document, rig.NodeIds, rig.AlphaNodeIds))
+        foreach (ValidationProblem p in DocumentValidator.Validate(document, set.NodeIds, set.AlphaNodeIds))
         {
-            problems.Add(new JsonObject { ["kind"] = "motion", ["name"] = p.MotionName, ["message"] = p.Message, ["blocking"] = p.Blocking });
+            problems.Add(new JsonObject { ["kind"] = "timeline", ["name"] = p.TimelineName, ["message"] = p.Message, ["blocking"] = p.Blocking });
             blocking |= p.Blocking;
         }
 
@@ -212,43 +212,43 @@ public static class MtCli
     }
 
     /// <summary>앱의 뷰포트와 같은 조립 — 세트는 무대 가운데에 그대로 서고, 컷은 포즈를 잡은 뒤 카메라와 깊이(내장 깊이 커브)를 넣는다.</summary>
-    private static RectNodeTree PoseOf(MotionDocument document, RigSchemaFile rig, MotionAsset motion, double time, Dictionary<string, float> alphas)
+    private static RectNodeTree PoseOf(AuthoringDocument document, BuiltSets set, TimelineAsset timeline, double time, Dictionary<string, float> alphas)
     {
-        if (document.FindCut(motion.Rig) is { } cut && CutStage.Build(rig, cut, "") is { } staged)
+        if (document.FindCut(timeline.Set) is { } cut && CutStage.Build(set, cut, "") is { } staged)
         {
-            RectNodeTree posed = MotionPreview.Pose(staged, motion, time, null, "", alphas);
+            RectNodeTree posed = TimelinePose.Pose(staged, timeline, time, null, "", alphas);
             CutStage.Apply(posed, cut, "", BuiltinTuning.Depth);
             return posed;
         }
 
-        return MotionPreview.Pose(rig.BuildTree(motion.Rig), motion, time, null, "", alphas);
+        return TimelinePose.Pose(set.BuildTree(timeline.Set), timeline, time, null, "", alphas);
     }
 
     private static void AddNodeValue(JsonObject nodes, RectNodeTree pose, Dictionary<string, float> alphas, ChannelAsset channel)
     {
-        string key = channel.Node;
+        string key = channel.Object;
 
         if (!pose.Contains(key))
         {
             return;
         }
 
-        var entry = nodes[channel.Node] as JsonObject ?? new JsonObject();
-        nodes[channel.Node] = entry;
+        var entry = nodes[channel.Object] as JsonObject ?? new JsonObject();
+        nodes[channel.Object] = entry;
         RectNodeState state = pose.GetState(key);
 
         switch (channel.Kind)
         {
-            case MotionChannelKind.Position:
+            case ChannelKind.Position:
                 entry["position"] = new JsonArray(Round(state.AnchoredPosition.X), Round(state.AnchoredPosition.Y));
                 break;
-            case MotionChannelKind.Scale:
+            case ChannelKind.Scale:
                 entry["scale"] = new JsonArray(Round(state.LocalScale.X), Round(state.LocalScale.Y));
                 break;
-            case MotionChannelKind.Euler:
+            case ChannelKind.Euler:
                 entry["euler"] = new JsonArray(Round(state.LocalEulerAngles.X), Round(state.LocalEulerAngles.Y), Round(state.LocalEulerAngles.Z));
                 break;
-            case MotionChannelKind.Alpha:
+            case ChannelKind.Alpha:
                 entry["alpha"] = Round(alphas.TryGetValue(key, out float alpha) ? alpha : 1f);
                 break;
         }
@@ -257,17 +257,17 @@ public static class MtCli
     /// <summary>읽는 쪽이 0.30000001을 보지 않게 — 소수 넷째 자리까지.</summary>
     private static double Round(float value) => Math.Round(value, 4);
 
-    private static MotionDocument Load(Options options, out RigSchemaFile rig)
+    private static AuthoringDocument Load(Options options, out BuiltSets set)
     {
         string path = options.Positional(0, "문서 경로");
-        MotionDocument document = MotionDocumentJson.Read(File.ReadAllText(path));
+        AuthoringDocument document = AuthoringDocumentJson.Read(File.ReadAllText(path));
 
         // 문서가 정의한 세트·컷으로 한 벌을 세운다(무대는 1920×1080).
-        rig = RigAssets.Compose(document, BaseResolutionFile.Default);
+        set = SetBuilder.Compose(document, BaseResolutionFile.Default);
 
         // 손으로(또는 AI가) 쓴 문서는 탄젠트 값을 모른다 — 키의 탄젠트 종류(auto·flat·linear…)대로 값을 세운다. 앱이 편집할 때마다 하는 그 계산이고,
         // 앱이 저장한 문서에는 아무것도 안 바꾼다(이미 그 값이다). free는 적힌 값 그대로 둔다.
-        foreach (ComponentCurve curve in document.Motions.SelectMany(m => m.Channels).SelectMany(c => new[] { c.X, c.Y, c.Z }).OfType<ComponentCurve>())
+        foreach (ComponentCurve curve in document.Timelines.SelectMany(m => m.Channels).SelectMany(c => new[] { c.X, c.Y, c.Z }).OfType<ComponentCurve>())
         {
             Mt.Authoring.Graph.TangentMath.Recompute(curve.Keys);
         }

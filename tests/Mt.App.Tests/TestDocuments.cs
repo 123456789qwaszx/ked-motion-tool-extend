@@ -1,7 +1,7 @@
 using Mt.App.Views;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Model;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 
 namespace Mt.App.Tests;
 
@@ -20,25 +20,25 @@ internal static class TestDocuments
     /// 묶음마다 자리·회전·배율의 손잡이가 된다(Track_Move_Y는 위아래, SwayPivot은 발 기준 회전, ActingScale은 배율).
     /// 원점이 그림의 아래 끝(y = −540)에 있는 묶음이 넷(<see cref="FootPivots"/>)이고 나머지는 가운데다 — 오브젝트가 25개라 그래프 목록의 "키 없음" 줄(16개까지)이 서지 않는다.
     /// </summary>
-    public static RigAsset ActorRig()
+    public static SetAsset ActorSet()
     {
-        var rig = new RigAsset { Kind = Actor };
+        var set = new SetAsset { Name = Actor };
         string parent = "";
         float parentY = 0f;
 
         foreach (string id in ActorChain)
         {
             float y = FootPivots.Contains(id) ? -540f : 0f;
-            rig.Nodes.Add(new RigNodeAsset { Id = id, Parent = parent, Y = y - parentY });
+            set.Objects.Add(new ObjectAsset { Id = id, Parent = parent, Y = y - parentY });
             parent = id;
             parentY = y;
         }
 
-        rig.Nodes.Add(new RigNodeAsset { Id = "CharacterPortraitSprite_Root", Parent = parent, Y = -parentY, Alpha = true });
-        rig.Nodes.Add(new RigNodeAsset { Id = ActorImage, Parent = "CharacterPortraitSprite_Root", Width = 1920f, Height = 1080f, Color = "#3D5A80" });
-        rig.Nodes.Add(new RigNodeAsset { Id = "CharacterPortraitSpriteOverlay_Root", Parent = parent, Y = -parentY, Alpha = true });
-        rig.Nodes.Add(new RigNodeAsset { Id = "CharacterPortraitSpriteOverlay_Image", Parent = "CharacterPortraitSpriteOverlay_Root" });
-        return rig;
+        set.Objects.Add(new ObjectAsset { Id = "CharacterPortraitSprite_Root", Parent = parent, Y = -parentY, Alpha = true });
+        set.Objects.Add(new ObjectAsset { Id = ActorImage, Parent = "CharacterPortraitSprite_Root", Width = 1920f, Height = 1080f, Color = "#3D5A80" });
+        set.Objects.Add(new ObjectAsset { Id = "CharacterPortraitSpriteOverlay_Root", Parent = parent, Y = -parentY, Alpha = true });
+        set.Objects.Add(new ObjectAsset { Id = "CharacterPortraitSpriteOverlay_Image", Parent = "CharacterPortraitSpriteOverlay_Root" });
+        return set;
     }
 
     /// <summary>actor의 그림(색 사각형) — 뷰포트의 대표 사각형이 이것이다.</summary>
@@ -56,13 +56,13 @@ internal static class TestDocuments
     private static readonly string[] FootPivots = { "CharSlot_DepthScale", "CharSlot_SwayPivot", "CharSlot_Scale", "CharacterPortrait_VisualOffset", "CharacterPortrait_SwayPivot" };
 
     /// <summary>세트 actor와 그 애니메이션 nod(끄덕임): Track_Move_Y 자리, y 0 → -18 → 0 (0.6초).</summary>
-    public static MotionEditor Nod()
+    public static DocumentEditor Nod()
     {
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddRig(ActorRig());
-        editor.AddMotion("nod", Actor, 0.6f);
-        editor.AddChannel("nod", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position);
-        editor.SetKeys("nod", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y, new[]
+        var editor = new DocumentEditor(new AuthoringDocument());
+        editor.AddSet(ActorSet());
+        editor.AddTimeline("nod", Actor, 0.6f);
+        editor.AddChannel("nod", "CharacterPortrait_Track_Move_Y", ChannelKind.Position);
+        editor.SetKeys("nod", "CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y, new[]
         {
             Key(0f, 0f), Key(0.3f, -18f), Key(0.6f, 0f),
         });
@@ -70,16 +70,16 @@ internal static class TestDocuments
     }
 
     /// <summary>뷰포트를 따로 세워 시험할 때 — 문서의 세트·컷을 세운 리그를 싣고 그 세트를 연다(창에서는 세션이 하는 일).</summary>
-    public static void Open(ViewportView view, MotionEditor editor, string kind = Actor)
+    public static void Open(ViewportView view, DocumentEditor editor, string kind = Actor)
     {
-        view.SetRig(RigAssets.Compose(editor.Document, BaseResolutionFile.Default));
+        view.SetBuilt(SetBuilder.Compose(editor.Document, BaseResolutionFile.Default));
         view.SetView = kind;
     }
 
     /// <summary>창에 세트 actor를 만들어 연다 — 그 뒤의 "모션 추가"가 이 세트의 애니메이션이 된다.</summary>
     public static void OpenActor(MainWindow window)
     {
-        window.Session.Editor.AddRig(ActorRig());
+        window.Session.Editor.AddSet(ActorSet());
         window.SelectSet(Actor);
     }
 

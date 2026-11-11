@@ -1,6 +1,6 @@
 using Ked.Presentation.Core;
 using Mt.Authoring.Model;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 
 namespace Mt.Authoring.Preview;
 
@@ -48,7 +48,7 @@ public static class CutStage
 
     /// <summary>컷의 오브젝트 계층과 함께 서는 점들의 이름 — 카메라 둘 + 맨 위 오브젝트마다 깊이 하나.</summary>
     public static string[] PointsOf(CutAsset cut)
-        => new[] { CameraPan, CameraZoom }.Concat(cut.Nodes.Where(n => n.Parent.Length == 0).Select(n => DepthNodeOf(n.Id))).ToArray();
+        => new[] { CameraPan, CameraZoom }.Concat(cut.Objects.Where(n => n.Parent.Length == 0).Select(n => DepthNodeOf(n.Id))).ToArray();
 
     /// <summary>깊이를 안 준 오브젝트의 깊이 — mid.</summary>
     public const float DefaultDepth = CutMath.DefaultDepth;
@@ -57,17 +57,17 @@ public static class CutStage
     /// 컷의 오브젝트들을 세운 트리 — 카메라와 깊이는 아직 안 들어갔다(틀이 전부 제자리). 포즈를 잡은 뒤 <see cref="Apply"/>로 넣는다.
     /// 노드 키는 <paramref name="prefix"/> + 오브젝트 이름(세트를 세울 때와 같다 — 타임라인의 키가 그대로 얹힌다). 그 한 벌에 컷이 없으면 null.
     /// </summary>
-    public static RectNodeTree? Build(RigSchemaFile rig, CutAsset cut, string prefix)
+    public static RectNodeTree? Build(BuiltSets set, CutAsset cut, string prefix)
     {
-        ArgumentNullException.ThrowIfNull(rig);
+        ArgumentNullException.ThrowIfNull(set);
         ArgumentNullException.ThrowIfNull(cut);
 
-        if (!rig.TryGetRig(cut.Name, out HierarchyDto dto))
+        if (!set.TryGetSet(cut.Name, out HierarchyDto dto))
         {
             return null;
         }
 
-        var tree = new RectNodeTree(new RectSpace(rig.Dto.stageSize.ToVec2(), Vec2.Half));
+        var tree = new RectNodeTree(new RectSpace(set.Dto.stageSize.ToVec2(), Vec2.Half));
         tree.Add(prefix + Zoom, null, RectNodeState.StretchFull);
         tree.Add(prefix + Pan, prefix + Zoom, RectNodeState.StretchFull);
 
@@ -91,7 +91,7 @@ public static class CutStage
             else if (IsDepthNode(node.id))
             {
                 // 깊이의 점 — 가만히 선 자리가 그 오브젝트에 적힌 깊이다.
-                float rest = cut.Rig.Find(node.id[..^DepthSuffix.Length])?.Depth ?? DefaultDepth;
+                float rest = cut.AsSet.Find(node.id[..^DepthSuffix.Length])?.Depth ?? DefaultDepth;
                 tree.Add(prefix + node.id, null, state.WithAnchoredPosition(new Vec2(rest, 0f)));
             }
             else if (IsTop(node))
@@ -131,7 +131,7 @@ public static class CutStage
             tree.SetState(prefix + Pan, tree.GetState(prefix + Pan).WithAnchoredPosition(pan));
         }
 
-        foreach (RigNodeAsset node in cut.Nodes.Where(n => n.Parent.Length == 0))
+        foreach (ObjectAsset node in cut.Objects.Where(n => n.Parent.Length == 0))
         {
             string key = prefix + node.Id;
             string frameKey = prefix + Frame + node.Id;
@@ -175,7 +175,7 @@ public static class CutStage
     }
 
     /// <summary>그 포즈에서 그 맨 위 오브젝트의 깊이 — 깊이의 점의 자리. 점이 없는 트리면 오브젝트에 적힌 값.</summary>
-    public static float DepthOf(RectNodeTree? tree, RigNodeAsset node, string prefix)
+    public static float DepthOf(RectNodeTree? tree, ObjectAsset node, string prefix)
     {
         ArgumentNullException.ThrowIfNull(node);
         string key = prefix + DepthNodeOf(node.Id);
@@ -204,15 +204,15 @@ public static class CutStage
         ArgumentNullException.ThrowIfNull(nodes);
         var top = new Dictionary<string, string>(StringComparer.Ordinal); // 오브젝트 → 그 맨 위 조상
 
-        foreach (RigNodeAsset node in cut.Nodes)
+        foreach (ObjectAsset node in cut.Objects)
         {
             top[node.Id] = node.Parent.Length == 0 ? node.Id : top.GetValueOrDefault(node.Parent, node.Parent);
         }
 
         float OrderDepth(HierarchyNodeDto node)
         {
-            string owner = RigAssetCodec.OwnerOf(node.id); // 품은 세트 안쪽의 것(a.b)은 그것을 품은 오브젝트를 따른다
-            return top.TryGetValue(owner, out string? root) && cut.Rig.Find(root) is { } rootNode ? DepthOf(pose, rootNode, prefix) : float.NegativeInfinity;
+            string owner = SetCodec.OwnerOf(node.id); // 품은 세트 안쪽의 것(a.b)은 그것을 품은 오브젝트를 따른다
+            return top.TryGetValue(owner, out string? root) && cut.AsSet.Find(root) is { } rootNode ? DepthOf(pose, rootNode, prefix) : float.NegativeInfinity;
         }
 
         return nodes.Select((node, index) => (node, index)).OrderBy(e => OrderDepth(e.node)).ThenBy(e => e.index).Select(e => e.node).ToList();

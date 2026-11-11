@@ -3,27 +3,27 @@ using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 
 namespace Mt.Authoring.Tests;
 
-public class MotionPreviewTests
+public class TimelinePoseTests
 {
-    private static readonly RigSchemaFile RigFile = Fixtures.ActorRigFile();
+    private static readonly BuiltSets BuiltSets = Fixtures.ActorBuiltSets();
     private const string MoveY = "CharacterPortrait_Track_Move_Y";
     private const string Sway = "CharacterPortrait_SwayPivot";
 
     [Fact]
     public void nod는_가운데서_18_내려가고_길이를_지나도_마지막_키의_모습이다()
     {
-        MotionDocument document = Fixtures.ActorDocument();
-        RectNodeTree template = RigFile.BuildTree(Fixtures.Actor);
-        MotionAsset nod = document.Find("nod")!;
+        AuthoringDocument document = Fixtures.ActorDocument();
+        RectNodeTree template = BuiltSets.BuildTree(Fixtures.Actor);
+        TimelineAsset nod = document.Find("nod")!;
 
-        Assert.Equal(0f, MotionPreview.Pose(template, nod, 0).GetState(MoveY).AnchoredPosition.Y, 4);
-        Assert.Equal(-18f, MotionPreview.Pose(template, nod, 0.3).GetState(MoveY).AnchoredPosition.Y, 4);
-        Assert.Equal(0f, MotionPreview.Pose(template, nod, 0.6).GetState(MoveY).AnchoredPosition.Y, 4);
-        Assert.Equal(0f, MotionPreview.Pose(template, nod, 5).GetState(MoveY).AnchoredPosition.Y, 4);
+        Assert.Equal(0f, TimelinePose.Pose(template, nod, 0).GetState(MoveY).AnchoredPosition.Y, 4);
+        Assert.Equal(-18f, TimelinePose.Pose(template, nod, 0.3).GetState(MoveY).AnchoredPosition.Y, 4);
+        Assert.Equal(0f, TimelinePose.Pose(template, nod, 0.6).GetState(MoveY).AnchoredPosition.Y, 4);
+        Assert.Equal(0f, TimelinePose.Pose(template, nod, 5).GetState(MoveY).AnchoredPosition.Y, 4);
 
         // 포즈는 사본이다 — 원본 트리는 그대로.
         Assert.Equal(0f, template.GetState(MoveY).AnchoredPosition.Y);
@@ -33,13 +33,13 @@ public class MotionPreviewTests
     public void 첫_키_앞과_마지막_키_뒤로는_그_키의_값이_이어진다_길이를_지나도_돌아가지_않는다()
     {
         // 키가 처음(0초)에도 끝(길이)에도 없는 커브 — 앞뒤로 평평하다. 끝의 모습은 길이를 지나도 남는다.
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("step", Fixtures.Actor, 0.5f);
-        editor.AddChannel("step", "CharSlot_Track", MotionChannelKind.Position);
-        editor.SetKeys("step", "CharSlot_Track", MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0.1f, 40f), Fixtures.Key(0.4f, 320f) });
-        RectNodeTree template = RigFile.BuildTree(Fixtures.Actor);
-        MotionAsset step = editor.Document.Find("step")!;
-        float X(double t) => MotionPreview.Pose(template, step, t).GetState("CharSlot_Track").AnchoredPosition.X;
+        var editor = new DocumentEditor(new AuthoringDocument());
+        editor.AddTimeline("step", Fixtures.Actor, 0.5f);
+        editor.AddChannel("step", "CharSlot_Track", ChannelKind.Position);
+        editor.SetKeys("step", "CharSlot_Track", ChannelKind.Position, Axis.X, new[] { Fixtures.Key(0.1f, 40f), Fixtures.Key(0.4f, 320f) });
+        RectNodeTree template = BuiltSets.BuildTree(Fixtures.Actor);
+        TimelineAsset step = editor.Document.Find("step")!;
+        float X(double t) => TimelinePose.Pose(template, step, t).GetState("CharSlot_Track").AnchoredPosition.X;
 
         Assert.Equal(40f, X(0), 3);
         Assert.Equal(40f, X(0.1), 3);
@@ -52,41 +52,41 @@ public class MotionPreviewTests
     [Fact]
     public void bow는_길이를_지나도_마지막_키가_남고_중간은_에르미트다()
     {
-        MotionAsset bow = Fixtures.ActorDocument().Find("bow")!;
-        RectNodeTree template = RigFile.BuildTree(Fixtures.Actor);
+        TimelineAsset bow = Fixtures.ActorDocument().Find("bow")!;
+        RectNodeTree template = BuiltSets.BuildTree(Fixtures.Actor);
 
-        Assert.Equal(4f, MotionPreview.Pose(template, bow, 0.2).GetState(Sway).LocalEulerAngles.Z, 3);
-        Assert.Equal(8f, MotionPreview.Pose(template, bow, 0.4).GetState(Sway).LocalEulerAngles.Z, 4);
-        Assert.Equal(8f, MotionPreview.Pose(template, bow, 9).GetState(Sway).LocalEulerAngles.Z, 4);
+        Assert.Equal(4f, TimelinePose.Pose(template, bow, 0.2).GetState(Sway).LocalEulerAngles.Z, 3);
+        Assert.Equal(8f, TimelinePose.Pose(template, bow, 0.4).GetState(Sway).LocalEulerAngles.Z, 4);
+        Assert.Equal(8f, TimelinePose.Pose(template, bow, 9).GetState(Sway).LocalEulerAngles.Z, 4);
     }
 
     [Fact]
     public void 뮤트된_성분은_재생에서_빠진다()
     {
-        MotionAsset nod = Fixtures.ActorDocument().Find("nod")!;
-        RectNodeTree template = RigFile.BuildTree(Fixtures.Actor);
-        var y = new CurveRef(MoveY, MotionChannelKind.Position, Axis.Y);
+        TimelineAsset nod = Fixtures.ActorDocument().Find("nod")!;
+        RectNodeTree template = BuiltSets.BuildTree(Fixtures.Actor);
+        var y = new CurveRef(MoveY, ChannelKind.Position, Axis.Y);
 
-        Assert.Equal(-18f, MotionPreview.Pose(template, nod, 0.3, c => c != y).GetState(MoveY).AnchoredPosition.Y, 4);
-        Assert.Equal(0f, MotionPreview.Pose(template, nod, 0.3, c => c == y).GetState(MoveY).AnchoredPosition.Y, 4);
+        Assert.Equal(-18f, TimelinePose.Pose(template, nod, 0.3, c => c != y).GetState(MoveY).AnchoredPosition.Y, 4);
+        Assert.Equal(0f, TimelinePose.Pose(template, nod, 0.3, c => c == y).GetState(MoveY).AnchoredPosition.Y, 4);
     }
 
     [Fact]
     public void 키는_그_프레임의_값이다_키_없는_성분은_가만히_선_값이고_없는_노드는_건너뛴다()
     {
         const string Foot = "CharSlot_Scale"; // 가만히 선 자리가 (0, 0)이 아닌 묶음(부모 SwayPivot도 발 기준이라 y는 0, 배율은 1)
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("a", Fixtures.Actor, 1f);
-        editor.AddChannel("a", Foot, MotionChannelKind.Scale);
-        editor.SetKeys("a", Foot, MotionChannelKind.Scale, Axis.X, new[] { Fixtures.Key(0f, 1f), Fixtures.Key(1f, 2f) });
-        editor.AddChannel("a", Sway, MotionChannelKind.Position);
-        editor.SetKeys("a", Sway, MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 100f), Fixtures.Key(1f, 300f) });
-        editor.AddChannel("a", "NoSuchNode", MotionChannelKind.Position);
-        editor.SetKeys("a", "NoSuchNode", MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 1f), Fixtures.Key(1f, 2f) });
+        var editor = new DocumentEditor(new AuthoringDocument());
+        editor.AddTimeline("a", Fixtures.Actor, 1f);
+        editor.AddChannel("a", Foot, ChannelKind.Scale);
+        editor.SetKeys("a", Foot, ChannelKind.Scale, Axis.X, new[] { Fixtures.Key(0f, 1f), Fixtures.Key(1f, 2f) });
+        editor.AddChannel("a", Sway, ChannelKind.Position);
+        editor.SetKeys("a", Sway, ChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 100f), Fixtures.Key(1f, 300f) });
+        editor.AddChannel("a", "NoSuchNode", ChannelKind.Position);
+        editor.SetKeys("a", "NoSuchNode", ChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 1f), Fixtures.Key(1f, 2f) });
 
-        RectNodeTree template = RigFile.BuildTree(Fixtures.Actor);
+        RectNodeTree template = BuiltSets.BuildTree(Fixtures.Actor);
         Assert.Equal(-540f, template.GetState(Sway).AnchoredPosition.Y); // 가만히 선 자리
-        RectNodeTree pose = MotionPreview.Pose(template, editor.Document.Find("a")!, 1);
+        RectNodeTree pose = TimelinePose.Pose(template, editor.Document.Find("a")!, 1);
 
         Assert.Equal(2f, pose.GetState(Foot).LocalScale.X, 4);   // 키 값이 곧 배율이다(가만히 선 값에 곱하지 않는다)
         Assert.Equal(1f, pose.GetState(Foot).LocalScale.Y, 4);   // 키 없는 성분은 그대로
@@ -95,8 +95,8 @@ public class MotionPreviewTests
         Assert.False(pose.Contains("NoSuchNode"));
 
         // 가만히 선 값이 0이 아닌 성분에 키를 놓아도 그 값 그대로다.
-        editor.SetKeys("a", Sway, MotionChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0f, -500f) });
-        Assert.Equal(-500f, MotionPreview.Pose(template, editor.Document.Find("a")!, 0.5).GetState(Sway).AnchoredPosition.Y, 4);
+        editor.SetKeys("a", Sway, ChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0f, -500f) });
+        Assert.Equal(-500f, TimelinePose.Pose(template, editor.Document.Find("a")!, 0.5).GetState(Sway).AnchoredPosition.Y, 4);
     }
 }
 
@@ -104,16 +104,16 @@ public class StageQuadsTests
 {
     private const string Node = "CharacterPortraitSprite_Image";
 
-    private static readonly RigSchemaFile RigFile = Fixtures.ActorRigFile();
+    private static readonly BuiltSets BuiltSets = Fixtures.ActorBuiltSets();
 
     [Fact]
     public void 포즈가_바뀌면_사각형이_따라온다_nod_가운데는_18_아래다()
     {
-        MotionAsset nod = Fixtures.ActorDocument().Find("nod")!;
-        RectNodeTree template = RigFile.BuildTree(Fixtures.Actor);
+        TimelineAsset nod = Fixtures.ActorDocument().Find("nod")!;
+        RectNodeTree template = BuiltSets.BuildTree(Fixtures.Actor);
 
-        Quad rest = StageQuads.RectQuad(MotionPreview.Pose(template, nod, 0), Node);
-        Quad dipped = StageQuads.RectQuad(MotionPreview.Pose(template, nod, 0.3), Node);
+        Quad rest = StageQuads.RectQuad(TimelinePose.Pose(template, nod, 0), Node);
+        Quad dipped = StageQuads.RectQuad(TimelinePose.Pose(template, nod, 0.3), Node);
 
         Assert.Equal(rest.Center.Y - 18f, dipped.Center.Y, 2);
         Assert.Equal(rest.Center.X, dipped.Center.X, 2);
@@ -122,11 +122,11 @@ public class StageQuadsTests
     [Fact]
     public void 회전하면_사각형이_기운다_축_정렬_경계가_아니다()
     {
-        MotionAsset bow = Fixtures.ActorDocument().Find("bow")!;
-        RectNodeTree template = RigFile.BuildTree(Fixtures.Actor);
+        TimelineAsset bow = Fixtures.ActorDocument().Find("bow")!;
+        RectNodeTree template = BuiltSets.BuildTree(Fixtures.Actor);
 
-        Quad rest = StageQuads.RectQuad(MotionPreview.Pose(template, bow, 0), Node);
-        Quad tilted = StageQuads.RectQuad(MotionPreview.Pose(template, bow, 0.4), Node);
+        Quad rest = StageQuads.RectQuad(TimelinePose.Pose(template, bow, 0), Node);
+        Quad tilted = StageQuads.RectQuad(TimelinePose.Pose(template, bow, 0.4), Node);
 
         Assert.Equal(rest.BottomLeft.Y, rest.BottomRight.Y, 3);
         Assert.NotEqual(tilted.BottomLeft.Y, tilted.BottomRight.Y);
@@ -142,7 +142,7 @@ public class StageQuadsTests
         Assert.Equal(970f, canvas.X);
         Assert.Equal(520f, canvas.Y);
 
-        RectNodeTree tree = RigFile.BuildTree(Fixtures.Actor);
+        RectNodeTree tree = BuiltSets.BuildTree(Fixtures.Actor);
         (Vec2 origin, Vec2 xEnd, Vec2 yEnd) = StageQuads.Axes(tree, "CharacterPortrait_SwayPivot", 50f);
         Assert.Equal(origin.X + 50f, xEnd.X, 3);
         Assert.Equal(origin.Y + 50f, yEnd.Y, 3);
@@ -327,7 +327,7 @@ public class KeyTimesTests
     [Fact]
     public void 모든_키_시각은_합쳐_오름차순이고_다음_이전을_찾는다()
     {
-        MotionAsset bow = Fixtures.ActorDocument().Find("bow")!;
+        TimelineAsset bow = Fixtures.ActorDocument().Find("bow")!;
         List<float> times = KeyTimes.All(bow);
 
         Assert.Equal(new[] { 0f, 0.4f }, times);
@@ -342,8 +342,8 @@ public class KeyTimesTests
     [Fact]
     public void 선택_키_시각()
     {
-        MotionAsset nod = Fixtures.ActorDocument().Find("nod")!;
-        var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+        TimelineAsset nod = Fixtures.ActorDocument().Find("nod")!;
+        var y = new CurveRef("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
 
         List<float> selected = KeyTimes.OfSelection(nod, new[] { new KeyRef(y, 2), new KeyRef(y, 1), new KeyRef(y, 9) });
         Assert.Equal(new[] { 0.3f, 0.6f }, selected);

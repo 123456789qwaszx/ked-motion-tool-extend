@@ -9,7 +9,7 @@ public readonly record struct Quad(Vec2 BottomLeft, Vec2 BottomRight, Vec2 TopRi
 }
 
 /// <summary>
-/// 포즈(<see cref="MotionPreview"/>)를 잡은 트리에서 노드가 무대 어디에 어떻게 서는가 — 사각형의 네 모서리 · 축 · 캔버스 좌표.
+/// 포즈(<see cref="TimelinePose"/>)를 잡은 트리에서 노드가 무대 어디에 어떻게 서는가 — 사각형의 네 모서리 · 축 · 캔버스 좌표.
 /// </summary>
 public static class StageQuads
 {

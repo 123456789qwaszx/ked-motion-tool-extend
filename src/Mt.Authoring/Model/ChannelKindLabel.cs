@@ -9,12 +9,12 @@ public static class ChannelKindLabel
 {
     public static readonly string[] All = { "position", "scale", "rotate" };
 
-    public static string Of(MotionChannelKind kind) => kind switch
+    public static string Of(ChannelKind kind) => kind switch
     {
-        MotionChannelKind.Position => "position",
-        MotionChannelKind.Scale => "scale",
-        MotionChannelKind.Euler => "rotate",
-        MotionChannelKind.Alpha => "alpha",
+        ChannelKind.Position => "position",
+        ChannelKind.Scale => "scale",
+        ChannelKind.Euler => "rotate",
+        ChannelKind.Alpha => "alpha",
         _ => kind.ToString().ToLowerInvariant(),
     };
 }

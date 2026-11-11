@@ -22,9 +22,9 @@ public sealed class KeyClipboard
     public int Count => Items.Sum(i => i.Keys.Count);
 
     /// <summary>선택을 복사한다. 키가 하나도 없으면 null.</summary>
-    public static KeyClipboard? Copy(MotionAsset motion, IEnumerable<KeyRef> keys)
+    public static KeyClipboard? Copy(TimelineAsset timeline, IEnumerable<KeyRef> keys)
     {
-        ArgumentNullException.ThrowIfNull(motion);
+        ArgumentNullException.ThrowIfNull(timeline);
         ArgumentNullException.ThrowIfNull(keys);
 
         var byCurve = new Dictionary<CurveRef, List<KeyAsset>>();
@@ -32,7 +32,7 @@ public sealed class KeyClipboard
 
         foreach (KeyRef key in keys.Distinct())
         {
-            if (key.Resolve(motion) is not { } asset)
+            if (key.Resolve(timeline) is not { } asset)
             {
                 continue;
             }

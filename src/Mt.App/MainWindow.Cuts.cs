@@ -20,9 +20,9 @@ public partial class MainWindow
     private readonly TextBox _cutPanY = new() { FontSize = 11, Width = 56 };
     private readonly StackPanel _cutFields = new() { Spacing = 3 };
     private readonly Button _cutCameraKey = new() { Content = "키", FontSize = 11, Padding = new Avalonia.Thickness(6, 1), Margin = new Avalonia.Thickness(3, 0, 0, 0) };
-    private readonly TextBox _rigNodeDepth = new() { FontSize = 11, PlaceholderText = "(mid 14)" };
-    private readonly Button _rigNodeDepthKey = new() { Content = "키", FontSize = 11, Padding = new Avalonia.Thickness(6, 1), Margin = new Avalonia.Thickness(3, 0, 0, 0) };
-    private Control? _rigNodeDepthRow;
+    private readonly TextBox _objectDepth = new() { FontSize = 11, PlaceholderText = "(mid 14)" };
+    private readonly Button _objectDepthKey = new() { Content = "키", FontSize = 11, Padding = new Avalonia.Thickness(6, 1), Margin = new Avalonia.Thickness(3, 0, 0, 0) };
+    private Control? _objectDepthRow;
     private bool _switchingLists;
 
     /// <summary>테스트 손잡이 — 컷 목록의 선택, "새 컷", 컷의 칸들(이름 · 길이 · 카메라 당기기 · 밀기 X · 밀기 Y), 오브젝트의 깊이 칸.</summary>
@@ -37,14 +37,14 @@ public partial class MainWindow
 
     internal (TextBox Name, TextBox Frames, TextBox Zoom, TextBox PanX, TextBox PanY) CutBoxes => (_cutName, _cutFrames, _cutZoom, _cutPanX, _cutPanY);
 
-    internal TextBox RigNodeDepthBox => _rigNodeDepth;
+    internal TextBox ObjectDepthBox => _objectDepth;
 
     /// <summary>테스트 손잡이 — 카메라의 "키" 단추.</summary>
-    internal void KeyCutDepthFromForm() => _rigNodeDepthKey.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+    internal void KeyCutDepthFromForm() => _objectDepthKey.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
     internal void KeyCutCameraFromForm() => _cutCameraKey.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
-    internal bool RigNodeDepthShown => _rigNodeDepthRow?.IsVisible == true;
+    internal bool ObjectDepthShown => _objectDepthRow?.IsVisible == true;
 
     private CutAsset? OpenCut => _session.Editor.Document.FindCut(SelectedCut);
 
@@ -134,21 +134,21 @@ public partial class MainWindow
         _cutCameraKey.Click += (_, _) => WithOpenCut(cut => _session.Editor.SetCutCameraKey(cut.Name, CutTimeNow(cut), CameraFromBoxes(cut)));
         ToolTip.SetTip(_cutCameraKey, "카메라의 키 — 지금 프레임에 카메라 칸의 값(당기기 · 밀기 X · 밀기 Y)으로 키를 놓는다. 카메라는 타임라인의 트랙이다(그래프에 Camera_Pan · Camera_Zoom으로 보인다). 키가 한 번 놓이면 그 뒤로 칸을 고치는 것이 그 프레임의 키가 된다");
         _viewport.TimeChanged += (_, _) => RefreshCutFields(); // 카메라·깊이 칸은 지금 프레임의 값을 보인다
-        _rigNodeDepthKey.Click += (_, _) => WithOpenCut(cut =>
+        _objectDepthKey.Click += (_, _) => WithOpenCut(cut =>
         {
-            if (EditedRigNode is { Parent.Length: 0 } node)
+            if (EditedObject is { Parent.Length: 0 } node)
             {
-                float depth = TryFloat(_rigNodeDepth.Text ?? "", out float typed) ? typed : _viewport.CutDepthNow(node.Id) ?? CutStage.DefaultDepth;
+                float depth = TryFloat(_objectDepth.Text ?? "", out float typed) ? typed : _viewport.CutDepthNow(node.Id) ?? CutStage.DefaultDepth;
                 _session.Editor.SetCutDepthKey(cut.Name, node.Id, CutTimeNow(cut), depth);
             }
         });
-        ToolTip.SetTip(_rigNodeDepthKey, "깊이의 키 — 지금 프레임에 이 오브젝트의 깊이로 키를 놓는다(오브젝트가 멀어지고 가까워진다). 깊이는 타임라인의 트랙이다(그래프에 이름__depth로 보인다). 키가 한 번 놓이면 그 뒤로 칸을 고치는 것이 그 프레임의 키가 된다");
+        ToolTip.SetTip(_objectDepthKey, "깊이의 키 — 지금 프레임에 이 오브젝트의 깊이로 키를 놓는다(오브젝트가 멀어지고 가까워진다). 깊이는 타임라인의 트랙이다(그래프에 이름__depth로 보인다). 키가 한 번 놓이면 그 뒤로 칸을 고치는 것이 그 프레임의 키가 된다");
 
         // 오브젝트의 깊이 — 컷의 맨 위 오브젝트에서만 선다("오브젝트" 탭의 칸 안, 부모 칸 아래 — 줄은 그 칸을 지을 때 선다).
-        ToolTip.SetTip(_rigNodeDepth, $"깊이(depthLevel) — far 0 · back 10 · mid 14 · front 16 · close 20, {MotionEditor.MinDepth:0}~{MotionEditor.MaxDepth:0}. 멀수록 작게 보이고 카메라에 덜 따라 움직이며 뒤에 그려진다. 비우면 mid. 맨 위 오브젝트만 가진다(밑의 것은 부모를 따른다)");
-        OnCommit(_rigNodeDepth, text => WithOpenCut(cut =>
+        ToolTip.SetTip(_objectDepth, $"깊이(depthLevel) — far 0 · back 10 · mid 14 · front 16 · close 20, {DocumentEditor.MinDepth:0}~{DocumentEditor.MaxDepth:0}. 멀수록 작게 보이고 카메라에 덜 따라 움직이며 뒤에 그려진다. 비우면 mid. 맨 위 오브젝트만 가진다(밑의 것은 부모를 따른다)");
+        OnCommit(_objectDepth, text => WithOpenCut(cut =>
         {
-            if (EditedRigNode is { } node)
+            if (EditedObject is { } node)
             {
                 string trimmed = text.Trim();
 
@@ -199,8 +199,8 @@ public partial class MainWindow
         // 컷을 열면 그 타임라인이 바로 붙는다 — 따로 고르지 않는다(컷에는 타임라인이 하나다).
         if (SelectedCut is { } cut && _session.Editor.Document.Find(cut) is not null)
         {
-            RefreshMotionList();
-            _motionList.SelectedItem = cut;
+            RefreshTimelineList();
+            _timelineList.SelectedItem = cut;
         }
     }
 
@@ -229,7 +229,7 @@ public partial class MainWindow
     {
         string name = "cut";
 
-        for (int i = 2; _session.Editor.Document.FindRig(name) is not null || _session.Editor.Document.Find(name) is not null; i++)
+        for (int i = 2; _session.Editor.Document.FindSetOrCut(name) is not null || _session.Editor.Document.Find(name) is not null; i++)
         {
             name = $"cut_{i.ToString(CultureInfo.InvariantCulture)}";
         }
@@ -282,17 +282,17 @@ public partial class MainWindow
             Write(_cutPanY, camera is null ? "" : F(camera.PanY));
 
             // 깊이 칸 — 컷의 맨 위 오브젝트일 때만.
-            RigNodeAsset? node = EditedRigNode;
+            ObjectAsset? node = EditedObject;
             bool top = cut is not null && node is { Parent.Length: 0 };
 
-            if (_rigNodeDepthRow is not null)
+            if (_objectDepthRow is not null)
             {
-                _rigNodeDepthRow.IsVisible = top;
+                _objectDepthRow.IsVisible = top;
             }
 
             // 키가 있으면 지금 프레임의 값, 없으면 적힌 값(안 적혔으면 빈 칸 = mid).
             bool depthKeyed = top && _session.Editor.CutDepthIsKeyed(cut!.Name, node!.Id);
-            Write(_rigNodeDepth, !top ? "" : depthKeyed ? F(_viewport.CutDepthNow(node!.Id) ?? CutStage.DefaultDepth) : node!.Depth is { } depth ? F(depth) : "");
+            Write(_objectDepth, !top ? "" : depthKeyed ? F(_viewport.CutDepthNow(node!.Id) ?? CutStage.DefaultDepth) : node!.Depth is { } depth ? F(depth) : "");
         }
         finally
         {

@@ -11,7 +11,7 @@ public partial class MainWindow
     private readonly StackPanel _eventRows = new() { Spacing = 3 };
 
     /// <summary>테스트 손잡이 — "이벤트 추가 (지금 시각)".</summary>
-    internal int? AddMotionEventFromForm() => AddMotionEvent();
+    internal int? AddEventKeyFromForm() => AddEventKey();
 
     /// <summary>테스트 손잡이 — 이벤트 줄 수와 한 줄의 칸들(시각 · 이름 · 값).</summary>
     internal int EventRowCount => _eventRows.Children.Count;
@@ -27,21 +27,21 @@ public partial class MainWindow
         var panel = new StackPanel { Spacing = 4 };
         panel.Children.Add(Header("이벤트 키"));
         panel.Children.Add(_eventRows);
-        Button add = SmallButton("이벤트 추가 (지금 시각)", (_, _) => Guard("이벤트 추가", () => AddMotionEvent()));
+        Button add = SmallButton("이벤트 추가 (지금 시각)", (_, _) => Guard("이벤트 추가", () => AddEventKey()));
         ToolTip.SetTip(add, "지금 시각에 이벤트 키를 놓는다 — 재생이 그 시각을 지나는 순간 런타임이 (이름, 값)으로 알린다. 예: 이름 sfx · 값 pop. 이름은 영문 소문자·숫자·_ , 값은 자유. 컷 파일의 events로 나간다. 상태가 아니라서 건너뛰기·되감기에서는 다시 울리지 않는다");
         panel.Children.Add(add);
         return panel;
     }
 
-    private int? AddMotionEvent()
+    private int? AddEventKey()
     {
-        if (_graph.Motion is not { } motion)
+        if (_graph.Timeline is not { } timeline)
         {
             return null;
         }
 
-        float time = (float)Math.Clamp(_graph.CurrentTime, 0, motion.Duration);
-        return _session.Editor.AddMotionEvent(motion.Name, time, "event");
+        float time = (float)Math.Clamp(_graph.CurrentTime, 0, timeline.Duration);
+        return _session.Editor.AddEventKey(timeline.Name, time, "event");
     }
 
     private void RefreshEventPanel()
@@ -58,14 +58,14 @@ public partial class MainWindow
         {
             _eventRows.Children.Clear();
 
-            if (_graph.Motion is not { } motion)
+            if (_graph.Timeline is not { } timeline)
             {
                 return;
             }
 
-            for (int i = 0; i < motion.Events.Count; i++)
+            for (int i = 0; i < timeline.Events.Count; i++)
             {
-                _eventRows.Children.Add(EventRowOf(motion.Name, i, motion.Events[i]));
+                _eventRows.Children.Add(EventRowOf(timeline.Name, i, timeline.Events[i]));
             }
         }
         finally
@@ -75,7 +75,7 @@ public partial class MainWindow
     }
 
     /// <summary>이벤트 한 줄 — 시각(초) · 이름 · 값 · ×. 칸마다 Enter·포커스 잃기로 확정(되돌리기 한 칸).</summary>
-    private Control EventRowOf(string motionName, int index, MotionEventAsset e)
+    private Control EventRowOf(string timelineName, int index, EventKeyAsset e)
     {
         var time = new TextBox { FontSize = 11, Width = 52, Text = e.T.ToString("0.###", CultureInfo.InvariantCulture) };
         var name = new TextBox { FontSize = 11, Width = 70, Text = e.Name };
@@ -92,14 +92,14 @@ public partial class MainWindow
             }
 
             float t = TryFloat(time.Text ?? "", out float parsed) ? parsed : e.T;
-            Guard("이벤트", () => _session.Editor.UpdateMotionEvent(motionName, index, t, name.Text ?? "", value.Text));
+            Guard("이벤트", () => _session.Editor.UpdateEventKey(timelineName, index, t, name.Text ?? "", value.Text));
         }
 
         OnCommit(time, _ => Commit());
         OnCommit(name, _ => Commit());
         OnCommit(value, _ => Commit());
 
-        Button remove = SmallButton("×", (_, _) => Guard("이벤트 삭제", () => _session.Editor.RemoveMotionEvent(motionName, index)));
+        Button remove = SmallButton("×", (_, _) => Guard("이벤트 삭제", () => _session.Editor.RemoveEventKey(timelineName, index)));
         var row = new DockPanel();
         DockPanel.SetDock(remove, Dock.Right);
         row.Children.Add(remove);

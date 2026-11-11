@@ -76,7 +76,7 @@ public sealed class ToolSettings
     }
 
     public static string DefaultPath()
-        => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ked-motion-tool", FileName);
+        => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ked-timeline-tool", FileName);
 
     public static ToolSettings Load(string path)
     {

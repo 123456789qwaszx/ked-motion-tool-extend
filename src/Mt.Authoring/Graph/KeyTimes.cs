@@ -9,12 +9,12 @@ public static class KeyTimes
     public const float Tolerance = 1e-4f;
 
     /// <summary>모든 성분의 키 시각을 허용 오차로 합쳐 오름차순으로.</summary>
-    public static List<float> All(MotionAsset motion)
+    public static List<float> All(TimelineAsset timeline)
     {
-        ArgumentNullException.ThrowIfNull(motion);
+        ArgumentNullException.ThrowIfNull(timeline);
         var times = new List<float>();
 
-        foreach (ChannelAsset channel in motion.Channels)
+        foreach (ChannelAsset channel in timeline.Channels)
         {
             foreach (Axis axis in new[] { Axis.X, Axis.Y, Axis.Z })
             {
@@ -38,14 +38,14 @@ public static class KeyTimes
     }
 
     /// <summary>선택된 키들의 시각(허용 오차로 합침).</summary>
-    public static List<float> OfSelection(MotionAsset motion, IEnumerable<KeyRef> selection)
+    public static List<float> OfSelection(TimelineAsset timeline, IEnumerable<KeyRef> selection)
     {
-        ArgumentNullException.ThrowIfNull(motion);
+        ArgumentNullException.ThrowIfNull(timeline);
         var times = new List<float>();
 
         foreach (KeyRef key in selection)
         {
-            if (key.Resolve(motion) is { } k && !times.Any(t => Math.Abs(t - k.T) <= KeyTimes.Tolerance))
+            if (key.Resolve(timeline) is { } k && !times.Any(t => Math.Abs(t - k.T) <= KeyTimes.Tolerance))
             {
                 times.Add(k.T);
             }

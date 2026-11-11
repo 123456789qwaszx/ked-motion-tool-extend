@@ -14,7 +14,7 @@ public class RangeSliderViewTests
 
     private static (Window Window, RangeSliderView Slider, ViewportView Viewport) Show()
     {
-        MotionEditor editor = TestDocuments.Nod();
+        DocumentEditor editor = TestDocuments.Nod();
         var viewport = new ViewportView { Height = 200 };
         var slider = new RangeSliderView();
         var window = new Window { Width = 900, Height = 400, Content = new StackPanel { Children = { viewport, slider } } };

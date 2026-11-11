@@ -27,7 +27,7 @@ public enum KeyTickMode
 /// - 범위 밖 MMB 드래그 = <b>포즈 들고 스크럽</b>(뷰포트가 포즈를 든 채 시각만 간다 — S로 그 포즈를 키)
 /// - RMB = 메뉴(잘라내기·복사·붙여넣기·삭제·프레임에 스냅·범위를 선택으로·재생 모드/속도·키 틱)
 ///
-/// 시계는 뷰포트의 것이다. 편집은 <see cref="MotionEditor"/> 명령뿐이다.
+/// 시계는 뷰포트의 것이다. 편집은 <see cref="DocumentEditor"/> 명령뿐이다.
 /// </summary>
 public sealed class TimeSliderView : Control
 {
@@ -53,8 +53,8 @@ public sealed class TimeSliderView : Control
     private static readonly Pen HoldPen = new(new SolidColorBrush(Color.FromRgb(0xF0, 0xA0, 0x50)), 1, DashStyle.Dash);
 
     private ViewportView? _viewport;
-    private MotionEditor? _editor;
-    private string? _motionName;
+    private DocumentEditor? _editor;
+    private string? _timelineName;
     private KeySelection _selection = new();
 
     private enum Drag { None, Scrub, SelectRange, HoldScrub, MoveRange, ScaleStart, ScaleEnd, MovePlay }
@@ -70,7 +70,7 @@ public sealed class TimeSliderView : Control
     {
         var rects = new List<Rect>();
 
-        if (Motion is null || Viewport?.PlaySpans() is not { Count: > 0 } spans)
+        if (Timeline is null || Viewport?.PlaySpans() is not { Count: > 0 } spans)
         {
             return rects;
         }
@@ -106,7 +106,7 @@ public sealed class TimeSliderView : Control
     private double PlayStartAfterDrag(double start, double end)
     {
         double length = end - start;
-        double limit = Math.Max(0, (Motion?.Duration ?? 0) - length);
+        double limit = Math.Max(0, (Timeline?.Duration ?? 0) - length);
         return Math.Clamp(SnapTime(start + _previewDelta), 0, limit);
     }
 
@@ -191,9 +191,9 @@ public sealed class TimeSliderView : Control
         }
     }
 
-    public MotionAsset? Motion => _editor is not null && _motionName is not null ? _editor.Document.Find(_motionName) : null;
+    public TimelineAsset? Timeline => _editor is not null && _timelineName is not null ? _editor.Document.Find(_timelineName) : null;
 
-    public void Bind(MotionEditor? editor, string? motionName)
+    public void Bind(DocumentEditor? editor, string? timelineName)
     {
         if (_editor is not null)
         {
@@ -201,7 +201,7 @@ public sealed class TimeSliderView : Control
         }
 
         _editor = editor;
-        _motionName = motionName;
+        _timelineName = timelineName;
 
         if (_editor is not null)
         {
@@ -212,7 +212,7 @@ public sealed class TimeSliderView : Control
         InvalidateVisual();
     }
 
-    private void OnEditorChanged(object? sender, MotionChangedEventArgs e) => InvalidateVisual();
+    private void OnEditorChanged(object? sender, DocumentChangedEventArgs e) => InvalidateVisual();
 
     private void OnViewportChanged(object? sender, EventArgs e) => InvalidateVisual();
 
@@ -258,19 +258,19 @@ public sealed class TimeSliderView : Control
     /// <summary>범위의 키, 범위가 없으면 현재 프레임의 키.</summary>
     public List<KeyRef> KeysInScope()
     {
-        if (Motion is not { } motion)
+        if (Timeline is not { } timeline)
         {
             return new List<KeyRef>();
         }
 
         return SelectedRange is { } r
-            ? TimeSliderOps.KeysBetween(motion, r.Start, r.End)
-            : TimeSliderOps.KeysAt(motion, Clock?.Time ?? 0);
+            ? TimeSliderOps.KeysBetween(timeline, r.Start, r.End)
+            : TimeSliderOps.KeysAt(timeline, Clock?.Time ?? 0);
     }
 
     public bool CopyScopeKeys()
     {
-        if (Motion is not { } motion || KeyClipboard.Copy(motion, KeysInScope()) is not { } clipboard || clipboard.Count == 0)
+        if (Timeline is not { } timeline || KeyClipboard.Copy(timeline, KeysInScope()) is not { } clipboard || clipboard.Count == 0)
         {
             return false;
         }
@@ -281,12 +281,12 @@ public sealed class TimeSliderView : Control
 
     public bool CutScopeKeys()
     {
-        if (!CopyScopeKeys() || _editor is null || _motionName is null)
+        if (!CopyScopeKeys() || _editor is null || _timelineName is null)
         {
             return false;
         }
 
-        _editor.RemoveKeys(_motionName, KeysInScope());
+        _editor.RemoveKeys(_timelineName, KeysInScope());
         return true;
     }
 
@@ -294,24 +294,24 @@ public sealed class TimeSliderView : Control
     {
         List<KeyRef> keys = KeysInScope();
 
-        if (keys.Count == 0 || _editor is null || _motionName is null)
+        if (keys.Count == 0 || _editor is null || _timelineName is null)
         {
             return false;
         }
 
-        _editor.RemoveKeys(_motionName, keys);
+        _editor.RemoveKeys(_timelineName, keys);
         return true;
     }
 
     public bool PasteAtCurrentTime()
     {
-        if (_editor is null || _motionName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
+        if (_editor is null || _timelineName is null || Clipboard.Current is not { } clipboard || clipboard.Count == 0)
         {
             return false;
         }
 
         float at = (float)SnapTime(Clock?.Time ?? 0);
-        List<KeyRef> pasted = _editor.PasteKeys(_motionName, clipboard, at, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null);
+        List<KeyRef> pasted = _editor.PasteKeys(_timelineName, clipboard, at, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null);
         _selection.Set(pasted);
         return true;
     }
@@ -319,20 +319,20 @@ public sealed class TimeSliderView : Control
     /// <summary>마야 Snap — 범위(또는 현재 프레임)의 키 시각을 프레임에 맞춘다.</summary>
     public bool SnapScopeKeysToFrames()
     {
-        if (_editor is null || _motionName is null || Motion is not { } motion)
+        if (_editor is null || _timelineName is null || Timeline is not { } timeline)
         {
             return false;
         }
 
         List<KeyRef> keys = KeysInScope();
-        var offGrid = keys.Where(k => k.Resolve(motion) is { } a && Math.Abs(a.T - ToFrameTime(a.T)) > KeyTimes.Tolerance).ToList();
+        var offGrid = keys.Where(k => k.Resolve(timeline) is { } a && Math.Abs(a.T - ToFrameTime(a.T)) > KeyTimes.Tolerance).ToList();
 
         if (offGrid.Count == 0)
         {
             return false;
         }
 
-        _editor.SetKeysMany(_motionName, KeyOps.Move(motion, offGrid, 0f, t => (float)ToFrameTime(t)));
+        _editor.SetKeysMany(_timelineName, KeyOps.Move(timeline, offGrid, 0f, t => (float)ToFrameTime(t)));
         return true;
     }
 
@@ -434,9 +434,9 @@ public sealed class TimeSliderView : Control
         }
 
         // 이벤트 키 — 아래쪽의 초록 세모(키 틱과 겹치지 않게).
-        if (Motion is { Events.Count: > 0 } eventful)
+        if (Timeline is { Events.Count: > 0 } eventful)
         {
-            foreach (MotionEventAsset e in eventful.Events)
+            foreach (EventKeyAsset e in eventful.Events)
             {
                 double ex = XAtTime(e.T);
                 context.DrawGeometry(EventMarkBrush, null, new PolylineGeometry(
@@ -453,10 +453,10 @@ public sealed class TimeSliderView : Control
         }
 
         // 키 틱 — 현재 프레임 상자 위에.
-        if (Motion is { } motion && KeyTicks != KeyTickMode.None)
+        if (Timeline is { } timeline && KeyTicks != KeyTickMode.None)
         {
-            List<float> selected = KeyTimes.OfSelection(motion, _selection);
-            List<float> times = KeyTicks == KeyTickMode.Selected ? selected : KeyTimes.All(motion);
+            List<float> selected = KeyTimes.OfSelection(timeline, _selection);
+            List<float> times = KeyTicks == KeyTickMode.Selected ? selected : KeyTimes.All(timeline);
             bool previewing = _drag is Drag.MoveRange or Drag.ScaleStart or Drag.ScaleEnd;
 
             foreach (float t in times)
@@ -680,22 +680,22 @@ public sealed class TimeSliderView : Control
                     break;
 
                 case Drag.SelectRange:
-                    if (SelectedRange is { } picked && Motion is { } motion && Math.Abs(picked.End - picked.Start) < 1e-9)
+                    if (SelectedRange is { } picked && Timeline is { } timeline && Math.Abs(picked.End - picked.Start) < 1e-9)
                     {
-                        _selection.Set(TimeSliderOps.KeysAt(motion, picked.Start));
+                        _selection.Set(TimeSliderOps.KeysAt(timeline, picked.Start));
                     }
 
                     break;
 
                 case Drag.MoveRange:
-                    if (SelectedRange is { } r && _editor is not null && _motionName is not null && Motion is { } m && Math.Abs(_previewDelta) > 1e-9)
+                    if (SelectedRange is { } r && _editor is not null && _timelineName is not null && Timeline is { } m && Math.Abs(_previewDelta) > 1e-9)
                     {
                         List<KeyRef> keys = TimeSliderOps.KeysBetween(m, r.Start, r.End);
                         float delta = (float)_previewDelta;
 
                         if (keys.Count > 0)
                         {
-                            _editor.MoveKeys(_motionName, keys, delta, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null);
+                            _editor.MoveKeys(_timelineName, keys, delta, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null);
                         }
 
                         SelectedRange = (Math.Max(0, r.Start + delta), Math.Max(0, r.End + delta));
@@ -704,14 +704,14 @@ public sealed class TimeSliderView : Control
                     break;
 
                 case Drag.MovePlay:
-                    if (_editor is not null && Motion is { } pm && _playDragIndex >= 0 && _playDragIndex < pm.Plays.Count && Viewport?.PlaySpans() is { } spans)
+                    if (_editor is not null && Timeline is { } pm && _playDragIndex >= 0 && _playDragIndex < pm.Plays.Count && Viewport?.PlaySpans() is { } spans)
                     {
-                        MotionPlayAsset play = pm.Plays[_playDragIndex];
+                        PlayBlockAsset play = pm.Plays[_playDragIndex];
                         float at = (float)PlayStartAfterDrag(spans[_playDragIndex].Start, spans[_playDragIndex].End);
 
                         try
                         {
-                            _editor.UpdateMotionPlay(pm.Name, _playDragIndex, play.Node, play.Motion, at, play.Repeat); // 같은 값이면 무기록
+                            _editor.UpdatePlayBlock(pm.Name, _playDragIndex, play.Object, play.Timeline, at, play.Repeat); // 같은 값이면 무기록
                         }
                         catch (InvalidOperationException exception)
                         {
@@ -723,13 +723,13 @@ public sealed class TimeSliderView : Control
 
                 case Drag.ScaleStart:
                 case Drag.ScaleEnd:
-                    if (SelectedRange is { } sr && _editor is not null && _motionName is not null && Motion is { } sm && Math.Abs(_previewFactor - 1) > 1e-9)
+                    if (SelectedRange is { } sr && _editor is not null && _timelineName is not null && Timeline is { } sm && Math.Abs(_previewFactor - 1) > 1e-9)
                     {
                         List<KeyRef> keys = TimeSliderOps.KeysBetween(sm, sr.Start, sr.End);
 
                         if (keys.Count > 0)
                         {
-                            _editor.ScaleKeys(_motionName, keys, (float)_previewPivot, (float)_previewFactor, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null);
+                            _editor.ScaleKeys(_timelineName, keys, (float)_previewPivot, (float)_previewFactor, SnapEnabled ? t => (float)TimeSnap.Snap(t, SnapStep) : null);
                         }
 
                         double a = PreviewTimeWith(sr.Start, _previewPivot, _previewFactor);

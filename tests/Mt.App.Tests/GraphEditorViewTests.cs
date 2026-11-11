@@ -11,11 +11,11 @@ namespace Mt.App.Tests;
 
 public class GraphEditorViewTests
 {
-    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
 
-    private static (Window Window, GraphEditorView View, MotionEditor Editor) Show()
+    private static (Window Window, GraphEditorView View, DocumentEditor Editor) Show()
     {
-        MotionEditor editor = TestDocuments.Nod();
+        DocumentEditor editor = TestDocuments.Nod();
         var view = new GraphEditorView();
         view.SnapStep = 1.0 / 60; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var window = new Window { Width = 900, Height = 500, Content = view };
@@ -91,7 +91,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 키_드래그는_놓을_때_한_번의_편집이고_값이_따라온다() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -125,7 +125,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 선택_툴에서_LMB_드래그는_옮기지_않고_MMB_드래그가_옮긴다_마야_관습() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -183,7 +183,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 스케일_툴은_선택_중심_기준으로_값을_늘리고_라소는_다각형으로_고른다() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -256,7 +256,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 복사_붙여넣기와_버퍼_커브_바꾸기() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -309,7 +309,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 리전_툴은_상자_모서리를_끌어_그_축만_스케일하고_값_스냅은_정수로_끈다() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -359,7 +359,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 커브_선_클릭은_커브_선택이고_MMB_클릭이_키를_끼우며_RMB_드래그는_한_축으로만_옮긴다() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -425,7 +425,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 박스에_키가_들면_키만_고르고_커브는_하얘지지_않으며_핸들_끝_박스는_핸들을_골라_MMB로_돌린다() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -564,7 +564,7 @@ public class GraphEditorViewTests
     [Fact]
     public void 삭제와_현재_시각_키_끼우기와_탄젠트_모드() => HeadlessUi.Run(() =>
     {
-        (Window window, GraphEditorView view, MotionEditor editor) = Show();
+        (Window window, GraphEditorView view, DocumentEditor editor) = Show();
 
         try
         {

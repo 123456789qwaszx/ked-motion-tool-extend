@@ -11,14 +11,14 @@ using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Preview;
-using Mt.Authoring.Rig;
+using Mt.Authoring.Sets;
 
 namespace Mt.App.Views;
 
 /// <summary>
 /// 뷰포트 — **연 컷이나 세트 하나**를 무대에 세워 그리고 그 타임라인(애니메이션)을 재생한다. 아무것도 안 열었으면 빈 무대다.
 ///
-/// 포즈는 <see cref="MotionPreview"/>(코어 수학), 컷의 카메라와 깊이는 <see cref="CutStage"/>, 자리는 <see cref="StageQuads"/>다 —
+/// 포즈는 <see cref="TimelinePose"/>(코어 수학), 컷의 카메라와 깊이는 <see cref="CutStage"/>, 자리는 <see cref="StageQuads"/>다 —
 /// 여기에는 그리기·시계·입력만 있다. 무대는 기준 해상도 크기이고 컨트롤 안에 레터박스로 맞춘다.
 ///
 /// 타임 슬라이더는 따로(<see cref="TimeSliderView"/>)다. 재생 토글은 전역 Alt+`(셸), Home/End 처음/끝.
@@ -54,9 +54,9 @@ public sealed class ViewportView : Control
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _stopwatch = new();
 
-    private MotionEditor? _editor;
-    private string? _motionName;
-    private RigSchemaFile? _rig;
+    private DocumentEditor? _editor;
+    private string? _timelineName;
+    private BuiltSets? _set;
     private DepthTuningFile? _depth;
     // 연 컷/세트의 시작 상태(노드 키는 set/ 접두사) — 포즈는 이것의 사본에 타임라인을 얹는다. 아무것도 안 열었으면 null.
     private RectNodeTree? _template;
@@ -99,7 +99,7 @@ public sealed class ViewportView : Control
 
     // 키로 아직 안 들어간 포즈(마야: 키 없이 바꾼 값). 시각이 바뀌면 버린다.
     private readonly Dictionary<string, RectNodeState> _overrides = new();
-    private readonly Dictionary<(string Node, MotionChannelKind Kind), HashSet<Axis>> _pending = new();
+    private readonly Dictionary<(string Node, ChannelKind Kind), HashSet<Axis>> _pending = new();
 
     // 들고 있는 포즈(마야 MMB 스크럽). 시각이 바뀌어도 이것을 보여 주고, S가 이것을 키한다.
     private RectNodeTree? _held;
@@ -216,7 +216,7 @@ public sealed class ViewportView : Control
     {
         get
         {
-            if (_rig is null || _setView is not { } kind || !_rig.TryGetRig(kind, out HierarchyDto dto))
+            if (_set is null || _setView is not { } kind || !_set.TryGetSet(kind, out HierarchyDto dto))
             {
                 return Array.Empty<string>();
             }
@@ -244,8 +244,8 @@ public sealed class ViewportView : Control
     public string? SetSkin
     {
         get => _setView is not { } kind || _editor is null ? null
-            : _editor.Document.FindSkin(_setSkin) is { } chosen && chosen.Rig == kind ? chosen.Name
-            : _editor.Document.Skins.FirstOrDefault(s => s.Rig == kind)?.Name;
+            : _editor.Document.FindSkin(_setSkin) is { } chosen && chosen.Set == kind ? chosen.Name
+            : _editor.Document.Skins.FirstOrDefault(s => s.Set == kind)?.Name;
         set
         {
             _setSkin = value;
@@ -257,10 +257,10 @@ public sealed class ViewportView : Control
     /// 배치 모드인가(스파인의 Setup) — 세트를 열었고 고른 애니메이션이 없다. 뷰포트의 끌기가 오브젝트의 **가만히 선 자세**를 바꾼다.
     /// 그 세트의 모션을 고르면 애니메이션 모드다(끌기 = 키).
     /// </summary>
-    public bool IsLayoutMode => _setView is not null && Motion is null;
+    public bool IsLayoutMode => _setView is not null && Timeline is null;
 
     /// <summary>
-    /// 연 컷이나 세트(rigKind) — 뷰포트와 하이어아키가 **그것만** 보인다. 그 타임라인(애니메이션)을 묶으면 그것이 연기한다.
+    /// 연 컷이나 세트(setName) — 뷰포트와 하이어아키가 **그것만** 보인다. 그 타임라인(애니메이션)을 묶으면 그것이 연기한다.
     /// null이면 아무것도 안 열었다(빈 무대).
     /// </summary>
     public string? SetView
@@ -320,7 +320,7 @@ public sealed class ViewportView : Control
     /// <summary>세트 보기에서 그 오브젝트가 그려지는가 — 저나 조상이 숨겨지지 않았고, 솔로가 있으면 저나 조상이 그 솔로다. 세트 보기가 아니면 늘 참.</summary>
     public bool IsSetNodeShown(string node)
     {
-        if (_setView is null || _editor?.Document.FindRig(_setView) is not { } rig || (_hiddenSetNodes.Count == 0 && _soloSetNode is null))
+        if (_setView is null || _editor?.Document.FindSetOrCut(_setView) is not { } set || (_hiddenSetNodes.Count == 0 && _soloSetNode is null))
         {
             return true;
         }
@@ -328,7 +328,7 @@ public sealed class ViewportView : Control
         bool underSolo = _soloSetNode is null;
 
         // 품은 세트 안쪽의 것은 그것을 품은 오브젝트를 따른다(안쪽은 여기서 따로 숨기지 않는다).
-        for (RigNodeAsset? at = rig.Find(RigAssetCodec.OwnerOf(node)); at is not null; at = at.Parent.Length > 0 ? rig.Find(at.Parent) : null)
+        for (ObjectAsset? at = set.Find(SetCodec.OwnerOf(node)); at is not null; at = at.Parent.Length > 0 ? set.Find(at.Parent) : null)
         {
             if (_hiddenSetNodes.Contains(at.Id))
             {
@@ -362,7 +362,7 @@ public sealed class ViewportView : Control
         }
 
         // 색 오브젝트뿐이면 첫 색 사각형.
-        if (RigParts.ColorsOf(_rig, kind).Keys.FirstOrDefault(n => pose.Contains(KeyOf(n))) is { } colored)
+        if (ObjectParts.ColorsOf(_set, kind).Keys.FirstOrDefault(n => pose.Contains(KeyOf(n))) is { } colored)
         {
             return StageQuads.RectQuad(pose, KeyOf(colored));
         }
@@ -476,7 +476,7 @@ public sealed class ViewportView : Control
 
     private sealed record PendingSnapshot(
         IReadOnlyDictionary<string, RectNodeState> Overrides,
-        IReadOnlyDictionary<(string Node, MotionChannelKind Kind), IReadOnlyList<Axis>> Pending,
+        IReadOnlyDictionary<(string Node, ChannelKind Kind), IReadOnlyList<Axis>> Pending,
         RectNodeTree? Held,
         bool HoldScrub);
 
@@ -498,7 +498,7 @@ public sealed class ViewportView : Control
 
         _pending.Clear();
 
-        foreach (((string Node, MotionChannelKind Kind) key, IReadOnlyList<Axis> axes) in snapshot.Pending)
+        foreach (((string Node, ChannelKind Kind) key, IReadOnlyList<Axis> axes) in snapshot.Pending)
         {
             _pending[key] = new HashSet<Axis>(axes);
         }
@@ -524,7 +524,7 @@ public sealed class ViewportView : Control
             }
         }
 
-        foreach (((string Node, MotionChannelKind Kind) key, IReadOnlyList<Axis> axes) in a.Pending)
+        foreach (((string Node, ChannelKind Kind) key, IReadOnlyList<Axis> axes) in a.Pending)
         {
             if (!b.Pending.TryGetValue(key, out IReadOnlyList<Axis>? others) || !new HashSet<Axis>(axes).SetEquals(others))
             {
@@ -569,7 +569,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        _editor.Batch(MotionChangeKind.Keys, () => WithPendingHistory(operation));
+        _editor.Batch(DocumentChangeKind.Keys, () => WithPendingHistory(operation));
     }
 
     /// <summary>
@@ -577,28 +577,28 @@ public sealed class ViewportView : Control
     /// </summary>
     public void SetKey()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
-        if (_editor is null || motion is null)
+        if (_editor is null || timeline is null)
         {
             return;
         }
 
         // 조작 하나 — 되돌리기 한 칸(성분·노드가 여럿이어도). 되돌리면 키 확정 직전의 키 없는 포즈로.
-        AsOneEdit(() => SetKeyCore(motion));
+        AsOneEdit(() => SetKeyCore(timeline));
     }
 
-    private void SetKeyCore(MotionAsset motion)
+    private void SetKeyCore(TimelineAsset timeline)
     {
         if (_held is not null)
         {
-            KeyHeldPose(motion);
+            KeyHeldPose(timeline);
             return;
         }
 
         if (_pending.Count > 0)
         {
-            foreach (((string node, MotionChannelKind kind), HashSet<Axis> axes) in _pending.ToList())
+            foreach (((string node, ChannelKind kind), HashSet<Axis> axes) in _pending.ToList())
             {
                 KeyNow(node, kind, axes.ToList());
             }
@@ -612,7 +612,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        foreach (ChannelAsset channel in motion.Channels.Where(c => c.Node == SelectedNode).ToList())
+        foreach (ChannelAsset channel in timeline.Channels.Where(c => c.Object == SelectedNode).ToList())
         {
             var axes = new List<Axis>();
 
@@ -626,13 +626,13 @@ public sealed class ViewportView : Control
 
             if (axes.Count > 0)
             {
-                KeyNow(channel.Node, channel.Kind, axes);
+                KeyNow(channel.Object, channel.Kind, axes);
             }
         }
     }
 
     /// <summary>들고 있는 포즈를 모든 채널의 있는 성분에 한 조작으로 키(마야: MMB로 옮긴 뒤 S).</summary>
-    private void KeyHeldPose(MotionAsset motion)
+    private void KeyHeldPose(TimelineAsset timeline)
     {
         RectNodeTree? pose = _held;
 
@@ -642,11 +642,11 @@ public sealed class ViewportView : Control
             return;
         }
 
-        var items = new List<(string, MotionChannelKind, IReadOnlyList<(Axis, float)>)>();
+        var items = new List<(string, ChannelKind, IReadOnlyList<(Axis, float)>)>();
 
-        foreach (ChannelAsset channel in motion.Channels)
+        foreach (ChannelAsset channel in timeline.Channels)
         {
-            string key = Prefix + channel.Node;
+            string key = Prefix + channel.Object;
 
             if (!pose.Contains(key))
             {
@@ -664,12 +664,12 @@ public sealed class ViewportView : Control
                 }
             }
 
-            items.Add((channel.Node, channel.Kind, values));
+            items.Add((channel.Object, channel.Kind, values));
         }
 
         float time = (float)Math.Max(0, SnapTime(_clock.Time));
         ClearPending();
-        _editor.KeyPose(motion.Name, time, items, DefaultTangent);
+        _editor.KeyPose(timeline.Name, time, items, DefaultTangent);
         PoseKeyed?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
     }
@@ -708,14 +708,14 @@ public sealed class ViewportView : Control
     public void EndHoldScrub() => _holdScrub = false;
 
     /// <summary>지금 포즈의 값으로 키를 놓는다 — 키 값은 포즈의 값 그대로다(키는 "그 프레임의 모습").</summary>
-    private void KeyNow(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
+    private void KeyNow(string node, ChannelKind kind, IReadOnlyList<Axis> axes)
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         RectNodeTree? pose = CurrentPose();
 
         string key = Prefix + node;
 
-        if (_editor is null || motion is null || _template is null || pose is null || !pose.Contains(key) || axes.Count == 0)
+        if (_editor is null || timeline is null || _template is null || pose is null || !pose.Contains(key) || axes.Count == 0)
         {
             return;
         }
@@ -730,7 +730,7 @@ public sealed class ViewportView : Control
 
         _overrides.Remove(key);
         _pending.Remove((node, kind));
-        _editor.KeyComponents(motion.Name, node, kind, (float)Math.Max(0, SnapTime(_clock.Time)), values, DefaultTangent);
+        _editor.KeyComponents(timeline.Name, node, kind, (float)Math.Max(0, SnapTime(_clock.Time)), values, DefaultTangent);
         PendingChanged?.Invoke(this, EventArgs.Empty);
         PoseKeyed?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
@@ -807,12 +807,12 @@ public sealed class ViewportView : Control
     /// <summary>다음 키 시각으로(`.`). 없으면 그대로.</summary>
     public bool JumpToNextKey()
     {
-        if (Motion is not { } motion)
+        if (Timeline is not { } timeline)
         {
             return false;
         }
 
-        float? next = KeyTimes.Next(KeyTimes.All(motion), _clock.Time);
+        float? next = KeyTimes.Next(KeyTimes.All(timeline), _clock.Time);
 
         if (next is null)
         {
@@ -827,12 +827,12 @@ public sealed class ViewportView : Control
     /// <summary>이전 키 시각으로(`,`). 없으면 그대로.</summary>
     public bool JumpToPreviousKey()
     {
-        if (Motion is not { } motion)
+        if (Timeline is not { } timeline)
         {
             return false;
         }
 
-        float? previous = KeyTimes.Previous(KeyTimes.All(motion), _clock.Time);
+        float? previous = KeyTimes.Previous(KeyTimes.All(timeline), _clock.Time);
 
         if (previous is null)
         {
@@ -869,29 +869,29 @@ public sealed class ViewportView : Control
         }
     }
 
-    public string? MotionName => _motionName;
+    public string? TimelineName => _timelineName;
 
-    public MotionAsset? Motion => _editor is not null && _motionName is not null ? _editor.Document.Find(_motionName) : null;
+    public TimelineAsset? Timeline => _editor is not null && _timelineName is not null ? _editor.Document.Find(_timelineName) : null;
 
     /// <summary>묶인 애니메이션의 재생 블록이 차지하는 구간들(시작 · 끝 · "인스턴스 ▸ 애니메이션") — 타임 슬라이더가 막대로 그린다.</summary>
     public IReadOnlyList<(double Start, double End, string Label)> PlaySpans()
     {
-        if (_editor is null || Motion is not { Plays.Count: > 0 } motion)
+        if (_editor is null || Timeline is not { Plays.Count: > 0 } timeline)
         {
             return Array.Empty<(double, double, string)>();
         }
 
-        return motion.Plays
-            .Select(p => (Start: (double)p.At, End: Math.Min(motion.Duration, p.At + (_editor.Document.Find(p.Motion)?.Duration ?? 0f) * Math.Max(1, p.Repeat)), Label: $"{p.Node} ▸ {p.Motion}{(p.Repeat > 1 ? $" ×{p.Repeat}" : "")}"))
+        return timeline.Plays
+            .Select(p => (Start: (double)p.At, End: Math.Min(timeline.Duration, p.At + (_editor.Document.Find(p.Timeline)?.Duration ?? 0f) * Math.Max(1, p.Repeat)), Label: $"{p.Object} ▸ {p.Timeline}{(p.Repeat > 1 ? $" ×{p.Repeat}" : "")}"))
             .Select(span => ((double)span.Start, (double)span.End, span.Label))
             .ToList();
     }
 
-    public bool HasRig => _template is not null;
+    public bool HasSet => _template is not null;
 
     // ── 바인딩 ────────────────────────────────────────────────────────
 
-    public void Bind(MotionEditor? editor, string? motionName)
+    public void Bind(DocumentEditor? editor, string? timelineName)
     {
         if (ReferenceEquals(_editor, editor))
         {
@@ -908,7 +908,7 @@ public sealed class ViewportView : Control
         }
 
         _editor = editor;
-        _motionName = motionName;
+        _timelineName = timelineName;
 
         if (_editor is not null)
         {
@@ -925,9 +925,9 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    public void SetRig(RigSchemaFile? rig)
+    public void SetBuilt(BuiltSets? set)
     {
-        _rig = rig;
+        _set = set;
         RebuildTemplate();
         InvalidateVisual();
     }
@@ -955,10 +955,10 @@ public sealed class ViewportView : Control
     private SkinAsset? Worn => _setView is { } kind ? EffectiveSkinOf(kind, SetSkin) : null;
 
     // 실제로 입는 스킨(제 스킨 + 품은 세트들의 스킨) — 그릴 때마다 여러 번 찾으니 문서가 바뀔 때까지 들고 있는다.
-    private readonly Dictionary<(string Rig, string? Skin), SkinAsset?> _effectiveSkins = new();
+    private readonly Dictionary<(string Set, string? Skin), SkinAsset?> _effectiveSkins = new();
     private long _effectiveSkinsAt = -1;
 
-    private SkinAsset? EffectiveSkinOf(string rig, string? name)
+    private SkinAsset? EffectiveSkinOf(string set, string? name)
     {
         if (_editor is null)
         {
@@ -971,10 +971,10 @@ public sealed class ViewportView : Control
             _effectiveSkinsAt = _editor.Revision;
         }
 
-        if (!_effectiveSkins.TryGetValue((rig, name), out SkinAsset? skin))
+        if (!_effectiveSkins.TryGetValue((set, name), out SkinAsset? skin))
         {
-            skin = RigAssets.EffectiveSkin(_editor.Document, rig, name);
-            _effectiveSkins[(rig, name)] = skin;
+            skin = SetBuilder.EffectiveSkin(_editor.Document, set, name);
+            _effectiveSkins[(set, name)] = skin;
         }
 
         return skin;
@@ -985,7 +985,7 @@ public sealed class ViewportView : Control
 
     /// <summary>그 조각이 지금 그릴 그림 — 묶인 애니메이션(컷의 타임라인)에 그림 키가 걸려 있으면 그것, 아니면 스킨의 그림.</summary>
     private string? ImagePathOf(SkinAsset worn, string node)
-        => (_setView is not null && Motion is { } motion && motion.Rig == _setView ? MotionSwaps.ImageAt(motion, node, _clock.Time) : null)
+        => (_setView is not null && Timeline is { } timeline && timeline.Set == _setView ? ImageKeys.ImageAt(timeline, node, _clock.Time) : null)
            ?? worn.ImageAt(node, _clock.Time);
 
     /// <summary>테스트 손잡이 — 그 조각에 지금 그려지는 그림(문서 기준 경로). 안 그려지면 null.</summary>
@@ -995,7 +995,7 @@ public sealed class ViewportView : Control
     /// 연 컷/세트에서 그려지는 조각 노드들(그리는 순서) — 그림 오브젝트 가운데 입은 스킨이 그림을 준 것. 스킨을 안 입었으면 빈 목록.
     /// </summary>
     public IReadOnlyList<string> DrawnParts()
-        => _setView is { } kind && Worn is { } worn ? RigParts.Of(_rig, kind).Where(worn.Parts.ContainsKey).Where(IsSetNodeShown).ToList() : Array.Empty<string>();
+        => _setView is { } kind && Worn is { } worn ? ObjectParts.Of(_set, kind).Where(worn.Parts.ContainsKey).Where(IsSetNodeShown).ToList() : Array.Empty<string>();
 
     /// <summary>조각이 지금 그려지는 사각형(루트 공간) — 노드의 rect 안에 그림의 종횡비로 맞추고 스킨의 놓임(자리·크기·회전)을 입힌 것. 없으면 null.</summary>
     public Quad? PartQuad(string node) => CurrentPose() is { } pose ? PartQuadOf(pose, node) : null;
@@ -1071,11 +1071,11 @@ public sealed class ViewportView : Control
         InvalidateVisual();
     }
 
-    private void OnEditorChanged(object? sender, MotionChangedEventArgs e)
+    private void OnEditorChanged(object? sender, DocumentChangedEventArgs e)
     {
         SyncDuration();
 
-        if (e.Kind != MotionChangeKind.Keys)
+        if (e.Kind != DocumentChangeKind.Keys)
         {
             RebuildTemplate();
         }
@@ -1085,9 +1085,9 @@ public sealed class ViewportView : Control
 
     private void SyncDuration()
     {
-        if (Motion is { } motion)
+        if (Timeline is { } timeline)
         {
-            _clock.SetDuration(motion.Duration);
+            _clock.SetDuration(timeline.Duration);
             RangeChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -1096,28 +1096,28 @@ public sealed class ViewportView : Control
     {
         _template = null;
 
-        if (_rig is null || _setView is not { } kind || !_rig.TryGetRig(kind, out _))
+        if (_set is null || _setView is not { } kind || !_set.TryGetSet(kind, out _))
         {
             return;
         }
 
         // 컷 — 맨 위 오브젝트마다 제 깊이의 틀에 선다(카메라와 깊이는 포즈를 잡은 뒤 넣는다 — StageCut). 세트 — 무대 가운데에 그대로 선다.
-        _template = ShownCut is { } cut ? CutStage.Build(_rig, cut, Prefix) : _rig.BuildTree(kind, Prefix);
+        _template = ShownCut is { } cut ? CutStage.Build(_set, cut, Prefix) : _set.BuildTree(kind, Prefix);
     }
 
     /// <summary>
     /// 오브젝트를 끌어 가만히 선 자세를 잡을 수 있는가 — 배치 모드이거나, 컷을 열고 그 타임라인이 붙어 있을 때(컷은 타임라인이 늘 붙어 있다 — 키 없는 값은 끌어서 고친다).
     /// </summary>
-    private bool CanLayout => IsLayoutMode || (ShownCut is { } cut && Motion is { } timeline && timeline.Name == cut.Name);
+    private bool CanLayout => IsLayoutMode || (ShownCut is { } cut && Timeline is { } timeline && timeline.Name == cut.Name);
 
     private bool TryStartCutDrag(Point position, KeyModifiers modifiers)
     {
-        if (ShownCut is null || Motion is not { } timeline || CurrentPose() is not { } pose || LayoutNodeAt(pose, position) is not { } id)
+        if (ShownCut is null || Timeline is not { } timeline || CurrentPose() is not { } pose || LayoutNodeAt(pose, position) is not { } id)
         {
             return false;
         }
 
-        MotionChannelKind kind = modifiers.HasFlag(KeyModifiers.Shift) ? MotionChannelKind.Scale : modifiers.HasFlag(KeyModifiers.Control) ? MotionChannelKind.Euler : MotionChannelKind.Position;
+        ChannelKind kind = modifiers.HasFlag(KeyModifiers.Shift) ? ChannelKind.Scale : modifiers.HasFlag(KeyModifiers.Control) ? ChannelKind.Euler : ChannelKind.Position;
         bool keyed = timeline.FindChannel(id, kind) is { } channel && new[] { channel.X, channel.Y, channel.Z }.Any(curve => curve is { Keys.Count: > 0 });
 
         // 키가 없으면 가만히 선 값을, 있으면 지금 프레임의 키를 고친다.
@@ -1130,7 +1130,7 @@ public sealed class ViewportView : Control
 
     /// <summary>그 시각(지금)의 그 맨 위 오브젝트의 깊이 — 타임라인의 키가 움직였으면 그 값. 컷이 아니거나 맨 위 오브젝트가 아니면 null.</summary>
     public float? CutDepthNow(string id)
-        => ShownCut is { } cut && cut.Rig.Find(id) is { Parent.Length: 0 } node ? CutStage.DepthOf(CurrentPose(), node, Prefix) : null;
+        => ShownCut is { } cut && cut.AsSet.Find(id) is { Parent.Length: 0 } node ? CutStage.DepthOf(CurrentPose(), node, Prefix) : null;
 
     /// <summary>연 것이 컷이면 그 컷 — 세트를 연 것이면 null.</summary>
     public CutAsset? ShownCut => _editor?.Document.FindCut(_setView);
@@ -1255,15 +1255,15 @@ public sealed class ViewportView : Control
 
     private RectNodeTree? UnstagedPoseAt(double seconds, IDictionary<string, float>? alphas)
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         if (_template is null)
         {
             return null;
         }
 
         // 연 컷/세트의 것이 아닌 모션은 얹지 않는다(가만히 선 자세로 선다).
-        return motion is not null && motion.Rig == _setView
-            ? MotionPreview.Pose(_template, motion, seconds, _flags.IsMuted, Prefix, alphas)
+        return timeline is not null && timeline.Set == _setView
+            ? TimelinePose.Pose(_template, timeline, seconds, _flags.IsMuted, Prefix, alphas)
             : _template.Clone();
     }
 
@@ -1280,8 +1280,8 @@ public sealed class ViewportView : Control
         double now = _clock.Time;
         static string Text(string name, string? value) => string.IsNullOrEmpty(value) ? name : $"{name} {value}";
 
-        return Motion is { Events.Count: > 0 } bound
-            ? MotionEvents.Between(bound, now - EventFlash, now).Select(e => Text(e.Name, e.Value)).ToList()
+        return Timeline is { Events.Count: > 0 } bound
+            ? EventKeys.Between(bound, now - EventFlash, now).Select(e => Text(e.Name, e.Value)).ToList()
             : Array.Empty<string>();
     }
 
@@ -1331,15 +1331,15 @@ public sealed class ViewportView : Control
 
     /// <summary>그 노드가 불투명도를 받을 수 있나 — "불투명도를 받는다"를 켠 오브젝트만.</summary>
     public bool CanTakeAlpha(string? node)
-        => node is not null && _rig is not null && _setView is { } kind
-           && _rig.AlphaNodeIds.TryGetValue(kind, out ICollection<string>? nodes) && nodes.Contains(node);
+        => node is not null && _set is not null && _setView is { } kind
+           && _set.AlphaNodeIds.TryGetValue(kind, out ICollection<string>? nodes) && nodes.Contains(node);
 
     /// <summary>
     /// 고른 노드의 **제** 불투명도(부모 것은 안 곱한다) — 지금 시각. 불투명도를 받을 수 없는 노드거나 키를 놓을 모션이 없으면 null.
     /// </summary>
     public float? AlphaValue(string? node)
     {
-        if (!CanTakeAlpha(node) || Motion is null)
+        if (!CanTakeAlpha(node) || Timeline is null)
         {
             return null;
         }
@@ -1353,12 +1353,12 @@ public sealed class ViewportView : Control
     /// </summary>
     public void SetAlphaValue(string node, float value)
     {
-        if (_editor is null || !CanTakeAlpha(node) || Motion is not { } motion || _template is null)
+        if (_editor is null || !CanTakeAlpha(node) || Timeline is not { } timeline || _template is null)
         {
             return;
         }
 
-        _editor.KeyComponents(motion.Name, node, MotionChannelKind.Alpha, (float)Math.Max(0, SnapTime(_clock.Time)), new[] { (Axis.X, Math.Clamp(value, 0f, 1f)) }, DefaultTangent);
+        _editor.KeyComponents(timeline.Name, node, ChannelKind.Alpha, (float)Math.Max(0, SnapTime(_clock.Time)), new[] { (Axis.X, Math.Clamp(value, 0f, 1f)) }, DefaultTangent);
     }
 
     // ── 좌표 ──────────────────────────────────────────────────────────
@@ -1407,7 +1407,7 @@ public sealed class ViewportView : Control
         context.FillRectangle(StageBrush, stage);
         context.DrawRectangle(StagePen, stage);
 
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
 
         if (ShowGrid && !StageOnly)
         {
@@ -1446,12 +1446,12 @@ public sealed class ViewportView : Control
 
         string openLabel = $"{(ShownCut is null ? "세트" : "컷")} {_setView}";
         // 컷은 타임라인이 하나라 이름을 말할 것이 없다 — 끌기의 뜻만 적는다. 세트는 연 애니메이션의 이름.
-        string motionLabel = ShownCut is not null && motion?.Name == _setView
+        string timelineLabel = ShownCut is not null && timeline?.Name == _setView
             ? "끌기: 키 없는 값은 가만히 선 값, 키 있는 값은 지금 프레임의 키 (Shift 배율 · Ctrl 회전)"
-            : motion is null
+            : timeline is null
                 ? "모션 없음"
-                : motion.Name;
-        DrawLabel(context, $"{openLabel} · {motionLabel}", new Point(stage.X + 8, stage.Y + 6));
+                : timeline.Name;
+        DrawLabel(context, $"{openLabel} · {timelineLabel}", new Point(stage.X + 8, stage.Y + 6));
     }
 
     /// <summary>무대 프레임 바깥(카메라가 안 잡는 곳)을 회색으로 덮는다 — 네 띠.</summary>
@@ -1549,16 +1549,16 @@ public sealed class ViewportView : Control
         }
 
         // 노드 순서로(뒤의 것이 위). 그릴 것이 하나도 없으면(스킨을 안 입었고 색도 없다) 아래의 윤곽으로 떨어진다.
-        IReadOnlyDictionary<string, string> colors = RigParts.ColorsOf(_rig, kind);
+        IReadOnlyDictionary<string, string> colors = ObjectParts.ColorsOf(_set, kind);
         IReadOnlyList<string> parts = DrawnParts();
         SkinAsset? wornNow = Worn;
 
-        if (_rig is not null && _rig.TryGetRig(kind, out HierarchyDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
+        if (_set is not null && _set.TryGetSet(kind, out HierarchyDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
         {
             // 컷이면 먼 것부터(깊이 순), 세트면 목록 순.
-            foreach (HierarchyNodeDto rigNode in ShownCut is { } drawnCut ? CutStage.DrawOrder(drawnCut, drawn.nodes, pose, Prefix) : drawn.nodes)
+            foreach (HierarchyNodeDto objectAsset in ShownCut is { } drawnCut ? CutStage.DrawOrder(drawnCut, drawn.nodes, pose, Prefix) : drawn.nodes)
             {
-                string node = rigNode.id;
+                string node = objectAsset.id;
                 string key = KeyOf(node);
 
                 if (!pose.Contains(key))
@@ -1746,7 +1746,7 @@ public sealed class ViewportView : Control
         if (CanLayout)
         {
             // 더블클릭 — 품은 세트면 그 안쪽으로 들어가고, 빈 곳이면 한 단 나온다.
-            if (e.ClickCount == 2 && _editor?.Document.FindRig(_setView) is not null && CurrentPose() is { } layoutPose)
+            if (e.ClickCount == 2 && _editor?.Document.FindSetOrCut(_setView) is not null && CurrentPose() is { } layoutPose)
             {
                 string? hit = LayoutNodeAt(layoutPose, position);
 
@@ -1898,15 +1898,15 @@ public sealed class ViewportView : Control
     /// <summary>놓는 순간: Auto Key거나 그 시각에 이미 키가 있으면 키로, 아니면 키 없는 포즈로 남긴다.</summary>
     private void EndManipulation()
     {
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         string? node = SelectedNode;
 
-        if (motion is null || node is null || !_overrides.TryGetValue(Prefix + node, out RectNodeState posed))
+        if (timeline is null || node is null || !_overrides.TryGetValue(Prefix + node, out RectNodeState posed))
         {
             return;
         }
 
-        (MotionChannelKind kind, List<Axis> axes) = ChangedAxes(_dragStartState, posed);
+        (ChannelKind kind, List<Axis> axes) = ChangedAxes(_dragStartState, posed);
 
         if (axes.Count == 0)
         {
@@ -1915,13 +1915,13 @@ public sealed class ViewportView : Control
             return;
         }
 
-        CommitPose(motion, node, kind, axes);
+        CommitPose(timeline, node, kind, axes);
     }
 
     /// <summary>바뀐 포즈의 처리: Auto Key거나 그 시각에 이미 키가 있으면 키로, 아니면 키 없는 포즈로 남긴다.</summary>
-    private void CommitPose(MotionAsset motion, string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
+    private void CommitPose(TimelineAsset timeline, string node, ChannelKind kind, IReadOnlyList<Axis> axes)
     {
-        ChannelAsset? channel = motion.FindChannel(node, kind);
+        ChannelAsset? channel = timeline.FindChannel(node, kind);
         float time = (float)SnapTime(_clock.Time);
         bool keyExists = channel is not null && axes.Any(a => channel.Get(a)?.Keys.Any(k => Math.Abs(k.T - time) <= KeyTimes.Tolerance) == true);
 
@@ -1945,7 +1945,7 @@ public sealed class ViewportView : Control
     // ── 채널 박스(마야) ───────────────────────────────────────────────
 
     /// <summary>노드 성분의 지금 포즈 값(키 없는 포즈 포함). 노드가 없으면 null.</summary>
-    public float? ComponentValue(string node, MotionChannelKind kind, Axis axis)
+    public float? ComponentValue(string node, ChannelKind kind, Axis axis)
     {
         RectNodeTree? pose = CurrentPose();
         string key = Prefix + node;
@@ -1959,25 +1959,25 @@ public sealed class ViewportView : Control
     }
 
     /// <summary>이 성분이 키 없는 포즈로 남아 있는가(채널 박스가 주황으로 보인다).</summary>
-    public bool IsPending(string node, MotionChannelKind kind, Axis axis)
+    public bool IsPending(string node, ChannelKind kind, Axis axis)
         => _pending.TryGetValue((node, kind), out HashSet<Axis>? axes) && axes.Contains(axis);
 
     /// <summary>
     /// 채널 박스 입력 — 노드 성분 하나를 이 값으로. 매니퓰레이터를 놓은 것과 같다:
     /// Auto Key거나 그 시각에 키가 있으면 키로, 아니면 키 없는 포즈(S로 키·Esc로 버림). 값이 같으면 아무것도 안 한다.
     /// </summary>
-    public void SetComponent(string node, MotionChannelKind kind, Axis axis, float value)
+    public void SetComponent(string node, ChannelKind kind, Axis axis, float value)
         => SetComponents(node, kind, new[] { (axis, value) });
 
     /// <summary>여러 성분을 한 번에. 바뀐 성분만 키·키 없는 포즈가 된다.</summary>
-    public void SetComponents(string node, MotionChannelKind kind, IReadOnlyList<(Axis Axis, float Value)> values)
+    public void SetComponents(string node, ChannelKind kind, IReadOnlyList<(Axis Axis, float Value)> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        MotionAsset? motion = Motion;
+        TimelineAsset? timeline = Timeline;
         RectNodeTree? pose = CurrentPose();
         string key = Prefix + node;
 
-        if (motion is null || pose is null || !pose.Contains(key))
+        if (timeline is null || pose is null || !pose.Contains(key))
         {
             return;
         }
@@ -2005,14 +2005,14 @@ public sealed class ViewportView : Control
         {
             _overrides[key] = state;
             InvalidateVisual();
-            CommitPose(motion, node, kind, changed);
+            CommitPose(timeline, node, kind, changed);
         });
     }
 
     /// <summary>채널 박스의 ● — 성분 하나를 지금 포즈 값으로 지금 키(마야 Key Selected). 없는 채널·성분은 생긴다.</summary>
-    public void KeyComponent(string node, MotionChannelKind kind, Axis axis) => KeyComponents(node, kind, new[] { axis });
+    public void KeyComponent(string node, ChannelKind kind, Axis axis) => KeyComponents(node, kind, new[] { axis });
 
-    public void KeyComponents(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
+    public void KeyComponents(string node, ChannelKind kind, IReadOnlyList<Axis> axes)
     {
         if (axes.Count == 0)
         {
@@ -2023,7 +2023,7 @@ public sealed class ViewportView : Control
     }
 
     /// <summary>드래그 종류의 채널 종류와, 실제로 값이 바뀐 성분만(마야 Auto Key의 "바뀐 속성만").</summary>
-    private (MotionChannelKind Kind, List<Axis> Axes) ChangedAxes(in RectNodeState start, in RectNodeState posed)
+    private (ChannelKind Kind, List<Axis> Axes) ChangedAxes(in RectNodeState start, in RectNodeState posed)
     {
         const float epsilon = 1e-4f;
         var axes = new List<Axis>();
@@ -2035,14 +2035,14 @@ public sealed class ViewportView : Control
             case Drag.MoveY:
                 if (Math.Abs(posed.AnchoredPosition.X - start.AnchoredPosition.X) > epsilon) axes.Add(Axis.X);
                 if (Math.Abs(posed.AnchoredPosition.Y - start.AnchoredPosition.Y) > epsilon) axes.Add(Axis.Y);
-                return (MotionChannelKind.Position, axes);
+                return (ChannelKind.Position, axes);
             case Drag.Rotate:
                 if (Math.Abs(posed.LocalEulerAngles.Z - start.LocalEulerAngles.Z) > epsilon) axes.Add(Axis.Z);
-                return (MotionChannelKind.Euler, axes);
+                return (ChannelKind.Euler, axes);
             default:
                 if (Math.Abs(posed.LocalScale.X - start.LocalScale.X) > epsilon) axes.Add(Axis.X);
                 if (Math.Abs(posed.LocalScale.Y - start.LocalScale.Y) > epsilon) axes.Add(Axis.Y);
-                return (MotionChannelKind.Scale, axes);
+                return (ChannelKind.Scale, axes);
         }
     }
 
@@ -2090,9 +2090,9 @@ public sealed class ViewportView : Control
     /// <param name="Node">연 세트에서 본 경로 이름(안쪽이면 <c>인스턴스.이름</c>).</param>
     /// <param name="Kind">실제로 바뀌는 세트 — 안쪽을 고치는 중이면 품은 세트.</param>
     /// <param name="NodeId">그 세트 안에서의 이름.</param>
-    private sealed record LayoutDrag(string Node, string Kind, string NodeId, PlaceMode Mode, Vec2 StartRoot, Vec2 CenterRoot, RigNodeAsset Start)
+    private sealed record LayoutDrag(string Node, string Kind, string NodeId, PlaceMode Mode, Vec2 StartRoot, Vec2 CenterRoot, ObjectAsset Start)
     {
-        public RigNodeAsset Now { get; set; } = Start;
+        public ObjectAsset Now { get; set; } = Start;
 
         /// <summary>컷에서 키가 있는 값을 끄는 중 — 놓으면 가만히 선 값이 아니라 지금 프레임의 키가 된다.</summary>
         public bool Keys { get; init; }
@@ -2133,7 +2133,7 @@ public sealed class ViewportView : Control
     /// <summary>한 단 나온다 — <c>a.b</c>에서는 <c>a</c>의 안쪽으로, <c>a</c>에서는 바깥으로.</summary>
     private void LeaveInstance(string inside)
     {
-        int cut = inside.LastIndexOf(RigAssetCodec.PathSeparator);
+        int cut = inside.LastIndexOf(SetCodec.PathSeparator);
         EnterInstance(cut < 0 ? null : inside[..cut]);
 
         if (cut >= 0)
@@ -2143,24 +2143,24 @@ public sealed class ViewportView : Control
     }
 
     /// <summary>연 세트에서 본 경로 이름이 가리키는 (세트, 오브젝트) — 품은 세트를 따라 들어간다.</summary>
-    public (RigAsset Rig, RigNodeAsset Node)? ResolveSetNode(string path)
+    public (SetAsset Set, ObjectAsset Node)? ResolveSetNode(string path)
     {
-        RigAsset? rig = _editor?.Document.FindRig(_setView);
-        string[] parts = path.Split(RigAssetCodec.PathSeparator);
+        SetAsset? set = _editor?.Document.FindSetOrCut(_setView);
+        string[] parts = path.Split(SetCodec.PathSeparator);
 
-        for (int i = 0; i < parts.Length && rig is not null; i++)
+        for (int i = 0; i < parts.Length && set is not null; i++)
         {
-            if (rig.Find(parts[i]) is not { } node)
+            if (set.Find(parts[i]) is not { } node)
             {
                 return null;
             }
 
             if (i == parts.Length - 1)
             {
-                return (rig, node);
+                return (set, node);
             }
 
-            rig = _editor?.Document.FindRig(node.Set);
+            set = _editor?.Document.FindSetOrCut(node.Set);
         }
 
         return null;
@@ -2171,17 +2171,17 @@ public sealed class ViewportView : Control
     {
         if (_entered is not { } inside)
         {
-            return RigAssetCodec.OwnerOf(nodeId);
+            return SetCodec.OwnerOf(nodeId);
         }
 
-        string prefix = inside + RigAssetCodec.PathSeparator;
-        return nodeId.StartsWith(prefix, StringComparison.Ordinal) ? prefix + RigAssetCodec.OwnerOf(nodeId[prefix.Length..]) : null;
+        string prefix = inside + SetCodec.PathSeparator;
+        return nodeId.StartsWith(prefix, StringComparison.Ordinal) ? prefix + SetCodec.OwnerOf(nodeId[prefix.Length..]) : null;
     }
 
     /// <summary>배치 모드에서 오브젝트를 집었다 — 하이어아키·칸이 그것을 따라 고른다.</summary>
     public event EventHandler<string>? LayoutNodePicked;
 
-    private static RigNodeAsset CopyOf(RigNodeAsset n) => n.Clone();
+    private static ObjectAsset CopyOf(ObjectAsset n) => n.Clone();
 
     /// <summary>그 자리의 오브젝트(위에 그려진 것 먼저) — 사각형이 있는 것만 집힌다. 없으면, 고른 오브젝트의 원점 가까이를 눌렀을 때 그것(묶기만 하는 오브젝트를 옮기는 길).</summary>
     private string? LayoutNodeAt(RectNodeTree pose, Point position)
@@ -2189,7 +2189,7 @@ public sealed class ViewportView : Control
         var at = new Pixel(position.X, position.Y);
 
         // 펼친 리그의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
-        if (_rig is not null && _setView is { } kind && _rig.TryGetRig(kind, out HierarchyDto dto))
+        if (_set is not null && _setView is { } kind && _set.TryGetSet(kind, out HierarchyDto dto))
         {
             foreach (HierarchyNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut ? CutStage.DrawOrder(pickedCut, dto.nodes, pose, Prefix) : dto.nodes))
             {
@@ -2225,18 +2225,18 @@ public sealed class ViewportView : Control
     /// <param name="keys">컷에서 키가 있는 값을 끈다 — 지금 프레임의 모습에서 시작해, 놓으면 그 프레임의 키가 된다.</param>
     private bool TryStartLayoutDrag(Point position, KeyModifiers modifiers, bool keys = false)
     {
-        if (_editor?.Document.FindRig(_setView) is null || CurrentPose() is not { } pose
+        if (_editor?.Document.FindSetOrCut(_setView) is null || CurrentPose() is not { } pose
             || LayoutNodeAt(pose, position) is not { } id || ResolveSetNode(id) is not { } found)
         {
             return false;
         }
 
-        RigNodeAsset node = found.Node;
+        ObjectAsset node = found.Node;
 
         SelectedNode = id;
         LayoutNodePicked?.Invoke(this, id);
         PlaceMode mode = modifiers.HasFlag(KeyModifiers.Shift) ? PlaceMode.Scale : modifiers.HasFlag(KeyModifiers.Control) ? PlaceMode.Rotate : PlaceMode.Move;
-        RigNodeAsset start = CopyOf(node);
+        ObjectAsset start = CopyOf(node);
 
         // 키가 있는 값이면 가만히 선 자세가 아니라 지금 프레임의 모습(카메라·깊이를 넣기 전의 값)에서 끈다.
         if (keys && UnstagedPoseAt(_clock.Time, null) is { } unstaged && unstaged.Contains(KeyOf(id)))
@@ -2249,7 +2249,7 @@ public sealed class ViewportView : Control
             start.Rotation = now.LocalEulerAngles.Z;
         }
 
-        _layout = new LayoutDrag(id, found.Rig.Kind, node.Id, mode, ToRoot(position), pose.TransformPoint(KeyOf(id), Vec3.Zero).XY, start) { Keys = keys };
+        _layout = new LayoutDrag(id, found.Set.Name, node.Id, mode, ToRoot(position), pose.TransformPoint(KeyOf(id), Vec3.Zero).XY, start) { Keys = keys };
         InvalidateVisual();
         return true;
     }
@@ -2262,7 +2262,7 @@ public sealed class ViewportView : Control
         }
 
         Vec2 now = ToRoot(position);
-        RigNodeAsset next = CopyOf(drag.Start);
+        ObjectAsset next = CopyOf(drag.Start);
 
         static float Length(Vec2 v) => MathF.Sqrt(v.X * v.X + v.Y * v.Y);
 
@@ -2344,7 +2344,7 @@ public sealed class ViewportView : Control
             }
             else if (_setView is not null)
             {
-                _editor?.UpdateRigNode(drag.Kind, drag.NodeId, drag.Now); // 안쪽을 고치는 중이면 품은 세트가 바뀐다
+                _editor?.UpdateObject(drag.Kind, drag.NodeId, drag.Now); // 안쪽을 고치는 중이면 품은 세트가 바뀐다
             }
         }
         finally
@@ -2361,11 +2361,11 @@ public sealed class ViewportView : Control
             return;
         }
 
-        (MotionChannelKind kind, (Axis Axis, float From, float To)[] values) = drag.Mode switch
+        (ChannelKind kind, (Axis Axis, float From, float To)[] values) = drag.Mode switch
         {
-            PlaceMode.Scale => (MotionChannelKind.Scale, new[] { (Axis.X, drag.Start.ScaleX, drag.Now.ScaleX), (Axis.Y, drag.Start.ScaleY, drag.Now.ScaleY) }),
-            PlaceMode.Rotate => (MotionChannelKind.Euler, new[] { (Axis.Z, drag.Start.Rotation, drag.Now.Rotation) }),
-            _ => (MotionChannelKind.Position, new[] { (Axis.X, drag.Start.X, drag.Now.X), (Axis.Y, drag.Start.Y, drag.Now.Y) }),
+            PlaceMode.Scale => (ChannelKind.Scale, new[] { (Axis.X, drag.Start.ScaleX, drag.Now.ScaleX), (Axis.Y, drag.Start.ScaleY, drag.Now.ScaleY) }),
+            PlaceMode.Rotate => (ChannelKind.Euler, new[] { (Axis.Z, drag.Start.Rotation, drag.Now.Rotation) }),
+            _ => (ChannelKind.Position, new[] { (Axis.X, drag.Start.X, drag.Now.X), (Axis.Y, drag.Start.Y, drag.Now.Y) }),
         };
 
         if (values.All(v => v.From == v.To))
@@ -2376,7 +2376,7 @@ public sealed class ViewportView : Control
         float time = (float)Math.Clamp(_clock.Time, 0, cut.Seconds);
         string timeline = cut.Name;
 
-        _editor.Batch(MotionChangeKind.Keys, () =>
+        _editor.Batch(DocumentChangeKind.Keys, () =>
         {
             if (_editor.Document.Find(timeline)!.FindChannel(drag.Node, kind) is null)
             {
@@ -2423,14 +2423,14 @@ public sealed class ViewportView : Control
     {
         ResetView();
 
-        if (_setView is null || _editor?.Document.FindRig(_setView) is not { } rig || CurrentPose() is not { } pose || Bounds.Width < 1)
+        if (_setView is null || _editor?.Document.FindSetOrCut(_setView) is not { } set || CurrentPose() is not { } pose || Bounds.Width < 1)
         {
             return;
         }
 
         var points = new List<Vec2>();
 
-        foreach (RigNodeAsset node in rig.Nodes.Where(n => pose.Contains(KeyOf(n.Id))))
+        foreach (ObjectAsset node in set.Objects.Where(n => pose.Contains(KeyOf(n.Id))))
         {
             Quad q = StageQuads.RectQuad(pose, KeyOf(node.Id));
             points.AddRange(new[] { q.BottomLeft, q.BottomRight, q.TopLeft, q.TopRight });
@@ -2491,7 +2491,7 @@ public sealed class ViewportView : Control
                 }
                 else
                 {
-                    _editor.Batch(MotionChangeKind.Keys, () =>
+                    _editor.Batch(DocumentChangeKind.Keys, () =>
                     {
                         EndManipulation();
                         RecordPendingChange(before);

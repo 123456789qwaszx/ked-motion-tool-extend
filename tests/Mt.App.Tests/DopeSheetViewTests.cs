@@ -11,11 +11,11 @@ namespace Mt.App.Tests;
 
 public class DopeSheetViewTests
 {
-    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
+    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
 
-    private static (Window Window, DopeSheetView View, MotionEditor Editor) Show()
+    private static (Window Window, DopeSheetView View, DocumentEditor Editor) Show()
     {
-        MotionEditor editor = TestDocuments.Nod();
+        DocumentEditor editor = TestDocuments.Nod();
         var view = new DopeSheetView();
         view.SnapStep = 1.0 / 60; // 기대값은 1/60 스냅 기준(기본값은 1/24)
         var window = new Window { Width = 900, Height = 400, Content = view };
@@ -88,7 +88,7 @@ public class DopeSheetViewTests
     [Fact]
     public void 블록_드래그는_놓을_때_시간_이동_한_번이다() => HeadlessUi.Run(() =>
     {
-        (Window window, DopeSheetView view, MotionEditor editor) = Show();
+        (Window window, DopeSheetView view, DocumentEditor editor) = Show();
 
         try
         {
@@ -116,7 +116,7 @@ public class DopeSheetViewTests
     [Fact]
     public void 스케일과_복제와_끼우기는_편집기_명령이다() => HeadlessUi.Run(() =>
     {
-        (Window window, DopeSheetView view, MotionEditor editor) = Show();
+        (Window window, DopeSheetView view, DocumentEditor editor) = Show();
 
         try
         {
