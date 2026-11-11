@@ -69,14 +69,14 @@ internal static class TestDocuments
         return editor;
     }
 
-    /// <summary>뷰포트를 따로 세워 시험할 때 — 문서의 세트·컷을 세운 리그를 싣고 그 세트를 연다(창에서는 세션이 하는 일).</summary>
+    /// <summary>뷰포트를 따로 세워 시험할 때 — 문서의 세트·컷을 세운 계층을 싣고 그 세트를 연다(창에서는 세션이 하는 일).</summary>
     public static void Open(ViewportView view, DocumentEditor editor, string kind = Actor)
     {
         view.SetBuilt(SetBuilder.Compose(editor.Document, BaseResolutionFile.Default));
         view.SetView = kind;
     }
 
-    /// <summary>창에 세트 actor를 만들어 연다 — 그 뒤의 "모션 추가"가 이 세트의 애니메이션이 된다.</summary>
+    /// <summary>창에 세트 actor를 만들어 연다 — 그 뒤의 "애니메이션 추가"가 이 세트의 애니메이션이 된다.</summary>
     public static void OpenActor(MainWindow window)
     {
         window.Session.Editor.AddSet(ActorSet());

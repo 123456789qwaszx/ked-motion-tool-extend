@@ -4,12 +4,12 @@ using Mt.Authoring.Model;
 namespace Mt.Authoring.Sets;
 
 /// <summary>
-/// 문서가 정의한 리그(세트 · 컷)를 세운 한 벌로, 그리고 그 세트가 실제로 입는 스킨.
+/// 문서가 정의한 계층(세트 · 컷)를 세운 한 벌로, 그리고 그 세트가 실제로 입는 스킨.
 /// </summary>
 public static class SetBuilder
 {
     /// <summary>
-    /// 문서가 정의한 리그(세트 · 컷)로 세운 한 벌 — 무대 크기는 <paramref name="stageSize"/>. 세울 수 없는 모양이면 예외 —
+    /// 문서가 정의한 계층(세트 · 컷)로 세운 한 벌 — 무대 크기는 <paramref name="stageSize"/>. 세울 수 없는 모양이면 예외 —
     /// 호출부(세션)가 빈 한 벌로 물러나고 사람에게 알린다.
     /// </summary>
     public static BuiltSets Compose(AuthoringDocument document, Vec2 stageSize)

@@ -16,7 +16,7 @@ public class MainWindowTests
     /// <summary>테스트는 이 컴퓨터의 설정 파일을 건드리지 않는다 — 임시 경로.</summary>
     private static MainWindow NewWindow()
     {
-        string path = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"settings-{Guid.NewGuid():N}.json");
+        string path = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"settings-{Guid.NewGuid():N}.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, "{ \"snapStep\": 0.016666666666666666 }"); // 이 테스트들의 기대값은 1/60 스냅 기준 — 기본값은 1/24(GraphMathTests)
         return new(path);
@@ -34,7 +34,7 @@ public class MainWindowTests
 
             try
             {
-                Assert.Equal("ked-timeline-tool", window.Title);
+                Assert.Equal("ked-motion-tool", window.Title);
 
                 var status = window.FindControl<TextBlock>("StatusText");
                 Assert.NotNull(status);
@@ -55,7 +55,7 @@ public class MainWindowTests
         {
             MainWindow window = NewWindow();
             window.Show();
-            string export = Path.Combine(Path.GetTempPath(), $"ked-timeline-tool-{Guid.NewGuid():N}.cut.json");
+            string export = Path.Combine(Path.GetTempPath(), $"ked-motion-tool-{Guid.NewGuid():N}.cut.json");
 
             try
             {
@@ -246,7 +246,7 @@ public class MainWindowTests
     [Fact]
     public void 문제_행의_돕는_손이_문제를_없애고_설정은_파일로_남고_자동_저장은_문서_옆이다()
     {
-        string directory = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", Guid.NewGuid().ToString("N"));
+        string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         string settingsPath = Path.Combine(directory, "settings.json");
 
@@ -301,7 +301,7 @@ public class MainWindowTests
                 const string node = "CharacterPortrait_SwayPivot";
                 TestDocuments.OpenActor(window);
                 window.AddTimelineFromForm("step", TestDocuments.Actor, "0.6");
-                window.SelectSetNode(node);
+                window.SelectObject(node);
                 Assert.Equal(node, window.ChannelBoxNode);
 
                 // 칸의 값은 포즈다 — 회전 0, 배율 1.
@@ -341,7 +341,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 이름을_비우고_모션을_추가하면_timeline이_되고_규칙_밖_이름은_상태줄에_남는다()
+    public void 이름을_비우고_타임라인을_추가하면_timeline이_되고_규칙_밖_이름은_상태줄에_남는다()
     {
         HeadlessUi.Run(() =>
         {
@@ -368,7 +368,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 아웃라이너는_모션의_채널을_노드로_보이고_흐린_성분_클릭은_만들지_않으며_S가_고른_노드를_키한다()
+    public void 아웃라이너는_타임라인의_채널을_노드로_보이고_흐린_성분_클릭은_만들지_않으며_S가_고른_노드를_키한다()
     {
         HeadlessUi.Run(() =>
         {
@@ -410,7 +410,7 @@ public class MainWindowTests
                 window.OutlinerQuery = "";
 
                 // S = 고른 노드의 있는 성분을 지금 값으로 현재 시각에 키 — 키 없는 포즈가 없어도. 되돌리기 한 번.
-                window.SelectSetNode(y.Node);
+                window.SelectObject(y.Node);
                 window.Viewport.ScrubTo(0.15);
                 long revision = window.Session.Editor.Revision;
                 window.KeyPressQwerty(PhysicalKey.S, RawInputModifiers.None);
@@ -539,7 +539,7 @@ public class MainWindowTests
                 window.AddTimelineFromForm("a", TestDocuments.Actor, "1");
                 Assert.NotNull(window.Session.Editor.Document.Find("a"));
 
-                // 채널이 없는 모션은 유효하다(채널은 첫 키에서 생긴다) — 문제 칸에 아무것도 없다. 길이를 0으로 하면 보인다.
+                // 채널이 없는 타임라인은 유효하다(채널은 첫 키에서 생긴다) — 문제 칸에 아무것도 없다. 길이를 0으로 하면 보인다.
                 Assert.DoesNotContain(window.ProblemsShown, p => p.TimelineName == "a");
                 window.Session.Editor.SetDuration("a", 0f);
                 Assert.Contains(window.ProblemsShown, p => p.TimelineName == "a");
@@ -566,7 +566,7 @@ public class MainWindowTests
 
             try
             {
-                Assert.Equal(3, window.InspectorTabCount); // 채널 박스 · 오브젝트 · 모션
+                Assert.Equal(3, window.InspectorTabCount); // 채널 박스 · 오브젝트 · 타임라인
                 Assert.Equal(0, window.InspectorTab);
                 window.InspectorTab = 2;
                 Assert.Equal(2, window.Settings.InspectorTab);
@@ -601,7 +601,7 @@ public class MainWindowTests
                 Assert.Equal(new[] { $"세트  {TestDocuments.Actor}" }.Concat(TestDocuments.ActorChain.Take(depth + 1)), window.HierarchyPathOf("CharacterPortrait_Track_Move_Y"));
 
                 // 고르면 채널 박스와 "오브젝트" 탭의 칸이 그것을 본다.
-                window.SelectSetNode("CharacterPortraitSpriteOverlay_Image");
+                window.SelectObject("CharacterPortraitSpriteOverlay_Image");
                 Assert.Equal("CharacterPortraitSpriteOverlay_Image", window.ChannelBoxNode);
                 Assert.Equal("CharacterPortraitSpriteOverlay_Image", window.SetEditorState.Node);
 
@@ -755,7 +755,7 @@ public class MainWindowTests
                 var editor = window.Session.Editor;
                 TimelineAsset Step() => editor.Document.Find("step")!;
                 window.AutoKeyChecked = false;
-                window.SelectSetNode(node);
+                window.SelectObject(node);
                 window.Viewport.ScrubTo(0.25);
 
                 // 좌우·상하 두 성분을 키 없는 포즈로 두고 S — 키 확정은 한 칸(가만히 선 값이 0이라 키 값 = 넣은 값).
@@ -786,7 +786,7 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 세트를_고치면_세운_리그가_따라오고_키_편집은_자산을_다시_읽지_않는다()
+    public void 세트를_고치면_세운_계층이_따라오고_키_편집은_자산을_다시_읽지_않는다()
     {
         HeadlessUi.Run(() =>
         {
@@ -808,7 +808,7 @@ public class MainWindowTests
                 Assert.Equal(refreshes, window.AssetRefreshCount);
                 Assert.Equal(syncs, window.Session.AssetSyncCount);
 
-                // 세트의 구조: 오브젝트를 더하면 세운 리그가 따라오고, 되돌리면 빠진다 — 한 번씩.
+                // 세트의 구조: 오브젝트를 더하면 세운 계층이 따라오고, 되돌리면 빠진다 — 한 번씩.
                 long revision = editor.Revision;
                 editor.AddObject(TestDocuments.Actor, "Prop", "", image: false);
                 Assert.Equal(revision + 1, editor.Revision);

@@ -10,7 +10,7 @@ using Mt.Cli;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>툴에서 정의한 리그(<c>PLAN-parts.md</c> §9) — 세트와 컷의 오브젝트 계층. Spine처럼 툴이 원본.</summary>
+/// <summary>툴에서 정의한 세트(<c>PLAN-parts.md</c> §9) — 세트와 컷의 오브젝트 계층. Spine처럼 툴이 원본.</summary>
 public class SetAssetTests
 {
     private static DocumentEditor NewEditor()
@@ -21,10 +21,10 @@ public class SetAssetTests
     }
 
     [Fact]
-    public void 문서의_리그는_한_벌로_서고_조각과_불투명도_노드가_표시대로_나온다()
+    public void 문서의_세트는_한_벌로_서고_조각과_불투명도_노드가_표시대로_나온다()
     {
         DocumentEditor editor = NewEditor();
-        Assert.Empty(Fixtures.SetOf(new AuthoringDocument()).SetNames); // 빈 문서 — 아는 리그가 없다
+        Assert.Empty(Fixtures.SetOf(new AuthoringDocument()).SetNames); // 빈 문서 — 아는 세트가 없다
         BuiltSets set = Fixtures.SetOf(editor.Document);
         Assert.Equal(new[] { PartsSetFixture.SetName }, set.SetNames);
 
@@ -43,16 +43,16 @@ public class SetAssetTests
         Assert.Equal(new[] { "Leaf" }, ObjectParts.Of(both, "prop"));
         Assert.Empty(both.AlphaNodeIds["prop"]);
 
-        // 모션·스킨 검증이 이 리그의 노드로 선다.
+        // 타임라인·스킨 검증이 이 세트의 노드로 선다.
         editor.AddTimeline("pop", PartsSetFixture.SetName, 0.2f);
         editor.AddChannel("pop", "Badge_Body", ChannelKind.Alpha);
         editor.SetKeys("pop", "Badge_Body", ChannelKind.Alpha, Axis.X, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.2f, 1f) });
         Assert.Empty(DocumentValidator.Validate(editor.Document, both.NodeIds, both.AlphaNodeIds));
-        Assert.NotEmpty(DocumentValidator.Validate(editor.Document, Fixtures.ActorBuiltSets().NodeIds)); // 그 세트가 없는 한 벌로는 모르는 리그다
+        Assert.NotEmpty(DocumentValidator.Validate(editor.Document, Fixtures.ActorBuiltSets().NodeIds)); // 그 세트가 없는 한 벌로는 모르는 세트다
     }
 
     [Fact]
-    public void 편집기는_세울_수_있는_리그만_받는다()
+    public void 편집기는_세울_수_있는_세트만_받는다()
     {
         DocumentEditor editor = NewEditor();
         long revision = editor.Revision;
@@ -70,7 +70,7 @@ public class SetAssetTests
         given.Objects.Clear();
         Assert.Equal(6, editor.Document.FindSetOrCut("prop")!.Objects.Count);
 
-        // 저작본 왕복. 리그가 없는 문서에는 안 적힌다.
+        // 저작본 왕복. 세트가 없는 문서에는 안 적힌다.
         string json = AuthoringDocumentJson.Write(editor.Document);
         Assert.Equal(json, AuthoringDocumentJson.Write(AuthoringDocumentJson.Read(json)));
         Assert.DoesNotContain("\"sets\"", AuthoringDocumentJson.Write(new AuthoringDocument()), StringComparison.Ordinal);
@@ -87,14 +87,14 @@ public class SetAssetTests
     }
 
     [Fact]
-    public void 명령줄도_문서의_리그로_검증하고_포즈를_읽는다()
+    public void 명령줄도_문서의_세트로_검증하고_포즈를_읽는다()
     {
         DocumentEditor editor = NewEditor();
         editor.AddTimeline("pop", PartsSetFixture.SetName, 0.2f);
         editor.AddChannel("pop", "Badge_Body", ChannelKind.Position);
         editor.SetKeys("pop", "Badge_Body", ChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.2f, 40f) });
 
-        string directory = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"set-{Guid.NewGuid():N}");
+        string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"set-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         string document = Path.Combine(directory, "a.cut-authoring.json");
         File.WriteAllText(document, AuthoringDocumentJson.Write(editor.Document));
@@ -107,14 +107,14 @@ public class SetAssetTests
             return code;
         }
 
-        Assert.Equal(0, Run(out JsonNode? validated, "validate", document)); // 문서의 리그로 통과한다
+        Assert.Equal(0, Run(out JsonNode? validated, "validate", document)); // 문서의 세트로 통과한다
         Assert.Empty(validated!["problems"]!.AsArray());
         Assert.Equal(0, Run(out JsonNode? pose, "pose", document, "--timeline", "pop", "--time", "0.2"));
-        Assert.Equal(40.0, pose!["nodes"]!["Badge_Body"]!["position"]![1]!.GetValue<double>(), 3);
+        Assert.Equal(40.0, pose!["objects"]!["Badge_Body"]!["position"]![1]!.GetValue<double>(), 3);
         Assert.Equal(PartsSetFixture.SetName, pose["set"]!.GetValue<string>());
     }
 
-    // ── 리그 편집기(PLAN-parts.md §12) ─────────────────────────────────
+    // ── 세트 편집(PLAN-parts.md §12) ─────────────────────────────────
 
     private static string[] Ids(DocumentEditor editor, string kind = PartsSetFixture.SetName) => editor.Document.FindSetOrCut(kind)!.Objects.Select(n => n.Id).ToArray();
 
@@ -225,7 +225,7 @@ public class SetAssetTests
     }
 
     [Fact]
-    public void 색_오브젝트는_세운_리그에_fillColor로_서고_색_글은_고른_꼴로_선다()
+    public void 색_오브젝트는_세운_계층에_fillColor로_서고_색_글은_고른_꼴로_선다()
     {
         var editor = new DocumentEditor(new AuthoringDocument());
         editor.AddSet(new SetAsset { Name = "wipe", Objects = { new ObjectAsset { Id = "Body", Alpha = true } } });
@@ -241,7 +241,7 @@ public class SetAssetTests
         Assert.Equal("#11223344", DocumentEditor.NormalizeColor(" #11223344 ")); // 불투명도까지
         Assert.Null(DocumentEditor.NormalizeColor("  "));
 
-        // 세운 리그: 색 표에 그 노드가 서고, 그림 노드는 아니다(조각이 아니다).
+        // 세운 계층: 색 표에 그 노드가 서고, 그림 노드는 아니다(조각이 아니다).
         BuiltSets composed = Fixtures.SetOf(editor.Document);
         Assert.Equal("#3D5A80", ObjectParts.ColorsOf(composed, "wipe")["Panel"]);
         Assert.Empty(ObjectParts.Of(composed, "wipe"));
@@ -394,7 +394,7 @@ public class SetAssetTests
         Assert.Equal("car", editor.Document.FindSetOrCut("city")!.Find("car")!.Set); // 값을 고쳐도 품은 것은 그대로다
         editor.AddInstance("city", "sun", "sun");
 
-        // 세운 리그: 품은 세트가 인스턴스 밑에 "인스턴스.이름"으로 펼쳐진다. 부모·색·그림 표시가 따라온다.
+        // 세운 계층: 품은 세트가 인스턴스 밑에 "인스턴스.이름"으로 펼쳐진다. 부모·색·그림 표시가 따라온다.
         BuiltSets composed = Fixtures.SetOf(editor.Document);
         Assert.True(composed.TryGetSet("city", out HierarchyDto dto));
         Assert.Equal(new[] { "__root", "Ground", "car", "car.Body", "car.Shell", "car.Wheel", "sun", "sun.Disc" }, dto.nodes.Select(n => n.id));

@@ -14,7 +14,7 @@ public class CutShellTests
 {
     private static MainWindow NewWindow()
     {
-        string path = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"settings-{Guid.NewGuid():N}.json");
+        string path = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"settings-{Guid.NewGuid():N}.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, "{}");
         return new(path);
@@ -30,7 +30,7 @@ public class CutShellTests
     [Fact]
     public void 새_창은_비어_있고_새_컷에서_오브젝트와_키를_놓아_컷_파일로_낸다()
     {
-        string folder = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"start-{Guid.NewGuid():N}");
+        string folder = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"start-{Guid.NewGuid():N}");
         Directory.CreateDirectory(folder);
         // 옛 설정 파일 — 걷어 낸 설정(무대 뼈대 보기)이 들어 있어도 읽힌다.
         string settings = Path.Combine(folder, "settings.json");
@@ -47,7 +47,7 @@ public class CutShellTests
                 ViewportView view = window.Viewport;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-                // 새 문서는 비어 있다 — 컷도 세트도 모션도 없고, 연 것이 없고, 뷰포트는 빈 무대다(포즈를 물어도 던지지 않는다).
+                // 새 문서는 비어 있다 — 컷도 세트도 타임라인도 없고, 연 것이 없고, 뷰포트는 빈 무대다(포즈를 물어도 던지지 않는다).
                 Assert.Null(window.Settings.LoadProblem);
                 Assert.Equal(1, window.InspectorTab); // 옛 설정의 탭(1 = 지금의 "오브젝트")
                 Assert.Empty(editor.Document.Cuts);
@@ -70,7 +70,7 @@ public class CutShellTests
                 Assert.NotNull(view.CurrentPose());
 
                 // 오브젝트 하나, 그리고 그 자리의 키 둘(0프레임 · 24프레임).
-                window.SelectSetNode(null);
+                window.SelectObject(null);
                 Assert.Equal("Color1", window.AddColorNodeFromForm());
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 view.SetComponent("Color1", ChannelKind.Position, Axis.X, -200f);
@@ -126,7 +126,7 @@ public class CutShellTests
                 Assert.Equal("cut", window.Graph.Timeline?.Name);
 
                 // 오브젝트를 바로 놓는다 — 세트를 먼저 만들지 않는다.
-                window.SelectSetNode(null);
+                window.SelectObject(null);
                 Assert.Equal("Color1", window.AddColorNodeFromForm());
                 Assert.Equal("Color1", editor.Document.FindCut("cut")!.Objects[0].Id);
                 Assert.Empty(editor.Document.Sets);
@@ -179,11 +179,11 @@ public class CutShellTests
                 DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
                 window.NewCutFromForm();
-                window.SelectSetNode(null);
+                window.SelectObject(null);
                 window.AddColorNodeFromForm();   // Color1
-                window.SelectSetNode(null);
+                window.SelectObject(null);
                 window.AddColorNodeFromForm();   // Color2
-                window.SelectSetNode("Color2");
+                window.SelectObject("Color2");
                 window.AddColorNodeFromForm();   // Color3 — Color2 밑
                 window.InspectorTab = 1;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -191,13 +191,13 @@ public class CutShellTests
                 float rest = X("Color1");
 
                 // 깊이 칸 — 맨 위 오브젝트에서만 서고, 적으면 한 칸. 밑의 것에서는 숨는다.
-                window.SelectSetNode("Color2");
+                window.SelectObject("Color2");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.True(window.ObjectDepthShown);
                 long revision = editor.Revision;
                 Type(window, window.ObjectDepthBox, "20");
                 Assert.Equal((20f, revision + 1), (editor.Document.FindCut("cut")!.AsSet.Find("Color2")!.Depth, editor.Revision));
-                window.SelectSetNode("Color3");
+                window.SelectObject("Color3");
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.False(window.ObjectDepthShown);
 
@@ -243,7 +243,7 @@ public class CutShellTests
                 DocumentEditor editor = window.Session.Editor;
                 ViewportView view = window.Viewport;
                 window.NewCutFromForm();
-                window.SelectSetNode(null);
+                window.SelectObject(null);
                 window.AddColorNodeFromForm(); // Color1 — 400×300, 가운데
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Point At(Vec2 p) => view.TranslatePoint(view.ToScreen(p), window) ?? throw new InvalidOperationException("뷰가 창에 붙어 있지 않다");
@@ -341,18 +341,18 @@ public class CutShellTests
                 ViewportView view = window.Viewport;
                 window.NewCutFromForm();
                 window.ImportLayerSheetFromForm(TestDocuments.ArtPath("layers.tsv"));
-                window.InspectorTab = 2; // 모션 탭
+                window.InspectorTab = 2; // 타임라인 탭
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 Assert.True(window.ImageKeyPanelShown);
                 string original = view.PartImage("sign")!;
                 Assert.EndsWith("06_sign.png", original, StringComparison.Ordinal);
 
                 // 오브젝트를 안 골랐으면 놓이지 않는다.
-                window.SelectSetNode(null);
+                window.SelectObject(null);
                 Assert.Null(window.AddImageKeyFromFile(TestDocuments.ArtPath("08_microbe_sun.png")));
 
                 // sign을 고르고 48프레임(2초)에 그림 키 — 한 칸, 줄이 선다.
-                window.SelectSetNode("sign");
+                window.SelectObject("sign");
                 window.Graph.CurrentTime = 2.0;
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
                 long revision = editor.Revision;
@@ -379,7 +379,7 @@ public class CutShellTests
                 Assert.Equal(0, window.ProblemRowsShown);
 
                 // 컷 내보내기 — 게임이 읽는 파일. 다른 폴더에 내도 그림 경로가 그 파일 기준으로 적혀 그림을 찾는다. 문서는 안 바뀐다.
-                string folder = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"cut-{Guid.NewGuid():N}");
+                string folder = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"cut-{Guid.NewGuid():N}");
                 Directory.CreateDirectory(folder);
                 string exported = Path.Combine(folder, "cut.cut.json");
                 revision = editor.Revision;

@@ -9,7 +9,7 @@ using Mt.Authoring.Model;
 
 namespace Mt.App;
 
-// 세트(PLAN-set.md S1) — 오브젝트들의 계층 + 그림 + 애니메이션들의 한 덩어리. 데이터는 툴이 정의한 리그(SetAsset)다.
+// 세트(PLAN-set.md S1) — 오브젝트들의 계층 + 그림 + 애니메이션들의 한 덩어리. 데이터는 툴이 정의한 세트(SetAsset)다.
 // 왼쪽 목록에서 세트를 열면 뷰포트·하이어아키가 그 세트만 보이고, 하이어아키에서 오브젝트를 더하고 지우고 옮긴다.
 public partial class MainWindow
 {
@@ -169,12 +169,12 @@ public partial class MainWindow
     internal string? AddImageObjectFromForm(string path, Ked.Presentation.Core.Vec2 at) => AddImageObject(path, at);
 
     /// <summary>테스트 손잡이 — 하이어아키에서 세트의 오브젝트를 고른 것과 같다.</summary>
-    internal void SelectSetNode(string? id)
+    internal void SelectObject(string? id)
     {
         if (id is null)
         {
             _objectSelected = null;
-            RefreshSetNodePanel();
+            RefreshObjectPanel();
         }
         else
         {
@@ -187,15 +187,15 @@ public partial class MainWindow
     /// <summary>테스트 손잡이 — 세트 이름 칸, 하이어아키 메뉴의 "새 세트로 빼기"(그 오브젝트부터 last까지의 형제들).</summary>
     internal TextBox SetNameBox => _setName;
 
-    internal string? ExtractSetNodesFromMenu(string first, params string[] others) => ExtractSetNodes(new[] { first }.Concat(others).ToList());
+    internal string? ExtractObjectsFromMenu(string first, params string[] others) => ExtractObjects(new[] { first }.Concat(others).ToList());
 
     /// <summary>테스트 손잡이 — 하이어아키 메뉴의 "화면 밖에서 들어온다 / 밖으로 나간다"(지금 시각부터 0.5초).</summary>
-    internal float? SlideSetNodeFromMenu(string node, StageSide side, bool leaving) => SlideSetNode(node, side, leaving);
+    internal float? SlideObjectFromMenu(string node, StageSide side, bool leaving) => SlideObject(node, side, leaving);
 
     /// <summary>들어오고 나가는 데 걸리는 시간(초) — 메뉴의 기본. 키를 끌어 늘리거나 줄인다.</summary>
     private const float SlideSeconds = 0.5f;
 
-    private float? SlideSetNode(string node, StageSide side, bool leaving)
+    private float? SlideObject(string node, StageSide side, bool leaving)
     {
         if (_graph.Timeline is not { } timeline)
         {
@@ -210,11 +210,11 @@ public partial class MainWindow
 
     private static string SideName(StageSide side) => side switch { StageSide.Left => "왼쪽", StageSide.Right => "오른쪽", StageSide.Top => "위", _ => "아래" };
 
-    internal string? AddSetNodeFromForm(bool image) => AddSetNode(image);
+    internal string? AddObjectFromForm(bool image) => AddObject(image);
 
-    internal void RemoveSetNodeFromForm() => RemoveSelectedSetNode();
+    internal void RemoveObjectFromForm() => RemoveSelectedObject();
 
-    internal void MoveSetNodeFromForm(int direction) => MoveSelectedSetNode(direction);
+    internal void MoveObjectFromForm(int direction) => MoveSelectedObject(direction);
 
     private SetAsset? EditedSet => _session.Editor.Document.FindSetOrCut(SelectedSet);
 
@@ -224,7 +224,7 @@ public partial class MainWindow
 
     private void BuildSetLeft()
     {
-        // 세트가 맨 위다 — 무엇을 열어 작업하는지가 먼저다(그 아래의 하이어아키·모션이 그 세트의 것이 된다).
+        // 세트가 맨 위다 — 무엇을 열어 작업하는지가 먼저다(그 아래의 하이어아키·타임라인이 그 세트의 것이 된다).
         LeftPanel.Children.Insert(0, Header("세트 — 묶어서 다시 쓰는 것"));
         _setList.SelectionChanged += (_, _) => OnListPicked(_setList, _cutList);
         ToolTip.SetTip(_setList, "세트 — 오브젝트들의 계층 + 그림 + 애니메이션들의 한 덩어리(화면 이동 하나, 소품 무리 하나…). 고르면 뷰포트와 하이어아키가 그 세트만 보인다");
@@ -303,7 +303,7 @@ public partial class MainWindow
     }
 
     /// <summary>"오브젝트" 탭에 서는 칸 — 컷이나 세트를 열고 그 오브젝트를 골랐을 때의 이름·부모·깊이·자리·크기.</summary>
-    private Control BuildSetNodePanel()
+    private Control BuildObjectPanel()
     {
         _setNodePanel.Children.Add(Header("오브젝트"));
         _setNodePanel.Children.Add(_setNodeTitle);
@@ -365,7 +365,7 @@ public partial class MainWindow
                     _session.Editor.RenameObject(kind, node.Id, text);
                     _objectSelected = text.Trim();
                     _viewport.SelectedNode = _objectSelected;
-                    RefreshSetNodePanel();
+                    RefreshObjectPanel();
                 });
             }
         });
@@ -410,7 +410,7 @@ public partial class MainWindow
                 _objectSelected = back;
             }
 
-            RefreshSetNodePanel();
+            RefreshObjectPanel();
             RebuildHierarchy();
         };
 
@@ -420,7 +420,7 @@ public partial class MainWindow
             if (_objectSelected != id)
             {
                 _objectSelected = id;
-                RefreshSetNodePanel();
+                RefreshObjectPanel();
                 RebuildHierarchy();
             }
         };
@@ -450,7 +450,7 @@ public partial class MainWindow
 
         if (SelectedSet is { } kind)
         {
-            // 그 세트의 것이 아닌 모션은 풀린다(이 세트가 연기할 수 없다).
+            // 그 세트의 것이 아닌 타임라인은 풀린다(이 세트가 연기할 수 없다).
             if (SelectedTimeline is { } timeline && _session.Editor.Document.Find(timeline)?.Set != kind)
             {
                 _timelineList.SelectedItem = null;
@@ -484,7 +484,7 @@ public partial class MainWindow
         BindTimeline(SelectedTimeline); // 뷰포트가 세운 것이 바뀌었다 — 묶인 것을 거기서 다시 본다
         RefreshAssets();
         RefreshObjects();
-        RefreshSetNodePanel();
+        RefreshObjectPanel();
         RefreshTimelineList(); // 세트의 애니메이션만 / 전부
 
         if (SelectedSet is not null)
@@ -497,7 +497,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>세트 보기를 떠난다 — 다른 리그의 모션을 골랐을 때.</summary>
+    /// <summary>세트 보기를 떠난다 — 다른 세트의 타임라인을 골랐을 때.</summary>
     private void DeselectSet()
     {
         if (SelectedSet is null)
@@ -537,7 +537,7 @@ public partial class MainWindow
         }
 
         ApplySetView();
-        RefreshSetNodePanel();
+        RefreshObjectPanel();
         RefreshCutFields();
     }
 
@@ -545,7 +545,7 @@ public partial class MainWindow
     /// 하이어아키에서 고른 오브젝트들(같은 부모 밑 — 떨어져 있어도 된다)과 그 밑을 새 세트로 뺀다 — 이름은 첫 오브젝트에서(세트 이름 칸에서 고친다).
     /// 자리·그림·키를 데리고 가고 그 자리에 인스턴스가 선다. 보이는 것은 그대로다.
     /// </summary>
-    private string? ExtractSetNodes(IReadOnlyList<string> ids)
+    private string? ExtractObjects(IReadOnlyList<string> ids)
     {
         if (EditedSet is not { } set || ids.Count == 0 || set.Find(ids[0]) is null)
         {
@@ -563,7 +563,7 @@ public partial class MainWindow
 
         string instance = _session.Editor.ExtractObjects(set.Name, ids, kind);
         RefreshSets();
-        SelectSetNode(instance);
+        SelectObject(instance);
         _session.SetStatus($"오브젝트 {ids.Count}개를 새 세트 '{kind}'로 뺐다 — 그 자리에 인스턴스 '{instance}'가 섰다. 세트 '{kind}'를 열어 이름을 고치거나 안쪽을 고친다.");
         return instance;
     }
@@ -588,7 +588,7 @@ public partial class MainWindow
         }
 
         _setTrail.Push(outer);
-        RefreshSetNodePanel();
+        RefreshObjectPanel();
     }
 
     private void BackToOuterSet()
@@ -614,10 +614,10 @@ public partial class MainWindow
         // 들어갔던 그 인스턴스를 다시 고른다.
         if (EditedSet?.Objects.FirstOrDefault(n => n.Set == inner) is { } instance)
         {
-            SelectSetNode(instance.Id);
+            SelectObject(instance.Id);
         }
 
-        RefreshSetNodePanel();
+        RefreshObjectPanel();
     }
 
     /// <summary>테스트 손잡이 — "다른 문서에서…"(파일 고르기 뒤의 일).</summary>
@@ -642,7 +642,7 @@ public partial class MainWindow
         _session.Editor.AddSet(new SetAsset { Name = kind, Objects = { new ObjectAsset { Id = "Body", Alpha = true } } });
         RefreshSets();
         _setList.SelectedItem = kind;
-        SelectSetNode("Body");
+        SelectObject("Body");
         return kind;
     }
 
@@ -706,7 +706,7 @@ public partial class MainWindow
         });
 
         _viewport.SetSkin = skin;
-        SelectSetNode(id);
+        SelectObject(id);
         return id;
     }
 
@@ -794,7 +794,7 @@ public partial class MainWindow
     }
 
     /// <summary>오브젝트를 더한다 — 고른 오브젝트 밑에(없으면 맨 위에). 이름은 Part1…(그림) · Node1…(묶음).</summary>
-    private string? AddSetNode(bool image, string? under = null)
+    private string? AddObject(bool image, string? under = null)
     {
         if (SelectedSet is not { } kind || EditedSet is not { } set)
         {
@@ -810,7 +810,7 @@ public partial class MainWindow
         }
 
         _session.Editor.AddObject(kind, id, under ?? EditedObject?.Id, image);
-        SelectSetNode(id);
+        SelectObject(id);
         return id;
     }
 
@@ -836,7 +836,7 @@ public partial class MainWindow
 
         _session.Editor.AddInstance(kind, id, setKind, under);
         RefreshAssets();
-        SelectSetNode(id);
+        SelectObject(id);
         return id;
     }
 
@@ -861,21 +861,21 @@ public partial class MainWindow
             editor.AddObject(kind, id, under, image: false);
             editor.UpdateObject(kind, id, new ObjectAsset { Width = 400f, Height = 300f, Color = "#3D5A80", Alpha = true });
         });
-        SelectSetNode(id);
+        SelectObject(id);
         return id;
     }
 
-    private void RemoveSelectedSetNode()
+    private void RemoveSelectedObject()
     {
         if (SelectedSet is { } kind && EditedObject is { } node)
         {
             string? parent = node.Parent.Length > 0 ? node.Parent : null;
             _session.Editor.RemoveObject(kind, node.Id);
-            SelectSetNode(parent);
+            SelectObject(parent);
         }
     }
 
-    private void MoveSelectedSetNode(int direction)
+    private void MoveSelectedObject(int direction)
     {
         if (SelectedSet is { } kind && EditedObject is { } node)
         {
@@ -898,8 +898,8 @@ public partial class MainWindow
         }
 
         string where = nodeId is null ? "맨 위에" : $"{nodeId} 밑에";
-        Item(_hierarchyMenu, $"오브젝트 더하기 — {where}", () => AddSetNode(image: false, under: nodeId ?? ""));
-        Item(_hierarchyMenu, $"그림 오브젝트 더하기 — {where}", () => AddSetNode(image: true, under: nodeId ?? ""));
+        Item(_hierarchyMenu, $"오브젝트 더하기 — {where}", () => AddObject(image: false, under: nodeId ?? ""));
+        Item(_hierarchyMenu, $"그림 오브젝트 더하기 — {where}", () => AddObject(image: true, under: nodeId ?? ""));
         Item(_hierarchyMenu, $"색 사각형 더하기 — {where}", () => AddColorNode(nodeId ?? ""));
 
         // 다른 세트를 품는다 — 그 세트의 인스턴스(참조). 서로 품게 되는 것은 편집기가 막는다.
@@ -923,17 +923,17 @@ public partial class MainWindow
 
         void Pick(Action then)
         {
-            SelectSetNode(nodeId);
+            SelectObject(nodeId);
             then();
         }
 
         // 따로 보기 — 이 오브젝트만 보거나 숨긴다(보기 상태: 문서를 안 바꾼다).
         _hierarchyMenu.Items.Add(new Separator());
-        bool solo = _viewport.SoloSetNode == nodeId;
-        bool hidden = _viewport.IsSetNodeHidden(nodeId);
-        Item(_hierarchyMenu, solo ? "이것만 보기 풀기" : "이것만 보기 (솔로)", () => SetSetNodeView(nodeId, solo: !solo, hidden: null));
-        Item(_hierarchyMenu, hidden ? "보이기" : "숨기기", () => SetSetNodeView(nodeId, solo: null, hidden: !hidden));
-        Item(_hierarchyMenu, "전부 보이기", () => SetSetNodeView(null, null, null), enabled: _viewport.SoloSetNode is not null || set.Objects.Any(n => _viewport.IsSetNodeHidden(n.Id)));
+        bool solo = _viewport.SoloObject == nodeId;
+        bool hidden = _viewport.IsObjectHidden(nodeId);
+        Item(_hierarchyMenu, solo ? "이것만 보기 풀기" : "이것만 보기 (솔로)", () => SetObjectView(nodeId, solo: !solo, hidden: null));
+        Item(_hierarchyMenu, hidden ? "보이기" : "숨기기", () => SetObjectView(nodeId, solo: null, hidden: !hidden));
+        Item(_hierarchyMenu, "전부 보이기", () => SetObjectView(null, null, null), enabled: _viewport.SoloObject is not null || set.Objects.Any(n => _viewport.IsObjectHidden(n.Id)));
 
         // 시차 — 고른 애니메이션에서 이 오브젝트의 움직임을 통째로 민다(키를 하나씩 옮기지 않는다).
         if (_graph.Timeline is { } animation && animation.Set == set.Name)
@@ -944,7 +944,7 @@ public partial class MainWindow
             foreach (float delta in new[] { 0.05f, 0.1f, 0.2f, -0.05f, -0.1f, -0.2f })
             {
                 float captured = delta;
-                Item(shift, captured > 0 ? $"{captured:0.##}초 늦게" : $"{-captured:0.##}초 일찍", () => ShiftSetNodeKeys(nodeId, captured));
+                Item(shift, captured > 0 ? $"{captured:0.##}초 늦게" : $"{-captured:0.##}초 일찍", () => ShiftObjectKeys(nodeId, captured));
             }
 
             _hierarchyMenu.Items.Add(shift);
@@ -953,7 +953,7 @@ public partial class MainWindow
             foreach (float step in new[] { 0.05f, 0.1f, 0.2f })
             {
                 float captured = step;
-                Item(stagger, $"{captured:0.##}초씩", () => StaggerSetNodesFrom(nodeId, captured));
+                Item(stagger, $"{captured:0.##}초씩", () => StaggerObjectsFrom(nodeId, captured));
             }
 
             _hierarchyMenu.Items.Add(stagger);
@@ -968,20 +968,20 @@ public partial class MainWindow
                 {
                     StageSide capturedSide = side;
                     bool capturedLeaving = leaving;
-                    Item(slide, SideName(side) + (!leaving ? "에서" : side is StageSide.Top or StageSide.Bottom ? "로" : "으로"), () => SlideSetNode(nodeId, capturedSide, capturedLeaving));
+                    Item(slide, SideName(side) + (!leaving ? "에서" : side is StageSide.Top or StageSide.Bottom ? "로" : "으로"), () => SlideObject(nodeId, capturedSide, capturedLeaving));
                 }
 
                 _hierarchyMenu.Items.Add(slide);
             }
 
-            Item(_hierarchyMenu, "제 차례 전까지 숨기기", () => HideSetNodeForTurn(nodeId, until: true));
-            Item(_hierarchyMenu, "움직임을 마치면 숨기기", () => HideSetNodeForTurn(nodeId, until: false));
-            Item(_hierarchyMenu, "전부: 제 차례 전까지 숨기기", () => HideSetNodeForTurn(null, until: true));
+            Item(_hierarchyMenu, "제 차례 전까지 숨기기", () => HideObjectForTurn(nodeId, until: true));
+            Item(_hierarchyMenu, "움직임을 마치면 숨기기", () => HideObjectForTurn(nodeId, until: false));
+            Item(_hierarchyMenu, "전부: 제 차례 전까지 숨기기", () => HideObjectForTurn(null, until: true));
         }
 
         _hierarchyMenu.Items.Add(new Separator());
-        Item(_hierarchyMenu, "앞으로 (아래에 그려진다)", () => Pick(() => MoveSelectedSetNode(-1)));
-        Item(_hierarchyMenu, "뒤로 (위에 그려진다)", () => Pick(() => MoveSelectedSetNode(+1)));
+        Item(_hierarchyMenu, "앞으로 (아래에 그려진다)", () => Pick(() => MoveSelectedObject(-1)));
+        Item(_hierarchyMenu, "뒤로 (위에 그려진다)", () => Pick(() => MoveSelectedObject(+1)));
 
         var parents = new MenuItem { Header = "부모 바꾸기", FontSize = 11 };
 
@@ -998,7 +998,7 @@ public partial class MainWindow
         {
             var extract = new MenuItem { Header = "새 세트로 빼기", FontSize = 11 };
             ToolTip.SetTip(extract, "고른 오브젝트들을 따로 세트로 뺀다 — 자리·그림·키를 데리고 가고, 그 자리에는 새 세트의 인스턴스가 서고, 애니메이션에는 그것을 트는 재생 블록이 선다. 보이는 것은 그대로다(되돌리기 한 번)");
-            Item(extract, "이것만 (밑의 오브젝트까지)", () => ExtractSetNodes(new[] { nodeId }));
+            Item(extract, "이것만 (밑의 오브젝트까지)", () => ExtractObjects(new[] { nodeId }));
 
             // 함께 뺄 형제를 고른다 — 떨어져 있어도 된다(체크하고 "함께 뺀다"). 메뉴는 체크하는 동안 열려 있다.
             List<string> siblings = set.Objects.Where(n => n.Parent == node.Parent && n.Id != nodeId).Select(n => n.Id).ToList();
@@ -1016,25 +1016,25 @@ public partial class MainWindow
                 }
 
                 extract.Items.Add(new Separator());
-                Item(extract, "체크한 것과 함께 뺀다", () => ExtractSetNodes(new[] { nodeId }.Concat(picks.Where(p => p.IsChecked).Select(p => (string)p.Header!)).ToList()));
+                Item(extract, "체크한 것과 함께 뺀다", () => ExtractObjects(new[] { nodeId }.Concat(picks.Where(p => p.IsChecked).Select(p => (string)p.Header!)).ToList()));
             }
 
             _hierarchyMenu.Items.Add(extract);
         }
 
         _hierarchyMenu.Items.Add(new Separator());
-        Item(_hierarchyMenu, "지우기 (밑의 오브젝트도)", () => Pick(RemoveSelectedSetNode));
+        Item(_hierarchyMenu, "지우기 (밑의 오브젝트도)", () => Pick(RemoveSelectedObject));
     }
 
     /// <summary>테스트 손잡이 — 하이어아키 메뉴의 "움직임 밀기" · "여기서부터 차례로".</summary>
-    internal void ShiftSetNodeKeysFromMenu(string node, float delta) => ShiftSetNodeKeys(node, delta);
+    internal void ShiftObjectKeysFromMenu(string node, float delta) => ShiftObjectKeys(node, delta);
 
-    internal void StaggerSetNodesFromMenu(string node, float step) => StaggerSetNodesFrom(node, step);
+    internal void StaggerObjectsFromMenu(string node, float step) => StaggerObjectsFrom(node, step);
 
     /// <summary>테스트 손잡이 — 하이어아키 메뉴의 "제 차례 전까지 숨기기" · "움직임을 마치면 숨기기" · "전부"(node = null).</summary>
-    internal void HideSetNodeForTurnFromMenu(string? node, bool until) => HideSetNodeForTurn(node, until);
+    internal void HideObjectForTurnFromMenu(string? node, bool until) => HideObjectForTurn(node, until);
 
-    private void HideSetNodeForTurn(string? node, bool until)
+    private void HideObjectForTurn(string? node, bool until)
     {
         if (_graph.Timeline is not { } timeline)
         {
@@ -1061,7 +1061,7 @@ public partial class MainWindow
         }
     }
 
-    private void ShiftSetNodeKeys(string node, float delta)
+    private void ShiftObjectKeys(string node, float delta)
     {
         if (_graph.Timeline is { } timeline && !_session.Editor.ShiftNodeKeys(timeline.Name, node, delta))
         {
@@ -1070,7 +1070,7 @@ public partial class MainWindow
     }
 
     /// <summary>그 오브젝트와 그 뒤의 형제들에 차례로 시차를 준다 — 첫째(고른 것)는 그대로, 다음은 step, 그다음은 2·step… 한 칸.</summary>
-    private void StaggerSetNodesFrom(string node, float step)
+    private void StaggerObjectsFrom(string node, float step)
     {
         if (_graph.Timeline is not { } timeline || EditedSet is not { } set || set.Find(node) is not { } first)
         {
@@ -1082,24 +1082,24 @@ public partial class MainWindow
     }
 
     /// <summary>테스트 손잡이 — 따로 보기(솔로 · 숨김). 셋 다 null이면 전부 보이기.</summary>
-    internal void SetSetNodeViewFromMenu(string? node, bool? solo, bool? hidden) => SetSetNodeView(node, solo, hidden);
+    internal void SetObjectViewFromMenu(string? node, bool? solo, bool? hidden) => SetObjectView(node, solo, hidden);
 
-    private void SetSetNodeView(string? node, bool? solo, bool? hidden)
+    private void SetObjectView(string? node, bool? solo, bool? hidden)
     {
         if (node is null)
         {
-            _viewport.ShowAllSetNodes();
+            _viewport.ShowAllObjects();
         }
         else
         {
             if (solo is { } s)
             {
-                _viewport.SoloSetNode = s ? node : null;
+                _viewport.SoloObject = s ? node : null;
             }
 
             if (hidden is { } h)
             {
-                _viewport.SetSetNodeHidden(node, h);
+                _viewport.SetObjectHidden(node, h);
             }
         }
 
@@ -1127,7 +1127,7 @@ public partial class MainWindow
         return parents;
     }
 
-    private void RefreshSetNodePanel()
+    private void RefreshObjectPanel()
     {
         _refreshDepth++;
 

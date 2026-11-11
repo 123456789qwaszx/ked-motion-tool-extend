@@ -12,6 +12,8 @@
 
 ## 구조
 
+낱말: **컷**(`Cut`) · **오브젝트**(`Object`) · **타임라인**(`Timeline` — 컷에는 하나, 세트에는 여럿이고 화면은 세트의 것을 "애니메이션"이라 부른다) · **세트**(`Set` — 묶어서 다시 쓰는 오브젝트 계층). `Rig` · `Motion`은 옛 이름이다 — 쓰지 않는다.
+
 `Ked.Presentation.Core`(코어 — 이 저장소의 것. 순수 C#, netstandard2.1 · C# 9. 컷을 읽는 계산 `Cut/`이 여기 있다. 출발점은 런타임의 코어였다 — `src/Ked.Presentation.Core/vendoring.md`) → `Mt.Authoring`(도메인) → `Mt.App`(Avalonia 화면) + `Mt.Cli`.
 테스트: `tests/Mt.Authoring.Tests` · `tests/Mt.App.Tests`(xunit — 화면은 `HeadlessUi.Run`) · `tests/Ked.Presentation.Core.Tests`(NUnit — 코어의 테스트).
 
@@ -36,7 +38,7 @@ MT_RENDER_DIR=<폴더> dotnet test tests/Mt.App.Tests -c Release --filter CutSho
 - 코드 주석 · 문서 · 커밋 메시지는 **한국어**, 대화는 존댓말. 커밋은 "무엇을 왜" 한 줄 + 본문.
 - **한 번에 하나.** 단계마다 전체 테스트가 통과한 채로 커밋하고 푸시한다. 계획서에 결정과 상태를 적는다.
 - `TreatWarningsAsErrors` — 안 쓰는 필드·using·인자는 빌드가 막는다.
-- 편집은 `MotionEditor`의 명령으로만. **조작 하나 = 되돌리기 한 칸**, 같은 값은 기록하지 않는다. 테스트가 `editor.Revision`으로 이것을 본다.
+- 편집은 `DocumentEditor`의 명령으로만. **조작 하나 = 되돌리기 한 칸**, 같은 값은 기록하지 않는다. 테스트가 `editor.Revision`으로 이것을 본다.
 - **안 쓰는 기능은 흔적 없이 지운다** — 코드 · 주석 · 문서 · 테스트까지.
 - 화면의 기능에는 테스트 손잡이(`internal … FromForm()`)와 헤드리스 테스트를 붙인다. 고친 화면은 렌더로 뽑아 눈으로 확인한다(헤드리스가 Skia로 실제 렌더한다 — `window.CaptureRenderedFrame()`).
 - **툴의 미리보기와 게임의 재생은 같은 계산**이다 — 그 계산은 코어(`Ked.Presentation.Core/Cut/`)에 순수 함수로 두고, 둘이 같은 모습을 내는지 프레임마다 맞추는 테스트를 둔다(`CutTests.툴의_미리보기와_코어의_컷_재생이_…`).

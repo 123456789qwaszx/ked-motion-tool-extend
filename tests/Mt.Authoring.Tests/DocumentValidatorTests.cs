@@ -11,13 +11,13 @@ public class DocumentValidatorTests
     private const string MoveY = "CharacterPortrait_Track_Move_Y";
 
     [Fact]
-    public void nod_bow는_세운_리그로_검증해도_문제가_0건이다()
+    public void nod_bow는_세운_계층으로_검증해도_문제가_0건이다()
     {
         Assert.Empty(DocumentValidator.Validate(Fixtures.ActorDocument(), BuiltSets.NodeIds, BuiltSets.AlphaNodeIds));
     }
 
     [Fact]
-    public void 세트에_없는_오브젝트는_거부하고_세운_리그가_없으면_그_검사는_생략한다()
+    public void 세트에_없는_오브젝트는_거부하고_세운_계층이_없으면_그_검사는_생략한다()
     {
         var editor = new DocumentEditor(new AuthoringDocument());
         editor.AddTimeline("a", Fixtures.Actor, 1f);
@@ -37,7 +37,7 @@ public class DocumentValidatorTests
         editor.AddTimeline("a", "robot", 1f);
 
         ValidationProblem problem = Assert.Single(DocumentValidator.Validate(editor.Document, BuiltSets.NodeIds));
-        Assert.Contains("setName 'robot'", problem.Message, StringComparison.Ordinal);
+        Assert.Contains("'robot'라는 세트나 컷이 없다", problem.Message, StringComparison.Ordinal);
         Assert.Contains(Fixtures.Actor, problem.Message, StringComparison.Ordinal);
     }
 
@@ -168,7 +168,7 @@ public class ToolSettingsTests
     [Fact]
     public void 설정은_왕복하고_없으면_기본값이고_깨지면_기본값에_사유를_남긴다()
     {
-        string directory = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", Guid.NewGuid().ToString("N"));
+        string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", Guid.NewGuid().ToString("N"));
         string path = Path.Combine(directory, Mt.Authoring.Settings.ToolSettings.FileName);
 
         try

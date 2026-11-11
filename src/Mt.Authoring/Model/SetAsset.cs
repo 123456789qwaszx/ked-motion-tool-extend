@@ -3,7 +3,7 @@ using Ked.Presentation.Core;
 namespace Mt.Authoring.Model;
 
 /// <summary>
-/// 툴에서 정의한 리그(<c>PLAN-parts.md</c> §9) — 세트의 뼈대. Spine처럼 **툴이 원본**이다.
+/// 툴에서 정의한 세트(<c>PLAN-parts.md</c> §9) — 세트의 뼈대. Spine처럼 **툴이 원본**이다.
 /// 컷의 오브젝트 계층도 같은 그릇이다(<see cref="CutAsset.Set"/>).
 ///
 /// 노드는 단순하다: 부모의 가운데에 앵커·피벗을 둔 사각형(위치 · 크기) + 그림을 그리는가 + 불투명도를 받는가.
@@ -11,7 +11,7 @@ namespace Mt.Authoring.Model;
 /// </summary>
 public sealed class SetAsset
 {
-    /// <summary>setName — 모션·스킨이 이 이름으로 가리킨다. 영문자로 시작하는 영문·숫자·_.</summary>
+    /// <summary>setName — 타임라인·스킨이 이 이름으로 가리킨다. 영문자로 시작하는 영문·숫자·_.</summary>
     public string Name { get; set; } = "";
 
     /// <summary>부모가 자식보다 먼저 온다. 그리는 순서도 이 순서다(뒤의 것이 위).</summary>
@@ -55,7 +55,7 @@ public sealed class ObjectAsset
 
     /// <summary>
     /// 품은 세트(<c>PLAN-set.md</c> S9) — 있으면 이 오브젝트는 **다른 세트의 인스턴스**다: 그 세트의 오브젝트들이 이 밑에 선다(참조 — 그 세트를 고치면 여기도 바뀐다).
-    /// 이 오브젝트의 자리·배율·회전·불투명도는 품은 세트를 통째로 옮긴다. 세운 리그에서 품은 것의 이름은 <c>이 이름.그 이름</c>이다(<see cref="SetCodec.PathSeparator"/>).
+    /// 이 오브젝트의 자리·배율·회전·불투명도는 품은 세트를 통째로 옮긴다. 세운 계층에서 품은 것의 이름은 <c>이 이름.그 이름</c>이다(<see cref="SetCodec.PathSeparator"/>).
     /// </summary>
     public string? Set { get; set; }
 
@@ -77,7 +77,7 @@ public sealed class ObjectAsset
     public ObjectAsset Clone() => (ObjectAsset)MemberwiseClone();
 }
 
-/// <summary>툴의 리그 ↔ 코어의 리그 스키마. 해석(트리 세우기)은 코어가 한다.</summary>
+/// <summary>툴의 세트 ↔ 코어의 세트 스키마. 해석(트리 세우기)은 코어가 한다.</summary>
 public static class SetCodec
 {
     public const string RootId = HierarchyLoader.RootKey;
@@ -98,7 +98,7 @@ public static class SetCodec
     /// <summary>
     /// 코어 스키마로 — 루트를 붙이고, 노드는 가운데 앵커·가운데 피벗으로. <paramref name="resolve"/>가 있으면 **품은 세트를 펼친다**:
     /// 인스턴스 오브젝트 밑에 그 세트의 오브젝트들이 <c>인스턴스.이름</c>으로 선다(되풀이해서 — 품은 것이 또 품었으면 <c>a.b.c</c>). 없는 세트·순환·너무 깊은 것은 건너뛴다.
-    /// 그래서 세운 리그는 늘 한 덩어리다 — 미리보기도 컷 파일도 펼친 것을 본다(<c>PLAN-set.md</c> §7의 A).
+    /// 그래서 세운 계층은 늘 한 덩어리다 — 미리보기도 컷 파일도 펼친 것을 본다(<c>PLAN-set.md</c> §7의 A).
     /// </summary>
     public static HierarchyDto ToDto(SetAsset set, Vec2 stageSize, Func<string, SetAsset?>? resolve = null)
     {

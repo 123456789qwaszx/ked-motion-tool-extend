@@ -33,7 +33,7 @@ public static class ValidationFixes
     public static bool Apply(DocumentEditor editor, string timelineName, ValidationFix fix)
     {
         ArgumentNullException.ThrowIfNull(editor);
-        TimelineAsset timeline = editor.Document.Find(timelineName) ?? throw new KeyNotFoundException($"모션 '{timelineName}'이 없다.");
+        TimelineAsset timeline = editor.Document.Find(timelineName) ?? throw new KeyNotFoundException($"타임라인 '{timelineName}'이 없다.");
 
         switch (fix)
         {

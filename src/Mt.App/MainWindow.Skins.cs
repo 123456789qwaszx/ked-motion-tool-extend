@@ -199,7 +199,7 @@ public partial class MainWindow
         var loop = new CheckBox { Content = "되풀이", FontSize = 10, IsChecked = now.Loop, IsEnabled = now.Frames.Count > 0 };
         ToolTip.SetTip(loop, "마지막 장 다음에 첫 장으로 돌아간다. 끄면 마지막 장에서 멈춘다(점이 하나씩 찍히고 서는 말풍선)");
         seconds.IsEnabled = now.Frames.Count > 0;
-        TextBox x = Box(F(now.X), "X", "놓임 — 조각 노드 안에서의 자리 X(px). 모션과는 따로다: 꽃 셋을 흩어 놓는 것은 여기서, 움직임은 모션에서");
+        TextBox x = Box(F(now.X), "X", "놓임 — 조각 오브젝트 안에서의 자리 X(px). 타임라인과는 따로다: 꽃 셋을 흩어 놓는 것은 여기서, 움직임은 타임라인에서");
         TextBox y = Box(F(now.Y), "Y", "놓임 — 자리 Y(px)");
         TextBox scale = Box(F(now.Scale), "크기", "놓임 — 크기(배). 1이 조각 사각형에 꼭 맞는 크기");
         TextBox rotation = Box(F(now.Rotation), "회전", "놓임 — 회전(도, 반시계가 +)");

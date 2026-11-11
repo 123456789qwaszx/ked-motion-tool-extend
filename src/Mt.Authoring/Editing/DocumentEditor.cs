@@ -37,7 +37,7 @@ public sealed partial class DocumentEditor
 
     public bool CanRedo => _redo.Count > 0;
 
-    // ── 모션 ──────────────────────────────────────────────────────────
+    // ── 타임라인 ──────────────────────────────────────────────────────────
 
     public TimelineAsset AddTimeline(string name, string set, float duration)
     {
@@ -51,7 +51,7 @@ public sealed partial class DocumentEditor
 
         if (Document.Find(name) is not null)
         {
-            throw new InvalidOperationException($"모션 '{name}'이 이미 있다 — 이름은 하나뿐이어야 한다.");
+            throw new InvalidOperationException($"타임라인 '{name}'이 이미 있다 — 이름은 하나뿐이어야 한다.");
         }
 
         var timeline = new TimelineAsset { Name = name, Set = set, Duration = duration };
@@ -82,7 +82,7 @@ public sealed partial class DocumentEditor
 
         if (Document.Find(newName) is not null)
         {
-            throw new InvalidOperationException($"모션 '{newName}'이 이미 있다.");
+            throw new InvalidOperationException($"타임라인 '{newName}'이 이미 있다.");
         }
 
         Mutate(DocumentChangeKind.Metadata, () =>
@@ -113,7 +113,7 @@ public sealed partial class DocumentEditor
 
         if (timeline.FindChannel(node, kind) is not null)
         {
-            throw new InvalidOperationException($"모션 '{name}'에 채널 {node}/{kind}가 이미 있다 — 같은 노드·종류는 하나뿐이다.");
+            throw new InvalidOperationException($"타임라인 '{name}'에 채널 {node}/{kind}가 이미 있다 — 같은 노드·종류는 하나뿐이다.");
         }
 
         var channel = new ChannelAsset { Object = node, Kind = kind };
@@ -676,7 +676,7 @@ public sealed partial class DocumentEditor
     private List<(Action Undo, Action Redo)>? _batchSides;
 
     /// <summary>
-    /// 여러 명령을 되돌리기 한 번으로 묶는다(모션·채널·키를 한꺼번에). 안에서 던지면 문서를 묶기 전으로 되돌리고
+    /// 여러 명령을 되돌리기 한 번으로 묶는다(타임라인·채널·키를 한꺼번에). 안에서 던지면 문서를 묶기 전으로 되돌리고
     /// 기록에 남기지 않는다. 아무것도 안 바뀌었으면(같은 값만 넣었으면) 기록도 다시하기 삭제도 없다. 중첩은 바깥 묶음에 든다.
     /// 묶음 안에서 <see cref="RecordExternal"/>로 올린 손은 같은 칸에 붙는다.
     /// </summary>
@@ -820,13 +820,13 @@ public sealed partial class DocumentEditor
     private TimelineAsset Require(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        return Document.Find(name) ?? throw new KeyNotFoundException($"모션 '{name}'이 없다.");
+        return Document.Find(name) ?? throw new KeyNotFoundException($"타임라인 '{name}'이 없다.");
     }
 
     private static ChannelAsset RequireChannel(TimelineAsset timeline, string node, ChannelKind kind)
     {
         ArgumentNullException.ThrowIfNull(node);
-        return timeline.FindChannel(node, kind) ?? throw new KeyNotFoundException($"모션 '{timeline.Name}'에 채널 {node}/{kind}가 없다.");
+        return timeline.FindChannel(node, kind) ?? throw new KeyNotFoundException($"타임라인 '{timeline.Name}'에 채널 {node}/{kind}가 없다.");
     }
 
     private static ComponentCurve RequireCurve(ChannelAsset channel, Axis axis, int index)
@@ -855,7 +855,7 @@ public sealed partial class DocumentEditor
 
 public enum DocumentChangeKind
 {
-    /// <summary>모션·채널이 생기거나 사라졌다. 목록을 다시 만든다.</summary>
+    /// <summary>타임라인·채널이 생기거나 사라졌다. 목록을 다시 만든다.</summary>
     Structure,
 
     /// <summary>이름·길이. 목록은 그대로, 글자만 다시 쓴다.</summary>

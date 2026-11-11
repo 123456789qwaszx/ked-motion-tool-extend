@@ -5,7 +5,7 @@ using Mt.Authoring.Model;
 
 namespace Mt.App;
 
-// 그림 키의 셸(PLAN-standalone.md C4) — "모션" 탭 아래. 계단 키: 그 프레임부터 그 오브젝트의 그림이 바뀐다(표정 바꾸기).
+// 그림 키의 셸(PLAN-standalone.md C4) — "타임라인" 탭 아래. 계단 키: 그 프레임부터 그 오브젝트의 그림이 바뀐다(표정 바꾸기).
 // 그림을 그리는 오브젝트를 고르고 "그림 키 추가 (지금 프레임)…"로 그림 파일을 고른다. 컷의 타임라인이면 시각을 프레임으로 보인다.
 public partial class MainWindow
 {

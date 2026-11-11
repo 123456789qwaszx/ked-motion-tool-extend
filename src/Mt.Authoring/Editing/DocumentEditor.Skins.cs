@@ -2,7 +2,7 @@ using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Editing;
 
-// 스킨 명령(PLAN-parts.md P1) — 각각 되돌리기 한 칸. 조각 노드가 그 리그에 있는지는 검증·화면의 일이다(편집기는 세운 리그를 모른다).
+// 스킨 명령(PLAN-parts.md P1) — 각각 되돌리기 한 칸. 조각 노드가 그 세트에 있는지는 검증·화면의 일이다(편집기는 세운 계층을 모른다).
 public sealed partial class DocumentEditor
 {
     public SkinAsset AddSkin(string name, string set)
@@ -12,7 +12,7 @@ public sealed partial class DocumentEditor
 
         if (set.Length == 0)
         {
-            throw new InvalidOperationException("스킨에는 리그(setName)가 있어야 한다.");
+            throw new InvalidOperationException("스킨에는 세트(setName)가 있어야 한다.");
         }
 
         var skin = new SkinAsset { Name = trimmed, Set = set };

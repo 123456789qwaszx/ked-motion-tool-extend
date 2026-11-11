@@ -9,7 +9,7 @@ using Ked.Presentation.Core;
 namespace Mt.App.Services;
 
 /// <summary>
-/// 열린 문서 하나의 살림 — 경로·편집기·세운 리그·저장 여부. 화면은 이것을 통해서만 파일에 닿는다.
+/// 열린 문서 하나의 살림 — 경로·편집기·세운 계층·저장 여부. 화면은 이것을 통해서만 파일에 닿는다.
 /// 파일 선택 창은 화면의 일이고, 여기는 경로를 받아 읽고 쓴다(헤드리스 테스트가 그대로 쓴다).
 /// </summary>
 public sealed class DocumentSession
@@ -25,7 +25,7 @@ public sealed class DocumentSession
 
     // ── 문서 ↔ 실은 자산 ──────────────────────────────────────────────
     //
-    // 문서가 정의한 리그(세트 · 컷)와 스킨의 그림은 되돌리기·다시하기로도 바뀐다. 그때 세운 리그와 뷰포트의 그림 비트맵이 문서와 어긋나지 않도록,
+    // 문서가 정의한 계층(세트 · 컷)와 스킨의 그림은 되돌리기·다시하기로도 바뀐다. 그때 세운 계층과 뷰포트의 그림 비트맵이 문서와 어긋나지 않도록,
     // 지문을 두고 달라진 때만 AssetsChanged를 올린다. 키 편집(Keys·Metadata)은 보지도 않는다.
 
     private string _assetFingerprint = "";
@@ -53,7 +53,7 @@ public sealed class DocumentSession
 
         _assetFingerprint = fingerprint;
         AssetSyncCount++;
-        AssetsChanged?.Invoke(this, EventArgs.Empty); // 리그와 그림은 뷰포트가 문서대로 다시 싣는다
+        AssetsChanged?.Invoke(this, EventArgs.Empty); // 세트와 그림은 뷰포트가 문서대로 다시 싣는다
     }
 
     public DocumentEditor Editor { get; private set; }
@@ -61,8 +61,8 @@ public sealed class DocumentSession
     public string? DocumentPath { get; private set; }
 
     /// <summary>
-    /// 문서가 정의한 것(세트 · 컷)만으로 세운 리그 한 벌 — 뷰포트·검증·하이어아키가 이것을 읽는다. 문서의 리그가 바뀌면 다시 세운다.
-    /// 세울 수 없는 리그가 있으면 빈 한 벌로 물러나고 상태 줄에 남긴다.
+    /// 문서가 정의한 것(세트 · 컷)만으로 세운 계층 한 벌 — 뷰포트·검증·하이어아키가 이것을 읽는다. 문서의 세트가 바뀌면 다시 세운다.
+    /// 세울 수 없는 세트가 있으면 빈 한 벌로 물러나고 상태 줄에 남긴다.
     /// </summary>
     public BuiltSets Built
     {
@@ -177,7 +177,7 @@ public sealed class DocumentSession
 
     public event EventHandler? StatusChanged;
 
-    /// <summary>세운 리그나 그림이 바뀌었다. 뷰포트가 다시 싣는다.</summary>
+    /// <summary>세운 계층나 그림이 바뀌었다. 뷰포트가 다시 싣는다.</summary>
     public event EventHandler? AssetsChanged;
 
     /// <summary>검증에 쓰는 setName → 노드 표.</summary>

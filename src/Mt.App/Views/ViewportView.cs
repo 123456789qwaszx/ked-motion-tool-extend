@@ -255,7 +255,7 @@ public sealed class ViewportView : Control
 
     /// <summary>
     /// 배치 모드인가(스파인의 Setup) — 세트를 열었고 고른 애니메이션이 없다. 뷰포트의 끌기가 오브젝트의 **가만히 선 자세**를 바꾼다.
-    /// 그 세트의 모션을 고르면 애니메이션 모드다(끌기 = 키).
+    /// 그 세트의 타임라인을 고르면 애니메이션 모드다(끌기 = 키).
     /// </summary>
     public bool IsLayoutMode => _setView is not null && Timeline is null;
 
@@ -276,66 +276,66 @@ public sealed class ViewportView : Control
             DiscardPending();
             _setView = value;
             _entered = null;
-            _hiddenSetNodes.Clear();
-            _soloSetNode = null;
+            _hiddenObjects.Clear();
+            _soloObject = null;
             RebuildTemplate();
             InvalidateVisual();
         }
     }
 
     // 세트 안에서 오브젝트를 하나씩 따로 본다(PLAN-set.md S3) — 보기 상태다: 문서·되돌리기·산출물에 없고 세트를 닫으면 풀린다.
-    private readonly HashSet<string> _hiddenSetNodes = new(StringComparer.Ordinal);
-    private string? _soloSetNode;
+    private readonly HashSet<string> _hiddenObjects = new(StringComparer.Ordinal);
+    private string? _soloObject;
 
     /// <summary>이것만 본다 — 그 오브젝트와 그 밑의 것만 그려진다. null이면 솔로가 없다.</summary>
-    public string? SoloSetNode
+    public string? SoloObject
     {
-        get => _soloSetNode;
+        get => _soloObject;
         set
         {
-            _soloSetNode = value;
+            _soloObject = value;
             InvalidateVisual();
         }
     }
 
-    /// <summary>그 오브젝트를 숨겼는가(제 것만 — 부모가 숨겨져 안 보이는 것은 <see cref="IsSetNodeShown"/>).</summary>
-    public bool IsSetNodeHidden(string node) => _hiddenSetNodes.Contains(node);
+    /// <summary>그 오브젝트를 숨겼는가(제 것만 — 부모가 숨겨져 안 보이는 것은 <see cref="IsObjectShown"/>).</summary>
+    public bool IsObjectHidden(string node) => _hiddenObjects.Contains(node);
 
-    public void SetSetNodeHidden(string node, bool hidden)
+    public void SetObjectHidden(string node, bool hidden)
     {
-        if (hidden ? _hiddenSetNodes.Add(node) : _hiddenSetNodes.Remove(node))
+        if (hidden ? _hiddenObjects.Add(node) : _hiddenObjects.Remove(node))
         {
             InvalidateVisual();
         }
     }
 
     /// <summary>숨김·솔로를 다 푼다.</summary>
-    public void ShowAllSetNodes()
+    public void ShowAllObjects()
     {
-        _hiddenSetNodes.Clear();
-        _soloSetNode = null;
+        _hiddenObjects.Clear();
+        _soloObject = null;
         InvalidateVisual();
     }
 
     /// <summary>세트 보기에서 그 오브젝트가 그려지는가 — 저나 조상이 숨겨지지 않았고, 솔로가 있으면 저나 조상이 그 솔로다. 세트 보기가 아니면 늘 참.</summary>
-    public bool IsSetNodeShown(string node)
+    public bool IsObjectShown(string node)
     {
-        if (_setView is null || _editor?.Document.FindSetOrCut(_setView) is not { } set || (_hiddenSetNodes.Count == 0 && _soloSetNode is null))
+        if (_setView is null || _editor?.Document.FindSetOrCut(_setView) is not { } set || (_hiddenObjects.Count == 0 && _soloObject is null))
         {
             return true;
         }
 
-        bool underSolo = _soloSetNode is null;
+        bool underSolo = _soloObject is null;
 
         // 품은 세트 안쪽의 것은 그것을 품은 오브젝트를 따른다(안쪽은 여기서 따로 숨기지 않는다).
         for (ObjectAsset? at = set.Find(SetCodec.OwnerOf(node)); at is not null; at = at.Parent.Length > 0 ? set.Find(at.Parent) : null)
         {
-            if (_hiddenSetNodes.Contains(at.Id))
+            if (_hiddenObjects.Contains(at.Id))
             {
                 return false;
             }
 
-            underSolo |= at.Id == _soloSetNode;
+            underSolo |= at.Id == _soloObject;
         }
 
         return underSolo;
@@ -895,7 +895,7 @@ public sealed class ViewportView : Control
     {
         if (ReferenceEquals(_editor, editor))
         {
-            DiscardPending(); // 같은 문서에서 모션을 바꾸는 것 — 버린 포즈도 이력에
+            DiscardPending(); // 같은 문서에서 타임라인을 바꾸는 것 — 버린 포즈도 이력에
         }
         else
         {
@@ -995,7 +995,7 @@ public sealed class ViewportView : Control
     /// 연 컷/세트에서 그려지는 조각 노드들(그리는 순서) — 그림 오브젝트 가운데 입은 스킨이 그림을 준 것. 스킨을 안 입었으면 빈 목록.
     /// </summary>
     public IReadOnlyList<string> DrawnParts()
-        => _setView is { } kind && Worn is { } worn ? ObjectParts.Of(_set, kind).Where(worn.Parts.ContainsKey).Where(IsSetNodeShown).ToList() : Array.Empty<string>();
+        => _setView is { } kind && Worn is { } worn ? ObjectParts.Of(_set, kind).Where(worn.Parts.ContainsKey).Where(IsObjectShown).ToList() : Array.Empty<string>();
 
     /// <summary>조각이 지금 그려지는 사각형(루트 공간) — 노드의 rect 안에 그림의 종횡비로 맞추고 스킨의 놓임(자리·크기·회전)을 입힌 것. 없으면 null.</summary>
     public Quad? PartQuad(string node) => CurrentPose() is { } pose ? PartQuadOf(pose, node) : null;
@@ -1039,7 +1039,7 @@ public sealed class ViewportView : Control
         Vec2 center = rect.BottomLeft + ux * (w / 2f) + uy * (h / 2f);
         float turn = 0f;
 
-        // 스킨의 놓임 — 조각 노드 안에서의 자리(노드의 px), 크기, 회전. 노드의 값(모션) 위에 따로 얹힌다.
+        // 스킨의 놓임 — 조각 노드 안에서의 자리(노드의 px), 크기, 회전. 노드의 값(타임라인) 위에 따로 얹힌다.
         if (worn?.SetupOf(node) is { IsPlaced: true } setup && pose.GetState(key) is var state)
         {
             Vec2 size = state.SizeDelta;
@@ -1261,7 +1261,7 @@ public sealed class ViewportView : Control
             return null;
         }
 
-        // 연 컷/세트의 것이 아닌 모션은 얹지 않는다(가만히 선 자세로 선다).
+        // 연 컷/세트의 것이 아닌 타임라인은 얹지 않는다(가만히 선 자세로 선다).
         return timeline is not null && timeline.Set == _setView
             ? TimelinePose.Pose(_template, timeline, seconds, _flags.IsMuted, Prefix, alphas)
             : _template.Clone();
@@ -1335,7 +1335,7 @@ public sealed class ViewportView : Control
            && _set.AlphaNodeIds.TryGetValue(kind, out ICollection<string>? nodes) && nodes.Contains(node);
 
     /// <summary>
-    /// 고른 노드의 **제** 불투명도(부모 것은 안 곱한다) — 지금 시각. 불투명도를 받을 수 없는 노드거나 키를 놓을 모션이 없으면 null.
+    /// 고른 노드의 **제** 불투명도(부모 것은 안 곱한다) — 지금 시각. 불투명도를 받을 수 없는 노드거나 키를 놓을 타임라인이 없으면 null.
     /// </summary>
     public float? AlphaValue(string? node)
     {
@@ -1436,7 +1436,7 @@ public sealed class ViewportView : Control
         {
             DrawLayout(context, pose);
             DrawLabel(context, EnteredInstance is { } inside
-                ? $"{(ShownCut is null ? "세트" : "컷")} {_setView} › {inside.Replace(".", " › ", StringComparison.Ordinal)} 안쪽을 고치는 중 — 끌기: 자리 · Shift: 배율 · Ctrl: 회전 (품은 세트 {ResolveSetNode(inside)?.Node.Set}가 바뀐다 — 품은 곳 모두에). Esc · 빈 곳 더블클릭: 나간다"
+                ? $"{(ShownCut is null ? "세트" : "컷")} {_setView} › {inside.Replace(".", " › ", StringComparison.Ordinal)} 안쪽을 고치는 중 — 끌기: 자리 · Shift: 배율 · Ctrl: 회전 (품은 세트 {ResolveObject(inside)?.Node.Set}가 바뀐다 — 품은 곳 모두에). Esc · 빈 곳 더블클릭: 나간다"
                 : $"{(ShownCut is null ? "세트" : "컷")} {_setView} · 배치 — 끌기: 자리 · Shift+끌기: 배율 · Ctrl+끌기: 회전 · 품은 세트 더블클릭: 안쪽 고치기 (가만히 선 자세다. 애니메이션을 고르면 끌기가 키가 된다)", new Point(stage.X + 8, stage.Y + 6));
             return;
         }
@@ -1449,7 +1449,7 @@ public sealed class ViewportView : Control
         string timelineLabel = ShownCut is not null && timeline?.Name == _setView
             ? "끌기: 키 없는 값은 가만히 선 값, 키 있는 값은 지금 프레임의 키 (Shift 배율 · Ctrl 회전)"
             : timeline is null
-                ? "모션 없음"
+                ? "타임라인 없음"
                 : timeline.Name;
         DrawLabel(context, $"{openLabel} · {timelineLabel}", new Point(stage.X + 8, stage.Y + 6));
     }
@@ -1573,7 +1573,7 @@ public sealed class ViewportView : Control
                     continue;
                 }
 
-                if (colors.TryGetValue(node, out string? fill) && IsSetNodeShown(node) && Color.TryParse(fill, out Color color))
+                if (colors.TryGetValue(node, out string? fill) && IsObjectShown(node) && Color.TryParse(fill, out Color color))
                 {
                     Quad rect = StageQuads.RectQuad(pose, key);
 
@@ -2112,7 +2112,7 @@ public sealed class ViewportView : Control
     /// <summary>그 인스턴스의 안쪽으로 들어간다(null = 나온다). 배치 모드에서만, 세트를 품은 오브젝트만. 들어갔으면 true.</summary>
     public bool EnterInstance(string? path)
     {
-        if (path is not null && (!CanLayout || ResolveSetNode(path) is not { Node.Set.Length: > 0 }))
+        if (path is not null && (!CanLayout || ResolveObject(path) is not { Node.Set.Length: > 0 }))
         {
             return false;
         }
@@ -2143,7 +2143,7 @@ public sealed class ViewportView : Control
     }
 
     /// <summary>연 세트에서 본 경로 이름이 가리키는 (세트, 오브젝트) — 품은 세트를 따라 들어간다.</summary>
-    public (SetAsset Set, ObjectAsset Node)? ResolveSetNode(string path)
+    public (SetAsset Set, ObjectAsset Node)? ResolveObject(string path)
     {
         SetAsset? set = _editor?.Document.FindSetOrCut(_setView);
         string[] parts = path.Split(SetCodec.PathSeparator);
@@ -2188,7 +2188,7 @@ public sealed class ViewportView : Control
     {
         var at = new Pixel(position.X, position.Y);
 
-        // 펼친 리그의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
+        // 펼친 계층의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
         if (_set is not null && _setView is { } kind && _set.TryGetSet(kind, out HierarchyDto dto))
         {
             foreach (HierarchyNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut ? CutStage.DrawOrder(pickedCut, dto.nodes, pose, Prefix) : dto.nodes))
@@ -2197,7 +2197,7 @@ public sealed class ViewportView : Control
                 string? owner = PickableOf(node.id);
 
                 if (node.id == HierarchyLoader.RootKey || !pose.Contains(key) || node.sizeDelta is null || node.sizeDelta.x <= 0f || node.sizeDelta.y <= 0f
-                    || owner is null || ResolveSetNode(owner) is null || !IsSetNodeShown(node.id))
+                    || owner is null || ResolveObject(owner) is null || !IsObjectShown(node.id))
                 {
                     continue;
                 }
@@ -2212,7 +2212,7 @@ public sealed class ViewportView : Control
             }
         }
 
-        if (SelectedNode is { } selected && selected != _entered && ResolveSetNode(selected) is not null && PickableOf(selected) == selected && pose.Contains(KeyOf(selected))
+        if (SelectedNode is { } selected && selected != _entered && ResolveObject(selected) is not null && PickableOf(selected) == selected && pose.Contains(KeyOf(selected))
             && Distance(position, ToControl(pose.TransformPoint(KeyOf(selected), Vec3.Zero).XY)) <= GizmoHit + 6)
         {
             return selected;
@@ -2226,7 +2226,7 @@ public sealed class ViewportView : Control
     private bool TryStartLayoutDrag(Point position, KeyModifiers modifiers, bool keys = false)
     {
         if (_editor?.Document.FindSetOrCut(_setView) is null || CurrentPose() is not { } pose
-            || LayoutNodeAt(pose, position) is not { } id || ResolveSetNode(id) is not { } found)
+            || LayoutNodeAt(pose, position) is not { } id || ResolveObject(id) is not { } found)
         {
             return false;
         }

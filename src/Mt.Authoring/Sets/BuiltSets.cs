@@ -60,11 +60,11 @@ public sealed class BuiltSets
         return false;
     }
 
-    /// <summary>리그 하나를 코어 트리로 세운다 — 뷰포트와 미리보기의 시작값이 여기서 나온다.</summary>
+    /// <summary>세트 하나를 코어 트리로 세운다 — 뷰포트와 미리보기의 시작값이 여기서 나온다.</summary>
     public RectNodeTree BuildTree(string setName, string keyPrefix = "")
         => HierarchyLoader.BuildTree(Dto, setName, keyPrefix);
 
-    /// <summary>리그들로 한 벌을 세운다 — 무대 크기는 <paramref name="stageSize"/>. 세울 수 없는 모양의 리그면 예외(트리를 한 번 세워 본다).</summary>
+    /// <summary>세트들로 한 벌을 세운다 — 무대 크기는 <paramref name="stageSize"/>. 세울 수 없는 모양의 세트면 예외(트리를 한 번 세워 본다).</summary>
     public static BuiltSets Of(Vec2 stageSize, IEnumerable<HierarchyDto> sets)
     {
         ArgumentNullException.ThrowIfNull(sets);
@@ -78,6 +78,6 @@ public sealed class BuiltSets
         return new BuiltSets(dto);
     }
 
-    /// <summary>리그가 하나도 없는 빈 한 벌 — 새 문서, 또는 문서의 리그를 세우지 못했을 때.</summary>
+    /// <summary>세트가 하나도 없는 빈 한 벌 — 새 문서, 또는 문서의 세트를 세우지 못했을 때.</summary>
     public static BuiltSets Empty(Vec2 stageSize) => Of(stageSize, Array.Empty<HierarchyDto>());
 }

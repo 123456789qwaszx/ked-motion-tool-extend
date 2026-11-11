@@ -23,7 +23,7 @@ public class CutShots
 
         HeadlessUi.Run(() =>
         {
-            string settings = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"settings-{Guid.NewGuid():N}.json");
+            string settings = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"settings-{Guid.NewGuid():N}.json");
             Directory.CreateDirectory(Path.GetDirectoryName(settings)!);
             File.WriteAllText(settings, "{}");
             var window = new MainWindow(settings);
@@ -52,7 +52,7 @@ public class CutShots
                 editor.SetCutNodeDepth("cut", "microbe_sun", 20f);
                 editor.SetCutCameraKey("cut", 0f, new CameraSettings());
                 editor.SetCutCameraKey("cut", 4f, new CameraSettings { PanX = -200f, Zoom = 3f });
-                window.SelectSetNode("sign");
+                window.SelectObject("sign");
                 window.InspectorTab = 1;
                 Shot("cut-object-tab");
 

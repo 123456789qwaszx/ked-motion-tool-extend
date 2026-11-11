@@ -38,7 +38,7 @@ public class MtCliTests
         editor.AddSet(new SetAsset { Name = "prop", Objects = { new ObjectAsset { Id = "Body" } } });
         more?.Invoke(editor);
 
-        string directory = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"cli-{Guid.NewGuid():N}");
+        string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"cli-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         string path = Path.Combine(directory, "sample.cut-authoring.json");
         File.WriteAllText(path, AuthoringDocumentJson.Write(editor.Document));
@@ -169,17 +169,17 @@ public class MtCliTests
     {
         string document = WriteDocument();
 
-        // 모션: nod의 0.3초 — 가장 깊은 자리(-18), 이벤트가 방금 울렸다.
+        // 타임라인: nod의 0.3초 — 가장 깊은 자리(-18), 이벤트가 방금 울렸다.
         (int code, JsonNode? json, _, _) = Run("pose", document, "--timeline", "nod", "--time", "0.3");
         Assert.Equal(0, code);
         Assert.Equal("actor", json!["set"]!.GetValue<string>());
         Assert.Null(json["mode"]); // 재생 기준은 없다 — 키는 그 프레임의 값이다
-        Assert.Equal(-18.0, json["nodes"]!["CharacterPortrait_Track_Move_Y"]!["position"]![1]!.GetValue<double>(), 3);
+        Assert.Equal(-18.0, json["objects"]!["CharacterPortrait_Track_Move_Y"]!["position"]![1]!.GetValue<double>(), 3);
         Assert.Equal("땀", json["events"]![0]!["value"]!.GetValue<string>());
 
         // 길이를 지나도 마지막 키의 모습이다: bow는 끝에서 z = 8.
         (_, json, _, _) = Run("pose", document, "--timeline", "bow", "--time", "9");
-        Assert.Equal(8.0, json!["nodes"]!["CharacterPortrait_SwayPivot"]!["euler"]![2]!.GetValue<double>(), 3);
+        Assert.Equal(8.0, json!["objects"]!["CharacterPortrait_SwayPivot"]!["euler"]![2]!.GetValue<double>(), 3);
 
         // 얹힐 세트가 문서에 없는 애니메이션은 1이다.
         Assert.Equal(1, Run("pose", WriteDocument(e => e.AddTimeline("lost", "robot", 1f)), "--timeline", "lost", "--time", "0").Code);
@@ -189,7 +189,7 @@ public class MtCliTests
     public void 손으로_쓴_문서의_탄젠트는_종류대로_세워_읽는다()
     {
         // AI가 쓰는 꼴: 키의 값과 탄젠트 종류만 — 탄젠트 값은 없다.
-        string directory = Path.Combine(Path.GetTempPath(), "ked-timeline-tool-tests", $"cli-{Guid.NewGuid():N}");
+        string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", $"cli-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         string path = Path.Combine(directory, "hand.cut-authoring.json");
         File.WriteAllText(path, """
@@ -203,7 +203,7 @@ public class MtCliTests
         Assert.Equal(0, Run("validate", path).Code);
         (int code, JsonNode? json, _, _) = Run("pose", path, "--timeline", "slide", "--time", "0.25");
         Assert.Equal(0, code);
-        Assert.Equal(25.0, json!["nodes"]!["card"]!["position"]![0]!.GetValue<double>(), 2); // linear — 탄젠트 0이었다면 15.6쯤이 나온다
+        Assert.Equal(25.0, json!["objects"]!["card"]!["position"]![0]!.GetValue<double>(), 2); // linear — 탄젠트 0이었다면 15.6쯤이 나온다
 
         // 내보낸 컷 파일에도 그 탄젠트 값이 실린다(프레임당: 100 ÷ 24).
         string target = Path.Combine(directory, "slide.cut.json");

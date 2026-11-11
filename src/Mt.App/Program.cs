@@ -50,7 +50,7 @@ internal static class Program
     {
         try
         {
-            Console.Error.WriteLine($"[ked-timeline-tool] {context} 실패: {exception}");
+            Console.Error.WriteLine($"[ked-motion-tool] {context} 실패: {exception}");
         }
         catch (Exception)
         {

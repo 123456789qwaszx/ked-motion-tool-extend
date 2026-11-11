@@ -7,7 +7,7 @@ namespace Mt.Authoring.Tests;
 public class BuiltSetsTests
 {
     [Fact]
-    public void 세운_한_벌에서_리그와_노드_목록이_나온다_하드코딩된_이름은_없다()
+    public void 세운_한_벌에서_세트와_노드_목록이_나온다_하드코딩된_이름은_없다()
     {
         var document = new AuthoringDocument { Sets = { Fixtures.ActorSet(), PartsSetFixture.Set() } };
         BuiltSets set = Fixtures.SetOf(document);
@@ -37,7 +37,7 @@ public class BuiltSetsTests
     }
 
     [Fact]
-    public void 빈_한_벌은_리그가_없고_무대_크기만_안다()
+    public void 빈_한_벌은_세트가_없고_무대_크기만_안다()
     {
         BuiltSets empty = BuiltSets.Empty(new Vec2(1920f, 1080f));
 

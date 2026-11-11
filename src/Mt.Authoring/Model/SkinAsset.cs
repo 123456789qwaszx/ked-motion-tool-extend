@@ -1,8 +1,8 @@
 namespace Mt.Authoring.Model;
 
 /// <summary>
-/// 스킨 — 한 리그의 조각(그림 노드)마다 어떤 그림을 붙일지의 묶음에 이름을 붙인 것(<c>PLAN-parts.md</c> P1, Spine의 skin과 같은 자리).
-/// 리그 하나에 "땀"·"꽃"·"느낌표"가 각각 스킨이고, 오브젝트는 스킨을 고른다. 그림이 없는 조각은 안 그린다.
+/// 스킨 — 한 세트의 조각(그림 노드)마다 어떤 그림을 붙일지의 묶음에 이름을 붙인 것(<c>PLAN-parts.md</c> P1, Spine의 skin과 같은 자리).
+/// 세트 하나에 "땀"·"꽃"·"느낌표"가 각각 스킨이고, 오브젝트는 스킨을 고른다. 그림이 없는 조각은 안 그린다.
 /// 컷 파일에는 컷이 입은 스킨의 그림이 오브젝트마다 적혀 나간다.
 /// </summary>
 public sealed class SkinAsset
@@ -10,7 +10,7 @@ public sealed class SkinAsset
     /// <summary>문서에서 하나뿐인 이름. 한글도 된다(파일 규약의 이름이 아니다).</summary>
     public string Name { get; set; } = "";
 
-    /// <summary>이 스킨이 입히는 리그(setName).</summary>
+    /// <summary>이 스킨이 입히는 세트(setName).</summary>
     public string Set { get; set; } = "";
 
     /// <summary>조각 노드 id → 그림(문서 기준 상대 경로). 노드 이름순으로 적힌다.</summary>
@@ -73,8 +73,8 @@ public sealed class SkinAsset
 
 /// <summary>
 /// 스킨의 조각 하나의 덧붙임 — Spine의 어태치먼트가 뼈에 대해 갖는 자리와 sequence(그림 묶음)에 해당한다.
-/// 리그의 조각은 전부 한가운데에 같은 크기로 선다. 스킨마다 다른 "조각이 어디에 얼마만 하게 놓이는가"와 "몇 장을 넘기는가"는 그림의 일이라 스킨에 둔다 —
-/// 모션은 그 위에 얹힌다(같은 '톡 튀어나옴'을 꽃 셋에도, 물음표 하나에도 쓴다).
+/// 세트의 조각은 전부 한가운데에 같은 크기로 선다. 스킨마다 다른 "조각이 어디에 얼마만 하게 놓이는가"와 "몇 장을 넘기는가"는 그림의 일이라 스킨에 둔다 —
+/// 타임라인은 그 위에 얹힌다(같은 '톡 튀어나옴'을 꽃 셋에도, 물음표 하나에도 쓴다).
 /// </summary>
 public sealed class SkinPartSetup
 {
@@ -91,7 +91,7 @@ public sealed class SkinPartSetup
     /// <summary>마지막 장 다음에 첫 장으로 돌아가는가. 아니면 마지막 장에서 멈춘다(말줄임점이 하나씩 찍히고 선다).</summary>
     public bool Loop { get; set; } = true;
 
-    /// <summary>놓임 — 조각 노드 안에서의 자리(px), 크기(배), 회전(도). 노드의 값(모션이 움직이는 것)과는 따로다.</summary>
+    /// <summary>놓임 — 조각 노드 안에서의 자리(px), 크기(배), 회전(도). 노드의 값(타임라인이 움직이는 것)과는 따로다.</summary>
     public float X { get; set; }
 
     public float Y { get; set; }

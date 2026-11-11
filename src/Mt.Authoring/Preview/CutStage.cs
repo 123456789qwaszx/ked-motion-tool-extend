@@ -195,7 +195,7 @@ public static class CutStage
     }
 
     /// <summary>
-    /// 그리는 순서 — 먼 것부터(깊이가 작은 맨 위 오브젝트와 그 밑의 것들이 먼저), 같은 깊이는 목록 순. 펼친 리그의 노드들을 그 차례로 다시 세운다.
+    /// 그리는 순서 — 먼 것부터(깊이가 작은 맨 위 오브젝트와 그 밑의 것들이 먼저), 같은 깊이는 목록 순. 펼친 계층의 노드들을 그 차례로 다시 세운다.
     /// </summary>
     /// <param name="pose">그 시각의 포즈 — 주면 키로 움직인 깊이의 차례다. 없으면 오브젝트에 적힌 깊이.</param>
     public static IReadOnlyList<HierarchyNodeDto> DrawOrder(CutAsset cut, IReadOnlyList<HierarchyNodeDto> nodes, RectNodeTree? pose = null, string prefix = "")

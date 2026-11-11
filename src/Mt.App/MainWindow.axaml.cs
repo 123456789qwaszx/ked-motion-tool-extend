@@ -25,7 +25,7 @@ using Avalonia.VisualTree;
 namespace Mt.App;
 
 /// <summary>
-/// 셸 — 왼쪽 컷·세트·하이어아키·모션 목록, 가운데 뷰포트와 그래프, 오른쪽 인스펙터, 아래 상태·문제.
+/// 셸 — 왼쪽 컷·세트·하이어아키·타임라인 목록, 가운데 뷰포트와 그래프, 오른쪽 인스펙터, 아래 상태·문제.
 /// 모든 편집은 <see cref="DocumentEditor"/> 명령이고, 화면은 <see cref="DocumentEditor.Changed"/>를 듣고 다시 읽는다.
 /// 파일은 <see cref="DocumentSession"/>을 지난다.
 /// </summary>
@@ -99,7 +99,7 @@ public partial class MainWindow : Window
     private static readonly IBrush ChannelBoxKeyedHere = new SolidColorBrush(Color.FromArgb(150, 0xC8, 0x3C, 0x3C)); // 이 시각에 키(마야 빨강)
     private static readonly IBrush ChannelBoxKeyed = new SolidColorBrush(Color.FromArgb(110, 0xB4, 0x5A, 0x5A)); // 어딘가에 키(마야 연한 빨강)
     private static readonly IBrush ChannelBoxPending = new SolidColorBrush(Color.FromArgb(120, 0xD0, 0x8A, 0x28)); // 키 없는 포즈
-    /// <summary>선택 키의 노드 따라가기 — 하이어아키·아웃라이너에서 고르면 꺼지고, 모션을 바꾸면 켜진다(설정 아님).</summary>
+    /// <summary>선택 키의 노드 따라가기 — 하이어아키·아웃라이너에서 고르면 꺼지고, 타임라인을 바꾸면 켜진다(설정 아님).</summary>
     private bool _followSelection = true;
     private readonly TabControl _inspectorTabs = new() { Padding = new Avalonia.Thickness(0) };
     private Window? _settingsWindow;
@@ -126,9 +126,9 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _collapsedHierarchy = new();
     private readonly Dictionary<TreeViewItem, TreeViewItem?> _hierarchyParents = new();
     private readonly ContextMenu _hierarchyMenu = new();
-    private readonly TextBlock _timelineHeader = Header("모션");
+    private readonly TextBlock _timelineHeader = Header("타임라인");
 
-    /// <summary>"모션 추가 · 모션 삭제" — 컷을 연 동안은 숨긴다(컷에는 타임라인이 하나다).</summary>
+    /// <summary>"애니메이션 추가 · 애니메이션 삭제" — 컷을 연 동안은 숨긴다(컷에는 타임라인이 하나다).</summary>
     private readonly StackPanel _timelineButtons = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private object? _menuTarget;
     private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
@@ -145,7 +145,7 @@ public partial class MainWindow : Window
     /// <summary>시간 글자 단위(설정) — 마야처럼 프레임이 기본.</summary>
     private TimeDisplay Display => _settings.TimeDisplay;
 
-    // 오른쪽 — 모션
+    // 오른쪽 — 타임라인
     private readonly TextBox _timelineName = new() { FontSize = 11 };
     private readonly TextBox _timelineDuration = new() { FontSize = 11 };
 
@@ -622,13 +622,13 @@ public partial class MainWindow : Window
 
     internal string? SelectedTimeline => _timelineList.SelectedItem as string;
 
-    /// <summary>테스트 손잡이 — 모션 목록에 보이는 이름들과 그 머리글.</summary>
+    /// <summary>테스트 손잡이 — 타임라인 목록에 보이는 이름들과 그 머리글.</summary>
     internal (string Header, IReadOnlyList<string> Names) TimelineListState => (_timelineHeader.Text ?? "", (_timelineList.ItemsSource as IEnumerable<string> ?? Array.Empty<string>()).ToList());
 
-    /// <summary>테스트 손잡이 — "모션 추가" 버튼(이름·리그는 툴이 정한다).</summary>
+    /// <summary>테스트 손잡이 — "애니메이션 추가" 버튼(이름·세트는 툴이 정한다).</summary>
     internal void AddTimelineFromButton() => AddTimeline();
 
-    /// <summary>테스트 손잡이 — 목록에서 모션을 고른 것과 같다.</summary>
+    /// <summary>테스트 손잡이 — 목록에서 타임라인을 고른 것과 같다.</summary>
     internal void SelectTimeline(string name) => _timelineList.SelectedItem = name;
 
     /// <summary>헤드리스 테스트가 폼을 채우는 손잡이 — 화면과 같은 명령 경로를 지난다.</summary>
@@ -645,7 +645,7 @@ public partial class MainWindow : Window
     /// <summary>테스트 손잡이 — 채널을 바로 더한다(UI에는 "채널 추가"가 없다: 채널 박스·매니퓰레이터가 첫 키에서 만든다).</summary>
     internal void AddChannelFromForm(string node, ChannelKind kind)
     {
-        TimelineAsset timeline = _graph.Timeline ?? throw new InvalidOperationException("먼저 모션을 고른다.");
+        TimelineAsset timeline = _graph.Timeline ?? throw new InvalidOperationException("먼저 타임라인을 고른다.");
         _session.Editor.AddChannel(timeline.Name, node, kind);
     }
 
@@ -743,7 +743,7 @@ public partial class MainWindow : Window
         ToolTip.SetTip(_currentTime, "현재 프레임 — 숫자를 넣으면 그 시각으로(초는 0.5s처럼)");
         ToolTip.SetTip(_rangeStart, "재생 범위 시작");
         ToolTip.SetTip(_rangeEnd, "재생 범위 끝");
-        ToolTip.SetTip(_animEnd, "모션 길이(애니메이션 끝) — 바꾸면 길이가 바뀐다");
+        ToolTip.SetTip(_animEnd, "길이(타임라인 끝) — 바꾸면 길이가 바뀐다");
         (string Label, string Tip, EventHandler<RoutedEventArgs> Click)[] transportSpec =
         {
             ("⏮", "범위 처음으로 (`)", (_, _) => _viewport.Stop()),
@@ -1150,14 +1150,14 @@ public partial class MainWindow : Window
 
     private void BindTimeline(string? name)
     {
-        // 세트 보기는 그 세트의 모션만 연기한다 — 다른 리그의 모션을 골랐으면 세트를 닫는다.
+        // 세트 보기는 그 세트의 타임라인만 연기한다 — 다른 세트의 타임라인을 골랐으면 세트를 닫는다.
         if (SelectedSet is { } openSet && name is not null && _session.Editor.Document.Find(name)?.Set != openSet)
         {
             DeselectSet();
             return; // DeselectSet이 다시 묶는다
         }
 
-        _followSelection = true; // 모션을 바꾸면 다시 따라간다
+        _followSelection = true; // 타임라인을 바꾸면 다시 따라간다
         _graph.Bind(_session.Editor, name);
         _dope.Bind(_session.Editor, name);
 
@@ -1184,7 +1184,7 @@ public partial class MainWindow : Window
         RefreshChannels();
     }
 
-    /// <summary>테스트 손잡이 — 자산(세운 리그·그림)을 뷰포트에 다시 실은 횟수. 키 편집에서는 오르지 않아야 한다.</summary>
+    /// <summary>테스트 손잡이 — 자산(세운 계층·그림)을 뷰포트에 다시 실은 횟수. 키 편집에서는 오르지 않아야 한다.</summary>
     internal int AssetRefreshCount { get; private set; }
 
     private void RefreshAssets()
@@ -1255,10 +1255,10 @@ public partial class MainWindow : Window
         _timelineList.SelectionChanged += (_, _) => OnTimelineSelected();
         LeftPanel.Children.Add(_timelineList);
 
-        var addTimelineButton = SmallButton("모션 추가", (_, _) => Guard("모션 추가", () => AddTimeline()));
+        var addTimelineButton = SmallButton("애니메이션 추가", (_, _) => Guard("애니메이션 추가", () => AddTimeline()));
         ToolTip.SetTip(addTimelineButton, "연 세트의 애니메이션을 만든다 — 이름(timeline, timeline_2…)·길이 1초. 오른쪽 인스펙터에서 바꾼다. 컷에는 타임라인이 하나라 더하지 않는다");
         _timelineButtons.Children.Add(addTimelineButton);
-        _timelineButtons.Children.Add(SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveTimeline)));
+        _timelineButtons.Children.Add(SmallButton("애니메이션 삭제", (_, _) => Guard("애니메이션 삭제", RemoveTimeline)));
         LeftPanel.Children.Add(_timelineButtons);
 
         BuildSetLeft();
@@ -1266,7 +1266,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 오른쪽 = 탭 셋(PLAN-inspector): 채널 박스(기본, 애니메이터) · 오브젝트(연 컷/세트에서 고른 오브젝트와 스킨) · 모션(속성). 설정·단축키는 툴바의 창으로,
+    /// 오른쪽 = 탭 셋(PLAN-inspector): 채널 박스(기본, 애니메이터) · 오브젝트(연 컷/세트에서 고른 오브젝트와 스킨) · 타임라인(속성). 설정·단축키는 툴바의 창으로,
     /// 단축키의 그림자 버튼(Q/W/E/R·S·Esc·복사·붙여넣기…)은 없다. 마지막 탭·접힌 묶음은 설정에 남는다.
     /// </summary>
     private void BuildRight()
@@ -1275,7 +1275,7 @@ public partial class MainWindow : Window
         {
             new TabItem { Header = "채널 박스", Content = BuildChannelBoxTab(), FontSize = 12 },
             new TabItem { Header = "오브젝트", Content = BuildObjectTab(), FontSize = 12 },
-            new TabItem { Header = "모션", Content = BuildTimelineTab(), FontSize = 12 },
+            new TabItem { Header = "타임라인", Content = BuildTimelineTab(), FontSize = 12 },
         };
         _inspectorTabs.SelectionChanged += (_, _) =>
         {
@@ -1292,7 +1292,7 @@ public partial class MainWindow : Window
     {
         var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
         panel.Children.Add(_channelBoxTitle);
-        ToolTip.SetTip(_channelBoxTitle, "고른 노드의 Translate·Rotate·Scale. 칸에 값을 넣으면(+=·-=·*=·/= 는 지금 값에 상대) 매니퓰레이터를 놓은 것과 같다: Auto Key거나 그 시각에 키가 있으면 키, 아니면 키 없는 포즈(S로 키·Esc로 버림). 글자 클릭 = 그 커브를 그래프에(Shift/Ctrl: 더하기) · ● = 이 성분을 지금 키");
+        ToolTip.SetTip(_channelBoxTitle, "고른 오브젝트의 Translate·Rotate·Scale. 칸에 값을 넣으면(+=·-=·*=·/= 는 지금 값에 상대) 매니퓰레이터를 놓은 것과 같다: Auto Key거나 그 시각에 키가 있으면 키, 아니면 키 없는 포즈(S로 키·Esc로 버림). 글자 클릭 = 그 커브를 그래프에(Shift/Ctrl: 더하기) · ● = 이 성분을 지금 키");
         panel.Children.Add(_channelBoxPanel);
         panel.Children.Add(_pendingText);
 
@@ -1322,7 +1322,7 @@ public partial class MainWindow : Window
     private Control BuildObjectTab()
     {
         var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
-        panel.Children.Add(BuildSetNodePanel());
+        panel.Children.Add(BuildObjectPanel());
         panel.Children.Add(BuildSkinPanel());
         return panel;
     }
@@ -1466,7 +1466,7 @@ public partial class MainWindow : Window
         "전역 (창 어디서나 · 글 입력 칸 제외)\n" +
         "  1 / 2  이전·다음 키        Alt+1 / Alt+2  이전·다음 프레임\n" +
         "  `  첫 프레임               Alt+`  처음부터 재생        Alt+Q  재생/일시정지\n" +
-        "  S  키 놓기 — 키 없는 포즈가 있으면 그것을, 없으면 고른 노드의 지금 값을 현재 시각에\n" +
+        "  S  키 놓기 — 키 없는 포즈가 있으면 그것을, 없으면 고른 오브젝트의 지금 값을 현재 시각에\n" +
         "  Esc  키 없는 포즈 버리기\n" +
         "  Q / W / E / R  뷰포트 선택·이동·회전·배율\n" +
         "  Shift+W / E / F  현재 시각의 키 복사·붙여넣기·지우기      Shift+1 / 2  인비트윈 빼기·넣기\n" +
@@ -1485,7 +1485,7 @@ public partial class MainWindow : Window
         "  Q / W / R  선택·이동·스케일 툴(그래프 안)      Ctrl+1…6  탄젠트 auto·flat·linear·free·spline·plateau\n" +
         "  Ctrl+B / Ctrl+Shift+B  버퍼 커브 찍기·바꾸기\n\n" +
         "도프 시트\n" +
-        "  블록 드래그  시간 이동      Alt+드래그  복제      범위 띠 양끝  시간 스케일      더블클릭  키      노드 행 클릭  접기\n\n" +
+        "  블록 드래그  시간 이동      Alt+드래그  복제      범위 띠 양끝  시간 스케일      더블클릭  키      오브젝트 행 클릭  접기\n\n" +
         "타임 슬라이더\n" +
         "  클릭·드래그  스크럽      Shift+드래그  프레임 범위 선택      범위 안 MMB  범위의 키 이동      범위 밖 MMB  포즈 들고 스크럽(S로 키)\n" +
         "  우클릭  복사·붙여넣기·삭제·스냅 · 재생 범위 · 재생 모드 메뉴\n\n" +
@@ -1598,8 +1598,8 @@ public partial class MainWindow : Window
                     ? root
                     : found;
                 // 따로 보기(숨김 · 솔로)의 표시.
-                bool shown = _viewport.IsSetNodeShown(node.id);
-                string mark = _viewport.SoloSetNode == node.id ? "   ◉ 이것만" : _viewport.IsSetNodeHidden(node.id) ? "   (숨김)" : "";
+                bool shown = _viewport.IsObjectShown(node.id);
+                string mark = _viewport.SoloObject == node.id ? "   ◉ 이것만" : _viewport.IsObjectHidden(node.id) ? "   (숨김)" : "";
                 TreeViewItem nodeItem = Folder(node.id + mark, $"node:{kind}/{node.id}");
                 nodeItem.Opacity = shown ? 1 : 0.45;
 
@@ -1693,7 +1693,7 @@ public partial class MainWindow : Window
         switch (e.PhysicalKey)
         {
             case PhysicalKey.Delete:
-                Guard("오브젝트 지우기", RemoveSelectedSetNode);
+                Guard("오브젝트 지우기", RemoveSelectedObject);
                 break;
             case PhysicalKey.F2 when EditedObject is not null:
                 _inspectorTabs.SelectedIndex = 1; // 이름 칸은 "오브젝트" 탭에 있다
@@ -1735,7 +1735,7 @@ public partial class MainWindow : Window
     private void SelectNodeInHierarchy(string nodeId)
     {
         _objectSelected = nodeId;
-        RefreshSetNodePanel();
+        RefreshObjectPanel();
         _followSelection = false;
         _viewport.SelectedNode = nodeId;
         ShowCurves(_graph.Curves.Select(s => s.Curve).Where(cr => cr.Node == nodeId).ToList(), additive: false);
@@ -1777,11 +1777,11 @@ public partial class MainWindow : Window
         try
         {
             string? selected = SelectedTimeline ?? _graph.TimelineName;
-            // 세트나 컷을 열었으면 그것의 애니메이션만 — 다른 것의 모션은 이것이 연기할 수 없다.
-            // 아무것도 안 열었으면 전부(주인별로 묶어 이름순) — 주인이 사라진 모션도 여기서 고르고 지운다.
+            // 세트나 컷을 열었으면 그것의 애니메이션만 — 다른 것의 타임라인은 이것이 연기할 수 없다.
+            // 아무것도 안 열었으면 전부(주인별로 묶어 이름순) — 주인이 사라진 타임라인도 여기서 고르고 지운다.
             string? openSet = SelectedSet;
             bool cutOpen = openSet is not null && _session.Editor.Document.FindCut(openSet) is not null;
-            _timelineHeader.Text = openSet is null ? "모션" : cutOpen ? $"타임라인 — 컷 {openSet}" : $"애니메이션 — 세트 {openSet}";
+            _timelineHeader.Text = openSet is null ? "타임라인" : cutOpen ? $"타임라인 — 컷 {openSet}" : $"애니메이션 — 세트 {openSet}";
             _timelineButtons.IsVisible = !cutOpen;
             // 컷은 제 타임라인 하나만(컷과 같은 이름) — 옛 문서에 그 컷의 애니메이션이 더 있어도 여기서는 안 보인다(아무것도 안 연 목록에서 지운다).
             List<string> names = _session.Editor.Document.Timelines
@@ -1828,7 +1828,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 마야 그래프 에디터 아웃라이너(그래프 왼쪽) — 모션의 채널을 노드 · 종류로, 성분은 종류의 축 전부(없는 것은 흐리게).
+    /// 마야 그래프 에디터 아웃라이너(그래프 왼쪽) — 타임라인의 채널을 노드 · 종류로, 성분은 종류의 축 전부(없는 것은 흐리게).
     /// 행 클릭 = 그 커브만 보인다, Shift/Ctrl+클릭 = 더하기/빼기. 흐린 성분을 클릭해도 성분을 만들지 않는다(마야식) — 성분은 사용자가 키를 놓을 때만 생긴다.
     /// </summary>
     private void RefreshChannels()
@@ -1838,7 +1838,7 @@ public partial class MainWindow : Window
 
         if (timeline is null)
         {
-            _channelRows.Children.Add(new TextBlock { Text = "(모션 없음)", FontSize = 11, Opacity = 0.6, Margin = new Avalonia.Thickness(6, 4) });
+            _channelRows.Children.Add(new TextBlock { Text = "(타임라인 없음)", FontSize = 11, Opacity = 0.6, Margin = new Avalonia.Thickness(6, 4) });
             return;
         }
 
@@ -1910,7 +1910,7 @@ public partial class MainWindow : Window
 
         if (timeline.Channels.Count == 0)
         {
-            _channelRows.Children.Add(new TextBlock { Text = "(채널 없음 — 하이어아키에서 노드를 고르고 채널 박스에 값을 넣거나 매니퓰레이터로 끌면 생긴다)", FontSize = 11, Opacity = 0.6, TextWrapping = TextWrapping.Wrap, Margin = new Avalonia.Thickness(6, 4) });
+            _channelRows.Children.Add(new TextBlock { Text = "(채널 없음 — 하이어아키에서 오브젝트를 고르고 채널 박스에 값을 넣거나 매니퓰레이터로 끌면 생긴다)", FontSize = 11, Opacity = 0.6, TextWrapping = TextWrapping.Wrap, Margin = new Avalonia.Thickness(6, 4) });
         }
     }
 
@@ -1925,8 +1925,8 @@ public partial class MainWindow : Window
     private readonly List<(string Node, ChannelKind Kind)> _unkeyedRows = new();
 
     /// <summary>
-    /// 아직 키가 없는 채널들을 흐리게 — 이 모션이 안 건드리는 노드·종류(위치·배율·회전·불투명도)도 보이고, 눌러서 그 노드를 고르거나 ＋로 지금 값에 키를 놓는다.
-    /// "배율만 있는 모션에 살짝 위치도" 같은 손을 목록에서 바로 간다.
+    /// 아직 키가 없는 채널들을 흐리게 — 이 타임라인이 안 건드리는 노드·종류(위치·배율·회전·불투명도)도 보이고, 눌러서 그 노드를 고르거나 ＋로 지금 값에 키를 놓는다.
+    /// "배율만 있는 타임라인에 살짝 위치도" 같은 손을 목록에서 바로 간다.
     /// </summary>
     private void AddUnkeyedRows(TimelineAsset timeline, string query)
     {
@@ -1983,7 +1983,7 @@ public partial class MainWindow : Window
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     Cursor = new Cursor(StandardCursorType.Hand),
                 };
-                ToolTip.SetTip(title, $"{node}\n{kind} — 이 모션에 아직 키가 없다\n클릭: 이 노드를 고른다(뷰포트의 손잡이·채널 박스가 이 노드를 본다) · ＋: 지금 값에 키");
+                ToolTip.SetTip(title, $"{node}\n{kind} — 이 타임라인에 아직 키가 없다\n클릭: 이 오브젝트를 고른다(뷰포트의 손잡이·채널 박스가 이 오브젝트를 본다) · ＋: 지금 값에 키");
                 title.PointerPressed += (_, e) =>
                 {
                     _viewport.SelectedNode = capturedNode;
@@ -2234,14 +2234,14 @@ public partial class MainWindow : Window
     // ── 명령 ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// 모션 추가 — 이름은 timeline, timeline_2…, 주인은 연 세트, 길이 1초.
+    /// 애니메이션 추가 — 이름은 timeline, timeline_2…, 주인은 연 세트, 길이 1초.
     /// 전부 오른쪽 인스펙터에서 바꾼다. 테스트 손잡이는 값을 준다. 컷에는 더하지 않는다 — 컷의 타임라인은 하나다(컷을 만들 때 선다).
     /// </summary>
     private void AddTimeline(string? name = null, string? set = null, float duration = 1f)
     {
         name = (name ?? "").Trim();
 
-        // 이름을 비우면 timeline, timeline_2…로 만든다 — 빈 이름의 모션은 목록에서 안 보여 규칙 위반이 "안 없어지는" 것처럼 보인다.
+        // 이름을 비우면 timeline, timeline_2…로 만든다 — 빈 이름의 타임라인은 목록에서 안 보여 규칙 위반이 "안 없어지는" 것처럼 보인다.
         if (name.Length == 0)
         {
             name = NameRules.Unique(_session.Editor.Document, NameRules.Fallback);
@@ -2308,7 +2308,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        Guard("모션 편집", () => action(timeline));
+        Guard("타임라인 편집", () => action(timeline));
     }
 
     private void WithSingleKey(Action<KeyRef, KeyAsset> action)
@@ -2345,7 +2345,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            string? path = await PickOpenAsync("저작 원본 열기", new FilePickerFileType("모션 저작 원본") { Patterns = new[] { "*" + AuthoringFormat.AuthoringExtension, "*.json" } });
+            string? path = await PickOpenAsync("저작 원본 열기", new FilePickerFileType("저작 원본") { Patterns = new[] { "*" + AuthoringFormat.AuthoringExtension, "*.json" } });
 
             if (path is not null)
             {
@@ -2391,7 +2391,7 @@ public partial class MainWindow : Window
     private async Task SaveAsAsync()
     {
         string? path = await PickSaveAsync("저작 원본 저장", "timelines" + AuthoringFormat.AuthoringExtension,
-            new FilePickerFileType("모션 저작 원본") { Patterns = new[] { "*" + AuthoringFormat.AuthoringExtension } });
+            new FilePickerFileType("저작 원본") { Patterns = new[] { "*" + AuthoringFormat.AuthoringExtension } });
 
         if (path is not null)
         {

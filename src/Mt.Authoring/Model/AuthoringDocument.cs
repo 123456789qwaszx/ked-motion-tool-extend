@@ -17,7 +17,7 @@ public sealed class AuthoringDocument
     public List<TimelineAsset> Timelines { get; set; } = new();
 
     /// <summary>
-    /// 스킨들(<c>PLAN-parts.md</c> P1) — 리그의 조각마다 붙일 그림의 묶음. 미리보기 전용.
+    /// 스킨들(<c>PLAN-parts.md</c> P1) — 세트의 조각마다 붙일 그림의 묶음. 미리보기 전용.
     /// 저작본에는 <see cref="SkinsOrNull"/>로 실린다: 스킨이 없는 문서는 전과 같은 글자다.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -35,7 +35,7 @@ public sealed class AuthoringDocument
         => name is null ? null : Skins.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.Ordinal));
 
     /// <summary>
-    /// 툴에서 정의한 리그들(<c>PLAN-parts.md</c> §9) — 세트의 뼈대.
+    /// 툴에서 정의한 세트들(<c>PLAN-parts.md</c> §9) — 세트의 뼈대.
     /// 저작본에는 <see cref="SetsOrNull"/>로 실린다(없으면 안 적는다). 컷 파일에는 컷이 품은 것이 오브젝트로 펼쳐져 나간다.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -83,7 +83,7 @@ public sealed class TimelineAsset
 {
     public string Name { get; set; } = "";
 
-    /// <summary>이 모션이 얹히는 계층의 이름(setName) — 세트나 컷.</summary>
+    /// <summary>이 타임라인이 얹히는 계층의 이름(setName) — 세트나 컷.</summary>
     public string Set { get; set; } = "";
 
     /// <summary>초.</summary>
@@ -134,7 +134,7 @@ public sealed class TimelineAsset
     }
 
     /// <summary>
-    /// 재생 블록을 다 펼쳐 구운 것(<see cref="Preview.TimelineFlatten"/>) — 품은 세트의 애니메이션이 경로 이름의 채널(<c>차.Body</c>)로 들어와 한 덩어리가 된 모션.
+    /// 재생 블록을 다 펼쳐 구운 것(<see cref="Preview.TimelineFlatten"/>) — 품은 세트의 애니메이션이 경로 이름의 채널(<c>차.Body</c>)로 들어와 한 덩어리가 된 타임라인.
     /// 재생 블록이 없으면 null. 미리보기와 컷 파일은 이것을 쓴다 — 저작본에는 안 적힌다. 편집기가 문서가 바뀔 때마다 다시 굽는다.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]

@@ -3,24 +3,24 @@ using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Editing;
 
-// 툴에서 정의하는 리그의 명령(PLAN-parts.md §9) — 각각 되돌리기 한 칸.
+// 툴에서 정의하는 세트의 명령(PLAN-parts.md §9) — 각각 되돌리기 한 칸.
 public sealed partial class DocumentEditor
 {
     private static readonly Regex SetNameRule = new("^[a-zA-Z][a-zA-Z0-9_]*$", RegexOptions.Compiled);
 
-    /// <summary>리그를 문서에 더한다. 노드는 사본으로 들어간다. id가 겹치거나 부모가 앞에 없으면 막는다(세울 수 없는 리그다).</summary>
+    /// <summary>세트를 문서에 더한다. 노드는 사본으로 들어간다. id가 겹치거나 부모가 앞에 없으면 막는다(세울 수 없는 세트다).</summary>
     public SetAsset AddSet(SetAsset set)
     {
         ArgumentNullException.ThrowIfNull(set);
 
         if (!SetNameRule.IsMatch(set.Name ?? ""))
         {
-            throw new InvalidOperationException($"리그 이름은 영문자로 시작하는 영문·숫자·_ 다 ('{set.Name}')");
+            throw new InvalidOperationException($"세트 이름은 영문자로 시작하는 영문·숫자·_ 다 ('{set.Name}')");
         }
 
         if (Document.FindSetOrCut(set.Name) is not null)
         {
-            throw new InvalidOperationException($"리그 '{set.Name}'가 이미 있다.");
+            throw new InvalidOperationException($"세트 '{set.Name}'가 이미 있다.");
         }
 
         SetAsset copy = CloneSet(set);
@@ -29,7 +29,7 @@ public sealed partial class DocumentEditor
         return copy;
     }
 
-    /// <summary>리그를 지운다. 그 리그의 모션·스킨은 남는다 — 검증이 "없는 리그"로 알린다.</summary>
+    /// <summary>세트를 지운다. 그 세트의 타임라인·스킨은 남는다 — 검증이 "없는 세트"로 알린다.</summary>
     public void RemoveSet(string kind)
     {
         SetAsset set = RequireSet(kind);
@@ -109,10 +109,10 @@ public sealed partial class DocumentEditor
         => kind == target
            || (seen.Add(kind) && Document.FindSetOrCut(kind) is { } set && set.Objects.Any(n => n.Set is { Length: > 0 } inner && Holds(inner, target, seen)));
 
-    // ── 리그 편집기(PLAN-parts.md §12) — 노드를 하나씩 짓고 옮긴다 ────────
+    // ── 세트 편집(PLAN-parts.md §12) — 노드를 하나씩 짓고 옮긴다 ────────
 
     /// <summary>
-    /// 노드를 더한다 — <paramref name="parent"/>(비면 루트) 밑의 맨 뒤(그 부모의 식구들 뒤 = 가장 위에 그려진다). id는 그 리그에서 하나뿐이어야 한다.
+    /// 노드를 더한다 — <paramref name="parent"/>(비면 루트) 밑의 맨 뒤(그 부모의 식구들 뒤 = 가장 위에 그려진다). id는 그 세트에서 하나뿐이어야 한다.
     /// </summary>
     public ObjectAsset AddObject(string kind, string id, string? parent = null, bool image = false)
     {
@@ -122,7 +122,7 @@ public sealed partial class DocumentEditor
 
         if (under.Length > 0 && set.Find(under) is null)
         {
-            throw new KeyNotFoundException($"부모 노드 '{under}'가 리그 '{kind}'에 없다.");
+            throw new KeyNotFoundException($"부모 노드 '{under}'가 세트 '{kind}'에 없다.");
         }
 
         var node = new ObjectAsset { Id = name, Parent = under, Image = image, Alpha = image, Width = image ? ObjectAsset.DefaultImageSize : 0f, Height = image ? ObjectAsset.DefaultImageSize : 0f };
@@ -141,7 +141,7 @@ public sealed partial class DocumentEditor
     }
 
     /// <summary>
-    /// 노드의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 자식의 부모, 그 리그의 모션 채널, 스킨의 조각 칸.
+    /// 노드의 이름을 바꾼다 — 그 이름을 가리키던 것이 같은 칸에서 따라온다: 자식의 부모, 그 세트의 타임라인 채널, 스킨의 조각 칸.
     /// </summary>
     public void RenameObject(string kind, string id, string newId)
     {
@@ -155,10 +155,10 @@ public sealed partial class DocumentEditor
 
         string name = RequireNodeId(set, newId);
 
-        // 그 리그의 모션에 새 이름의 채널이 이미 있으면(지운 노드의 흔적) 합칠 수 없다.
+        // 그 세트의 타임라인에 새 이름의 채널이 이미 있으면(지운 노드의 흔적) 합칠 수 없다.
         if (Document.Timelines.Any(m => m.Set == kind && m.Channels.Any(c => c.Object == name)))
         {
-            throw new InvalidOperationException($"리그 '{kind}'의 모션에 노드 '{name}'의 채널이 이미 있다 — 먼저 그 채널을 지운다.");
+            throw new InvalidOperationException($"세트 '{kind}'의 타임라인에 노드 '{name}'의 채널이 이미 있다 — 먼저 그 채널을 지운다.");
         }
 
         Mutate(DocumentChangeKind.Document, () =>
@@ -295,7 +295,7 @@ public sealed partial class DocumentEditor
 
         if (under.Length > 0 && set.Find(under) is null)
         {
-            throw new KeyNotFoundException($"부모 노드 '{under}'가 리그 '{kind}'에 없다.");
+            throw new KeyNotFoundException($"부모 노드 '{under}'가 세트 '{kind}'에 없다.");
         }
 
         if (subtree.Any(n => n.Id == under))
@@ -359,7 +359,7 @@ public sealed partial class DocumentEditor
     {
         ArgumentNullException.ThrowIfNull(id);
         int index = set.Objects.FindIndex(n => string.Equals(n.Id, id, StringComparison.Ordinal));
-        return index >= 0 ? index : throw new KeyNotFoundException($"노드 '{id}'가 리그 '{set.Name}'에 없다.");
+        return index >= 0 ? index : throw new KeyNotFoundException($"노드 '{id}'가 세트 '{set.Name}'에 없다.");
     }
 
     private static readonly Regex NodeIdRule = new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.Compiled);
@@ -375,7 +375,7 @@ public sealed partial class DocumentEditor
 
         if (set.Find(name) is not null)
         {
-            throw new InvalidOperationException($"노드 '{name}'가 리그 '{set.Name}'에 이미 있다.");
+            throw new InvalidOperationException($"노드 '{name}'가 세트 '{set.Name}'에 이미 있다.");
         }
 
         if (Preview.CutStage.IsPointNode(name))
@@ -437,6 +437,6 @@ public sealed partial class DocumentEditor
     private SetAsset RequireSetOrCut(string kind)
     {
         ArgumentNullException.ThrowIfNull(kind);
-        return Document.FindSetOrCut(kind) ?? throw new KeyNotFoundException($"리그 '{kind}'가 문서에 없다.");
+        return Document.FindSetOrCut(kind) ?? throw new KeyNotFoundException($"세트 '{kind}'가 문서에 없다.");
     }
 }

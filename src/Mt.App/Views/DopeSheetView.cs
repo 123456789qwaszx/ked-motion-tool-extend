@@ -438,7 +438,7 @@ public sealed class DopeSheetView : Control
 
         if (timeline is null)
         {
-            DrawLabel(context, "모션을 고르면 여기에 키가 보입니다.", new Point(8, RulerHeight + RangeHeight + 6), LabelBrush);
+            DrawLabel(context, "타임라인을 고르면 여기에 키가 보입니다.", new Point(8, RulerHeight + RangeHeight + 6), LabelBrush);
             return;
         }
 

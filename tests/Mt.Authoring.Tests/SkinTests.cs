@@ -7,7 +7,7 @@ using Mt.Authoring.Serialization;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>스킨과 조각(<c>PLAN-parts.md</c> P1) — 리그의 조각마다 붙일 그림의 묶음.</summary>
+/// <summary>스킨과 조각(<c>PLAN-parts.md</c> P1) — 세트의 조각마다 붙일 그림의 묶음.</summary>
 public class SkinTests
 {
     private static readonly BuiltSets BuiltSets = Fixtures.SetOf(new AuthoringDocument { Sets = { PartsSetFixture.Set(), Fixtures.ActorSet() } });
@@ -27,7 +27,7 @@ public class SkinTests
         unmarked.Objects.ForEach(n => n.Image = false);
         Assert.Empty(ObjectParts.Of(Fixtures.SetOf(new AuthoringDocument { Sets = { unmarked } }), "plain"));
 
-        // 조각 노드는 리그의 보통 노드다 — 트리에 서고, 모션의 채널이 된다.
+        // 조각 노드는 세트의 보통 노드다 — 트리에 서고, 타임라인의 채널이 된다.
         RectNodeTree tree = BuiltSets.BuildTree(PartsSetFixture.SetName, "e1/");
         Assert.True(tree.Contains("e1/Badge_Part3"));
         Assert.Equal(PartsSetFixture.PartSize, tree.GetRectSize("e1/Badge_Part1").X, 3);
@@ -91,7 +91,7 @@ public class SkinTests
     }
 
     [Fact]
-    public void 이름과_리그가_안_맞으면_막는다()
+    public void 이름과_세트가_안_맞으면_막는다()
     {
         DocumentEditor editor = NewEditor();
         editor.AddSkin("a", PartsSetFixture.SetName);

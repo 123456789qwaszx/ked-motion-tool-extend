@@ -395,7 +395,7 @@ public class ViewportViewTests
     });
 
     [Fact]
-    public void 아무것도_안_열면_빈_무대이고_다른_것의_모션은_얹히지_않는다() => HeadlessUi.Run(() =>
+    public void 아무것도_안_열면_빈_무대이고_다른_것의_타임라인은_얹히지_않는다() => HeadlessUi.Run(() =>
     {
         DocumentEditor editor = TestDocuments.Nod();
         editor.AddTimeline("robot_wave", "robot", 1f);
@@ -420,7 +420,7 @@ public class ViewportViewTests
             view.ScrubTo(0.3);
             Assert.Equal(-18f, view.ShownQuad()!.Value.Center.Y, 2);
 
-            // 다른 것의 모션: 세트는 그대로 서고, 그 모션은 얹히지 않는다.
+            // 다른 것의 타임라인: 세트는 그대로 서고, 그 타임라인은 얹히지 않는다.
             view.Bind(editor, "robot_wave");
             Assert.True(view.HasSet);
             view.ScrubTo(0.3);

@@ -4,7 +4,7 @@ using Mt.Authoring.Model;
 namespace Mt.Authoring.Validation;
 
 /// <summary>
-/// 검증 문제 하나. 모션 이름이 비어 있으면 문서 수준의 문제다.
+/// 검증 문제 하나. 타임라인 이름이 비어 있으면 문서 수준의 문제다.
 /// <see cref="Blocking"/>이 false면 **알림**이다 — 내보내기를 막지 않는다.
 /// </summary>
 public sealed record ValidationProblem(string TimelineName, string Message, bool Blocking = true)
@@ -27,7 +27,7 @@ public sealed record ValidationProblem(string TimelineName, string Message, bool
 /// </summary>
 public static class DocumentValidator
 {
-    /// <param name="objectIds">setName → 노드 id 목록. null이면 세트·컷과 오브젝트의 존재 검사를 생략한다(세운 리그 없이 문서만 볼 때).</param>
+    /// <param name="objectIds">setName → 노드 id 목록. null이면 세트·컷과 오브젝트의 존재 검사를 생략한다(세운 계층 없이 문서만 볼 때).</param>
     /// <param name="alphaNodeIds">setName → 불투명도를 받을 수 있는 노드. 주면 알파 채널이 그 노드에 놓였는지 본다.</param>
     public static IReadOnlyList<ValidationProblem> Validate(
         AuthoringDocument document,
@@ -97,7 +97,7 @@ public static class DocumentValidator
 
         if (objectIds is not null && !objectIds.TryGetValue(timeline.Set ?? "", out nodeIds))
         {
-            Block($"setName '{timeline.Set}'인 리그(세트 · 컷)가 없다. 있는 것: [{string.Join(", ", objectIds.Keys)}]");
+            Block($"'{timeline.Set}'라는 세트나 컷이 없다. 있는 것: [{string.Join(", ", objectIds.Keys)}]");
             return problems;
         }
 

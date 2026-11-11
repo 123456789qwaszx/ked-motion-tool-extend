@@ -4,7 +4,7 @@ using Mt.Authoring.Model;
 
 namespace Mt.App;
 
-// 재생 블록의 셸(PLAN-set.md S10) — "모션" 탭 아래. 세트가 품은 세트의 애니메이션을 "언제 튼다"로 놓는다.
+// 재생 블록의 셸(PLAN-set.md S10) — "타임라인" 탭 아래. 세트가 품은 세트의 애니메이션을 "언제 튼다"로 놓는다.
 // 품은 세트가 없는 세트의 애니메이션에서는 칸이 숨는다. 컷 파일에는 구운 키로 나가므로 게임은 재생 블록을 모른다.
 public partial class MainWindow
 {

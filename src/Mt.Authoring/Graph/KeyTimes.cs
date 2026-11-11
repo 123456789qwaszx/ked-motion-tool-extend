@@ -2,7 +2,7 @@ using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Graph;
 
-/// <summary>모션의 키 시각 목록 — 타임 슬라이더의 틱과 다음/이전 키 점프(`.` `,`)에 쓴다.</summary>
+/// <summary>타임라인의 키 시각 목록 — 타임 슬라이더의 틱과 다음/이전 키 점프(`.` `,`)에 쓴다.</summary>
 public static class KeyTimes
 {
     /// <summary>두 시각을 같은 자리로 치는 허용 오차(초) — 파일을 오가며 생기는 부동소수 잡음만 흡수한다.</summary>

@@ -58,7 +58,7 @@ public sealed partial class DocumentEditor
     {
         if (index < 0 || index >= timeline.Events.Count)
         {
-            throw new ArgumentOutOfRangeException(nameof(index), index, $"모션 '{timeline.Name}'의 이벤트가 {timeline.Events.Count}개다.");
+            throw new ArgumentOutOfRangeException(nameof(index), index, $"타임라인 '{timeline.Name}'의 이벤트가 {timeline.Events.Count}개다.");
         }
 
         return timeline.Events[index];

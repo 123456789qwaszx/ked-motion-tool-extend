@@ -22,7 +22,7 @@ namespace Mt.Cli;
 public static class MtCli
 {
     public const string Usage = """
-        mt — ked-timeline-tool 명령줄 (결과는 stdout의 JSON, 종료 코드 0 됨 · 1 막는 문제 · 2 쓰는 법)
+        mt — ked-motion-tool 명령줄 (결과는 stdout의 JSON, 종료 코드 0 됨 · 1 막는 문제 · 2 쓰는 법)
 
           mt info     <문서>                              애니메이션·스킨·컷·세트의 목록
           mt validate <문서>                              문제 목록. 막는 문제가 있으면 종료 코드 1
@@ -165,13 +165,13 @@ public static class MtCli
         var result = new JsonObject { ["ok"] = true, ["time"] = time };
 
         string timelineName = options.Value("timeline") ?? throw new UsageException("pose에는 --timeline이 있어야 한다");
-        TimelineAsset timeline = document.Find(timelineName) ?? throw new KeyNotFoundException($"모션 '{timelineName}'이 없다.");
+        TimelineAsset timeline = document.Find(timelineName) ?? throw new KeyNotFoundException($"타임라인 '{timelineName}'이 없다.");
         result["timeline"] = timeline.Name;
         result["duration"] = timeline.Duration;
 
         if (!set.TryGetSet(timeline.Set, out _))
         {
-            throw new InvalidOperationException($"모션 '{timeline.Name}'이 얹히는 세트나 컷 '{timeline.Set}'가 없다.");
+            throw new InvalidOperationException($"타임라인 '{timeline.Name}'이 얹히는 세트나 컷 '{timeline.Set}'가 없다.");
         }
 
         RectNodeTree pose = PoseOf(document, set, timeline, time, alphas);
@@ -183,7 +183,7 @@ public static class MtCli
         }
 
         result["set"] = timeline.Set;
-        result["nodes"] = nodes;
+        result["objects"] = nodes;
 
         result["events"] = new JsonArray(EventKeys.Between(timeline, time - EventWindow, time)
             .Select(e => (JsonNode)new JsonObject { ["time"] = e.T, ["name"] = e.Name, ["value"] = e.Value }).ToArray());

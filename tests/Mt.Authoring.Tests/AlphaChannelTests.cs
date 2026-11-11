@@ -35,7 +35,7 @@ public class AlphaChannelTests
         return editor;
     }
 
-    /// <summary>조각 리그를 <c>e1/</c> 접두사로 세운 트리.</summary>
+    /// <summary>조각 세트를 <c>e1/</c> 접두사로 세운 트리.</summary>
     private static RectNodeTree Template() => BuiltSets.BuildTree(PartsSetFixture.SetName, "e1/");
 
     private static void Near(float expected, float actual) => Assert.InRange(actual, expected - 1e-3f, expected + 1e-3f);
