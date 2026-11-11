@@ -3,10 +3,7 @@ using System;
 namespace Ked.Presentation.Core
 {
     /// <summary>
-    /// 커스텀 이징 곡선의 키 하나 — Unity Keyframe의 순수 대응
-    /// (time · value · inTangent · outTangent, 가중 탄젠트는 비범위).
-    /// readonly가 아닌 이유: 커맨드 스펙([Serializable])에 실려 유니티 직렬화를
-    /// 타야 한다 — readonly 필드는 유니티가 직렬화하지 못한다.
+    /// 곡선의 키 하나 — time · value · inTangent · outTangent(유니티 Keyframe과 같은 뜻, 가중 탄젠트는 없다).
     /// </summary>
     [Serializable]
     public struct CurveKey
@@ -26,16 +23,8 @@ namespace Ked.Presentation.Core
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // 커스텀 곡선 평가 — Unity AnimationCurve.Evaluate의 코어 대응.
-    //
-    // 형태 규약은 EaseFunctions와 같다: 순수, UnityEngine 타입 금지.
-    // 구간 양끝 키의 value·tangent로 3차 Hermite 보간, 범위 밖은 끝값 클램프,
-    // 무한 탄젠트는 계단(앞 키 값 유지) — 전부 AnimationCurve와 같은 규칙이다.
-    //
-    // 등가의 심판은 EditMode 테스트 CurveFunctionsAnimationCurveParityTests:
-    // 같은 키로 만든 AnimationCurve.Evaluate와 대표 곡선 × 257샘플 < 1e-4.
-    // 양쪽이 이 함수 하나를 쓴다: VnTool 프리뷰·스크럽도, 호스트 트윈의
-    // 커스텀 이즈 델리게이트도.
+    // 곡선 평가 — 구간 양끝 키의 value·tangent로 3차 Hermite 보간, 범위 밖은 끝값 클램프,
+    // 무한 탄젠트는 계단(앞 키 값 유지). 유니티 AnimationCurve.Evaluate와 같은 규칙이다.
     // ─────────────────────────────────────────────────────────────────
     public static class CurveFunctions
     {
@@ -88,15 +77,8 @@ namespace Ked.Presentation.Core
         }
 
         /// <summary>
-        /// 구간 밖을 **끝 두 키의 할선(secant)**으로 외삽한다 — 런타임
-        /// CharacterDepthLevelTuningSet.EvaluateUnclamped와 같은 규칙이다.
-        ///
-        /// ⚠ 탄젠트가 아니라 할선이다. 지금 덤프의 yCurve가 Linear라
-        /// outSlope(-56)과 할선((-440-120)/10 = -56)이 우연히 같지만,
-        /// 커브를 손보는 날 조용히 갈린다.
-        ///
-        /// ⚠ WrapMode(m_PreInfinity/m_PostInfinity)는 보지 않는다 —
-        /// 런타임이 그걸 쓰지 않는다. 흉내 내면 재생과 갈린다.
+        /// 구간 밖을 **끝 두 키의 할선(secant)**으로 외삽한다 — 깊이 커브가 설계 구간 너머의 깊이에도 값을 내게 한다.
+        /// 탄젠트가 아니라 할선이다. WrapMode(m_PreInfinity/m_PostInfinity)는 보지 않는다.
         /// </summary>
         public static float EvaluateUnclamped(CurveKey[] keys, float t)
         {

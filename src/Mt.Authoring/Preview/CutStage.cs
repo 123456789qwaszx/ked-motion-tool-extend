@@ -121,7 +121,7 @@ public static class CutStage
         ArgumentNullException.ThrowIfNull(cut);
         CameraSettings camera = CameraOf(tree, cut, prefix);
 
-        float scale = ShotIntentMath.EvaluateCameraScale(camera.Zoom);
+        float scale = CutMath.CameraScale(camera.Zoom);
         var pan = new Vec2(camera.PanX, camera.PanY);
 
         if (tree.Contains(prefix + Zoom))

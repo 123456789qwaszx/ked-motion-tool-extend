@@ -5,8 +5,7 @@ using NUnit.Framework;
 namespace Ked.Presentation.Core.Tests
 {
     /// <summary>
-    /// 덤프 → 트리 변환의 규율. 여기서는 합성 덤프를 쓴다 —
-    /// 실제 덤프와 실제 리그의 대조는 UnityParity 하네스의 일이다.
+    /// 덤프 → 트리 변환의 규율. 여기서는 합성 덤프를 쓴다.
     /// </summary>
     public sealed class RigSchemaLoaderTests
     {

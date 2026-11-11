@@ -56,7 +56,7 @@ namespace Ked.Presentation.Core
         }
 
         /// <summary>
-        /// 이미 있는 트리에 리그 인스턴스를 붙인다 — 리듀서의 slot 폴드가 슬롯마다 부른다.
+        /// 이미 있는 트리에 리그 인스턴스를 붙인다.
         /// attachParentKey가 null이면 트리의 루트 공간 직속이다.
         /// </summary>
         public static void AddRigTo(

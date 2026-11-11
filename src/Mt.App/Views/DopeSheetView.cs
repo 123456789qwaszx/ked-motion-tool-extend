@@ -3,7 +3,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using Ked.Presentation.Core;
 using Mt.Authoring.Editing;
 using Mt.Authoring.Graph;
 using Mt.Authoring.Model;

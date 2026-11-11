@@ -120,8 +120,6 @@ namespace Ked.Presentation.Core
 
         /// <summary>
         /// 루트→노드 순서의 상태 사슬과 (원하면) 같은 순서의 키 목록.
-        /// SettledFocusMath처럼 체인 인덱스가 필요한 계산에 쓴다 —
-        /// 호스트 어댑터의 CaptureSettledChain(chainRects)과 같은 역할이다.
         /// </summary>
         public RectNodeState[] BuildChainTo(string key, List<string> chainKeys = null)
         {

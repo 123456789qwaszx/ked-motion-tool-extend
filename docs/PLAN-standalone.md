@@ -301,7 +301,15 @@ C2b · C2c에서 정한 것:
     - 툴이 아직 쓰는 코어의 것((다)-2에서 남길 것의 근거): `MotionChannelKind` · `Vec2`/`Vec3` · `RectNodeTree`/`RectNodeState`/`RectSpace` · `CurveKey`/`CurveFunctions` · 리그 스키마의 DTO와 로더 ·
       `DepthLevelTuningDto`/`DepthLevelLabels` · `ShotIntentMath` · `Cut/` 전부. 코어의 `Motion/`(클립·규칙·계산) · `Reduce/` · `Tokens/` · 무대 상태는 더는 안 쓴다.
     - 이 묶음은 에이전트가 사용량 한도로 두 번 멈춰, 끝(남은 테스트와 문서)은 직접 마무리했다.
-  - [ ] (다)-2 코어 사본의 캐릭터 쪽을 줄인다(`Motion/` · `Reduce/` · `Tokens/` · 무대 상태 · 초상·자리·프리셋의 `Tuning/`) — 런타임에서 온 NUnit 테스트(414개) 가운데 그것들을 보는 것도 함께 나간다.
+  - [x] (다)-2 **코어를 컷이 쓰는 것만 남기고 줄였다(2026-11-11)** — 그리고 "런타임 코어의 사본"이 아니라 **이 저장소의 것**이 됐다(소유자: 런타임과의 관계는 잊는다. 뒤 변경을 반입하지 않는다).
+    - 걷은 것: `Motion/` · `Reduce/` · `Tokens/` · `State`의 무대 상태(`StageState` · 비교기 · 자리 장부 · `ShotIntentState`) · `SettledFocusMath` · 초상·배경·자리·프리셋의 `Tuning/` ·
+      `Documentation~/`, 그것들을 보던 NUnit 테스트. 코어 6,283줄 → 1,460줄, 코어 테스트 414 → 60개(사각형 계층 · 좌표 계산 · 계층 세우기 · 벡터는 지켰다).
+    - **이징도 걷었다**(`EaseFunctions` · `EaseKind` · `OscillationFunctions` · `CurveKind`) — 앞서 "남길 것"에 이징을 적었지만, 컷이 쓰는 것은 키의 곡선(`CurveFunctions`)뿐이고
+      이름 붙은 이징은 어디서도 부르지 않았다. `Rgba`도 같다. 필요해지면 그때 이 저장소의 것으로 다시 짓는다.
+    - `MotionChannelKind`는 코어가 쓰지 않는다(컷 파일은 `what` 문자열로 적는다) — **도메인으로 옮겼다**(`Mt.Authoring/Model/MotionChannelKind.cs`).
+    - 카메라의 배율(zoom 1당 0.05)은 `ShotIntentMath`에서 `CutMath.CameraScale`로 옮겼다. 초당 프레임(24)은 `DurationToken` 대신 `TimeSnap.FramesPerSecond`가 든다.
+    - 깊이 커브의 DTO는 `Tuning/DepthTuningDto.cs`에 커브만 남겼다(프리셋 표 · focus 튜닝은 나갔다). `DepthLevelLabels`는 눈금 다섯만 남겼다(라벨 토큰 읽기와 실험용 눈금은 나갔다).
+    - `vendoring.md`는 동기화 절차가 아니라 출발점의 기록으로 고쳐 적었다. `MAINTENANCE.md`의 "코어 재반입" 절을 없앴다.
 - [ ] 컷의 예시를 새로 짓는다(캐릭터 · 배경 · 소품 · 카메라).
 
 ## 9. 정하지 않는 것(소유자, 2026-11-10)

@@ -68,7 +68,7 @@ public sealed class CutAsset
     public float Seconds => Frames / (float)Fps;
 }
 
-/// <summary>카메라 — 코어 <c>ShotIntentState</c>와 같은 뜻(zoom 1당 배율 0.05, pan은 무대 px).</summary>
+/// <summary>카메라 — zoom 1당 배율 0.05(코어 <c>CutMath.CameraScale</c>), pan은 무대 px.</summary>
 public sealed class CameraSettings
 {
     public float Zoom { get; set; }

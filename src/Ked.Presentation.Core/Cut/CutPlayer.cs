@@ -64,7 +64,7 @@ namespace Ked.Presentation.Core
             camera.panY = Value(cut, CameraTarget, "panY", frame, cut.camera != null ? cut.camera.panY : 0f);
             camera.zoom = Value(cut, CameraTarget, "zoom", frame, cut.camera != null ? cut.camera.zoom : 0f);
             pose.Camera = camera;
-            float scale = ShotIntentMath.EvaluateCameraScale(camera.zoom);
+            float scale = CutMath.CameraScale(camera.zoom);
 
             tree.Add(ZoomKey, null, RectNodeState.StretchFull.WithLocalScale(new Vec3(scale, scale, 1f)));
             tree.Add(PanKey, ZoomKey, RectNodeState.StretchFull.WithAnchoredPosition(new Vec2(camera.panX, camera.panY)));

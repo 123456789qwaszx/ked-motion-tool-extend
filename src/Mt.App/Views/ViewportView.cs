@@ -230,7 +230,7 @@ public sealed class ViewportView : Control
     /// <summary>연 컷/세트가 무대에 서는 이름 — 노드 키의 접두사가 된다(<c>set/오브젝트</c>). 문서에는 없다(보기 전용).</summary>
     public const string SetObjectId = "set";
 
-    /// <summary>노드 키의 접두사 — 코어 <c>StageState.NodeKeyOf</c>와 같은 꼴.</summary>
+    /// <summary>노드 키의 접두사.</summary>
     private const string Prefix = SetObjectId + "/";
 
     private static string KeyOf(string node) => Prefix + node;

@@ -5,10 +5,6 @@ namespace Ked.Presentation.Core.Tests
     /// <summary>
     /// 순수 좌표 수학의 골든. 기대값은 전부 손으로 계산한 것이다 —
     /// 구현을 돌려 나온 값을 기대값으로 박으면 틀린 구현을 고정하게 된다.
-    ///
-    /// 실제 RectTransform과의 대조는 UnityParity 하네스가 따로 한다.
-    /// 여기가 통과하고 거기가 실패하면 "유니티 규약을 잘못 안 것"이고,
-    /// 여기가 실패하면 "내 산수가 틀린 것"이다 — 두 실패를 갈라 보려고 나눠 둔다.
     /// </summary>
     public sealed class RectChainMathTests
     {
@@ -268,9 +264,7 @@ namespace Ked.Presentation.Core.Tests
             // 스트레치 풀 + 가운데 pivot 체인은 모든 노드의 localPosition이 0이라
             // 순수 회전 합성만 남는다. 체인은 끝 노드부터 적용되므로
             // [Y, X, Z] 순으로 쌓으면 Z가 먼저 걸린다.
-            //
-            // (유니티 규약과 같은지는 UnityParity의 오일러_3축_순서가 판정한다.
-            //  여기서 잡는 것은 "합성 순서가 구현 안에서 일관한가"다.)
+            // 여기서 잡는 것은 "합성 순서가 구현 안에서 일관한가"다.
             RectSpace space = RectSpace.Centered(1000f, 500f);
             Vec3 point = new(100f, -40f, 25f);
 

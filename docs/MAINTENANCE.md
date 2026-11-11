@@ -14,7 +14,7 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 ```
 
 - SDK는 `global.json`(10.0.100, latestFeature). 패키지 판은 `Directory.Packages.props` 한 곳(Avalonia 12.1.1 — VnTool과 같은 판).
-- `Directory.Build.props`: ImplicitUsings·Nullable·TreatWarningsAsErrors·LangVersion latest. 반입 코어만 자기 csproj에서 LangVersion 9 · netstandard2.1 · ImplicitUsings/Nullable 끔으로 되돌린다(유니티 호환).
+- `Directory.Build.props`: ImplicitUsings·Nullable·TreatWarningsAsErrors·LangVersion latest. 코어만 자기 csproj에서 LangVersion 9 · netstandard2.1 · ImplicitUsings/Nullable 끔으로 되돌린다(유니티에서도 컴파일되는 수준).
 - CI: `.github/workflows/test.yml` — `main`·`dev` 푸시와 PR, ubuntu-latest, restore → build → test. 테스트 프로젝트 셋(Core 414 · Authoring 183 · App 66건, 2026-10-29). Windows 패키지 스모크는 아직 없다.
 - 로컬에 SDK를 못 깔면 CI가 유일한 검증이다. `dotnet test`의 요약 줄이 **셋**(세 프로젝트) 나오는지 세고 "전부 통과"라고 말한다 — 빌드에 실패한 프로젝트는 조용히 건너뛴다.
 
@@ -45,7 +45,7 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 
 1. **편집은 `MotionEditor`만 지난다.** 뷰·세션은 모델을 직접 바꾸지 않는다. 새 편집 기능은 `MotionEditor`에 메서드를 더하고(`Mutate` 또는 `Batch`), 뷰는 그것을 부른다. 드래그 중간값은 렌더만(`_overrides`), 놓는 순간이 편집 하나.
 2. **조작 하나 = 되돌리기 한 칸.** 여러 명령이 한 조작이면 `Batch`로 감싼다. 문서 밖 상태(키 없는 포즈 등)의 변화는 `RecordExternal(undo, redo)`로 같은 줄에 올린다. 무변경 조작은 기록하지 않는다(`Commit`이 JSON 전후를 비교). 던지는 명령은 흔적이 없다. 자세한 정책과 테스트는 `PLAN-undo.md`.
-3. **Core 사본(`src/Ked.Presentation.Core`)은 고치지 않는다.** 소비자 쪽에서 적응한다. 동기화 절차는 `src/Ked.Presentation.Core/vendoring.md`.
+3. **코어(`src/Ked.Presentation.Core`)는 이 저장소의 것이다.** 필요하면 고친다 — 런타임의 뒤 변경을 반입하지 않는다(소유자, 2026-11-11). 어디서 출발했는가는 `src/Ked.Presentation.Core/vendoring.md`.
 4. **산출물 등가.** `MotionsJson` 쓰기는 정규 직렬화(§7)이고 유니티 `MotionClipExporter`와 바이트까지 같아야 한다. `MotionsJsonTests.nod_bow를_편집기로_지어_내보내면_Unity_산출물과_바이트까지_같다`가 심판이다.
 5. **보이는 것 = 재생하는 것.** 뷰포트 포즈는 코어 `MotionMath.Compose`·`StageState` 폴드 함수로만 만든다. 화면용 근사 수식을 두지 않는다.
 6. **툴은 Yarn·커맨드를 모른다.** `Mt.Authoring`에 그 타입을 들이지 않는다.
@@ -53,26 +53,19 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 
 ## 4. 자주 하는 작업
 
-### 4.1 코어 재반입 (`ked-stage-runtime`이 바뀌었을 때)
-
-1. `vendoring.md`의 절차대로 `diff -r`로 갈래를 가르고 저쪽 본으로 교체(`Tests/`·`*.meta`·`*.asmdef` 제외).
-2. 순수 테스트만 `tests/Ked.Presentation.Core.Tests/EditMode/`로 복사(유니티·DOTween·Newtonsoft 참조는 제외).
-3. 컴파일 적응은 `Mt.Authoring`·`Mt.App`에서. 규약이 바뀌었으면 `MotionsJson`·`MotionDocumentJson`·`AuthoringFormat`의 스키마 문자열과 골든 픽스처(`tests/Mt.Authoring.Tests/Fixtures/`)를 갱신한다.
-4. 전체 빌드·테스트. `vendoring.md` 표의 원본 커밋·반입일 갱신.
-
-### 4.2 라벨·문구 바꾸기
+### 4.1 라벨·문구 바꾸기
 
 채널 종류 표시는 `Model/ChannelKindLabel.cs`, 재생 기준은 `MotionModeLabel.cs`. 종료 처리·재생 기준 콤보는 `MainWindow`의 모션 탭. 바꾸면 README·USER-GUIDE의 표도 같이.
 
-### 4.3 전역 단축키 추가
+### 4.2 전역 단축키 추가
 
 `MainWindow.OnShellKeyDown`(tunnel 핸들러, `PhysicalKey` 기준). 글 입력 칸(`e.Source is TextBox`)은 건너뛴다. 그래프 안에서 그래프 도구가 먼저인 키(Q/W/R)는 `InsideGraph` 검사. 단축키 창(`OpenShortcuts`)의 표와 README·USER-GUIDE를 같이 고친다.
 
-### 4.4 기능을 지울 때
+### 4.3 기능을 지울 때
 
 소유자 방침은 "흔적 없이": 모델 필드 · 편집기 명령 · 직렬화 키 · 화면 · 테스트 · 문서를 한 커밋에서 다 뺀다. 마이그레이션은 두지 않는다(옛 저작본이 없다). 지운 뒤 `grep`으로 식별자와 문서 언급을 한 번 더 훑는다.
 
-### 4.5 무대 등가 견본 바꾸기
+### 4.4 무대 등가 견본 바꾸기
 
 `tests/Mt.Authoring.Tests/Fixtures/stage-parity/`의 `motions.json`(툴 산출물)·`poses.json`(포즈 표)은 **이쪽이 원본**이고
 무대 저장소 `Assets/Ked.Presentation/Core/Tests/EditMode/UnityParity/ToolExport~/`가 사본이다(코어와 반대 방향).
@@ -110,4 +103,4 @@ dotnet run     --project src/Mt.App/Mt.App.csproj
 | `docs/PLAN.md` | 결정·범위·아키텍처·데이터·마일스톤·v2·위험 |
 | `docs/PLAN-M5.md` · `PLAN-maya.md` · `maya-comparison.md` | 사용감 단계, 마야 관습 대조 |
 | `docs/PLAN-controller.md` · `PLAN-scene.md` · `PLAN-inspector.md` · `PLAN-undo.md` | 컨트롤러 · 씬/무대 · 인스펙터 · 되돌리기 결정판 |
-| `src/Ked.Presentation.Core/vendoring.md` | 코어 반입 절차 |
+| `src/Ked.Presentation.Core/vendoring.md` | 코어의 출발점과 지금 있는 것 |
