@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using NUnit.Framework;
 
 namespace Ked.Presentation.Core.Tests
 {
@@ -19,14 +18,14 @@ namespace Ked.Presentation.Core.Tests
 
         private static void AssertVec3(Vec3 actual, float x, float y, float z)
         {
-            Assert.That(actual.X, Is.EqualTo(x).Within(Eps), $"X — actual={actual}");
-            Assert.That(actual.Y, Is.EqualTo(y).Within(Eps), $"Y — actual={actual}");
-            Assert.That(actual.Z, Is.EqualTo(z).Within(Eps), $"Z — actual={actual}");
+            Assert.Equal(x, actual.X, Eps);
+            Assert.Equal(y, actual.Y, Eps);
+            Assert.Equal(z, actual.Z, Eps);
         }
 
         // ── 불변식 ───────────────────────────────────────────────────
 
-        [Test]
+        [Fact]
         public void 부모가_없으면_자식을_넣을_수_없다()
         {
             RectNodeTree tree = NewTree();
@@ -35,10 +34,10 @@ namespace Ked.Presentation.Core.Tests
             Assert.Throws<ArgumentException>(
                 () => tree.Add("child", "없는부모", RectNodeState.StretchFull));
 
-            Assert.That(tree.Count, Is.Zero, "실패한 Add가 노드를 남기면 안 된다");
+            Assert.Equal(0, tree.Count); // 실패한 Add가 노드를 남기면 안 된다
         }
 
-        [Test]
+        [Fact]
         public void 같은_키를_두_번_넣을_수_없다()
         {
             RectNodeTree tree = NewTree();
@@ -48,7 +47,7 @@ namespace Ked.Presentation.Core.Tests
                 () => tree.Add("a", null, RectNodeState.StretchFull));
         }
 
-        [Test]
+        [Fact]
         public void 빈_키는_거부한다()
         {
             RectNodeTree tree = NewTree();
@@ -57,7 +56,7 @@ namespace Ked.Presentation.Core.Tests
             Assert.Throws<ArgumentException>(() => tree.Add("", null, RectNodeState.StretchFull));
         }
 
-        [Test]
+        [Fact]
         public void 없는_키_조회는_0이_아니라_예외다()
         {
             RectNodeTree tree = NewTree();
@@ -71,7 +70,7 @@ namespace Ked.Presentation.Core.Tests
             Assert.Throws<KeyNotFoundException>(() => tree.GetRectSize("b"));
         }
 
-        [Test]
+        [Fact]
         public void SetState는_없는_키를_새로_만들지_않는다()
         {
             RectNodeTree tree = NewTree();
@@ -79,37 +78,37 @@ namespace Ked.Presentation.Core.Tests
             Assert.Throws<KeyNotFoundException>(
                 () => tree.SetState("a", RectNodeState.StretchFull));
 
-            Assert.That(tree.Count, Is.Zero);
+            Assert.Equal(0, tree.Count);
         }
 
-        [Test]
+        [Fact]
         public void Contains와_Count와_Keys()
         {
             RectNodeTree tree = NewTree();
             tree.Add("a", null, RectNodeState.StretchFull);
             tree.Add("b", "a", RectNodeState.StretchFull);
 
-            Assert.That(tree.Count, Is.EqualTo(2));
-            Assert.That(tree.Contains("a"), Is.True);
-            Assert.That(tree.Contains("z"), Is.False);
-            Assert.That(tree.Contains(null), Is.False);
-            Assert.That(tree.Keys, Is.EquivalentTo(new[] { "a", "b" }));
+            Assert.Equal(2, tree.Count);
+            Assert.True(tree.Contains("a"));
+            Assert.False(tree.Contains("z"));
+            Assert.False(tree.Contains(null));
+            Assert.Equal(new[] { "a", "b" }, tree.Keys.OrderBy(k => k, StringComparer.Ordinal));
         }
 
-        [Test]
+        [Fact]
         public void 루트_직속_노드의_부모는_null이다()
         {
             RectNodeTree tree = NewTree();
             tree.Add("a", null, RectNodeState.StretchFull);
             tree.Add("b", "a", RectNodeState.StretchFull);
 
-            Assert.That(tree.GetParentKey("a"), Is.Null);
-            Assert.That(tree.GetParentKey("b"), Is.EqualTo("a"));
+            Assert.Null(tree.GetParentKey("a"));
+            Assert.Equal("a", tree.GetParentKey("b"));
         }
 
         // ── 상태 갱신·복제 ───────────────────────────────────────────
 
-        [Test]
+        [Fact]
         public void SetState는_구조를_건드리지_않는다()
         {
             RectNodeTree tree = NewTree();
@@ -118,11 +117,11 @@ namespace Ked.Presentation.Core.Tests
 
             tree.SetState("a", RectNodeState.StretchFull.WithAnchoredPosition(new Vec2(50f, 0f)));
 
-            Assert.That(tree.GetState("a").AnchoredPosition, Is.EqualTo(new Vec2(50f, 0f)));
-            Assert.That(tree.GetParentKey("b"), Is.EqualTo("a"), "부모 관계가 유지돼야 한다");
+            Assert.Equal(new Vec2(50f, 0f), tree.GetState("a").AnchoredPosition);
+            Assert.Equal("a", tree.GetParentKey("b")); // 부모 관계가 유지돼야 한다
         }
 
-        [Test]
+        [Fact]
         public void Clone은_원본과_독립이다()
         {
             RectNodeTree tree = NewTree();
@@ -135,26 +134,26 @@ namespace Ked.Presentation.Core.Tests
             clone.Add("c", "b", RectNodeState.StretchFull);
 
             // 사본을 고쳐도 원본은 그대로여야 한다.
-            Assert.That(tree.GetState("a").AnchoredPosition, Is.EqualTo(Vec2.Zero));
-            Assert.That(tree.Contains("c"), Is.False);
-            Assert.That(tree.Count, Is.EqualTo(2));
-            Assert.That(clone.Count, Is.EqualTo(3));
+            Assert.Equal(Vec2.Zero, tree.GetState("a").AnchoredPosition);
+            Assert.False(tree.Contains("c"));
+            Assert.Equal(2, tree.Count);
+            Assert.Equal(3, clone.Count);
         }
 
-        [Test]
+        [Fact]
         public void Clone은_루트_공간도_가져간다()
         {
             RectNodeTree tree = new(new RectSpace(new Vec2(800f, 600f), new Vec2(0f, 1f)));
 
             RectNodeTree clone = tree.Clone();
 
-            Assert.That(clone.RootSpace.Size, Is.EqualTo(new Vec2(800f, 600f)));
-            Assert.That(clone.RootSpace.Pivot, Is.EqualTo(new Vec2(0f, 1f)));
+            Assert.Equal(new Vec2(800f, 600f), clone.RootSpace.Size);
+            Assert.Equal(new Vec2(0f, 1f), clone.RootSpace.Pivot);
         }
 
         // ── 좌표 조회 ────────────────────────────────────────────────
 
-        [Test]
+        [Fact]
         public void 사슬을_루트부터_순서대로_세운다()
         {
             // 트리 조회가 RectChainMath에 넘기는 사슬의 순서가 맞는지 본다.
@@ -167,7 +166,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(tree.TransformPoint("c", Vec3.Zero), 35f, 5f, 0f);
         }
 
-        [Test]
+        [Fact]
         public void 형제_가지는_서로의_사슬에_끼지_않는다()
         {
             // 같은 부모 아래 둘을 두면 각자 자기 조상만 타야 한다.
@@ -180,7 +179,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(tree.TransformPoint("right", Vec3.Zero), 110f, 0f, 0f);
         }
 
-        [Test]
+        [Fact]
         public void 트리_조회는_RectChainMath와_같은_값이다()
         {
             // 트리는 사슬을 세울 뿐 새로 산수하지 않는다 — 그걸 못 박는다.
@@ -213,7 +212,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(backViaTree, backDirect.X, backDirect.Y, backDirect.Z);
         }
 
-        [Test]
+        [Fact]
         public void 역변환은_변환을_되돌린다()
         {
             RectNodeTree tree = NewTree();
@@ -228,18 +227,18 @@ namespace Ked.Presentation.Core.Tests
 
         // ── rect 크기 ────────────────────────────────────────────────
 
-        [Test]
+        [Fact]
         public void 스트레치_체인의_크기는_루트_공간_크기다()
         {
             RectNodeTree tree = NewTree();
             tree.Add("a", null, RectNodeState.StretchFull);
             tree.Add("b", "a", RectNodeState.StretchFull);
 
-            Assert.That(tree.GetRectSize("b").X, Is.EqualTo(1000f).Within(Eps));
-            Assert.That(tree.GetRectSize("b").Y, Is.EqualTo(500f).Within(Eps));
+            Assert.Equal(1000f, tree.GetRectSize("b").X, Eps);
+            Assert.Equal(500f, tree.GetRectSize("b").Y, Eps);
         }
 
-        [Test]
+        [Fact]
         public void 고정_앵커_조상이_아래쪽_크기를_바꾼다()
         {
             // 초상 이미지 계열의 모양: 중간에 고정 앵커 노드가 끼면 그 아래는
@@ -252,12 +251,12 @@ namespace Ked.Presentation.Core.Tests
 
             tree.Add("b", "a", RectNodeState.StretchFull);
 
-            Assert.That(tree.GetRectSize("a").X, Is.EqualTo(400f).Within(Eps));
-            Assert.That(tree.GetRectSize("b").X, Is.EqualTo(400f).Within(Eps));
-            Assert.That(tree.GetRectSize("b").Y, Is.EqualTo(200f).Within(Eps));
+            Assert.Equal(400f, tree.GetRectSize("a").X, Eps);
+            Assert.Equal(400f, tree.GetRectSize("b").X, Eps);
+            Assert.Equal(200f, tree.GetRectSize("b").Y, Eps);
         }
 
-        [Test]
+        [Fact]
         public void 부분_스트레치는_조상_크기에서_파생된다()
         {
             RectNodeTree tree = NewTree();
@@ -267,8 +266,8 @@ namespace Ked.Presentation.Core.Tests
                 .WithSizeDelta(new Vec2(-40f, 20f)));
 
             // 0.5 * 1000 - 40 = 460 / 1.0 * 500 + 20 = 520
-            Assert.That(tree.GetRectSize("a").X, Is.EqualTo(460f).Within(Eps));
-            Assert.That(tree.GetRectSize("a").Y, Is.EqualTo(520f).Within(Eps));
+            Assert.Equal(460f, tree.GetRectSize("a").X, Eps);
+            Assert.Equal(520f, tree.GetRectSize("a").Y, Eps);
         }
     }
 }

@@ -45,7 +45,7 @@ Ked.Presentation.Core  ──►  Mt.Authoring  ──►  Mt.App (Avalonia)
 | `src/Mt.App` | 그리기와 입력. `MainWindow`(셸) · `Views/`(뷰포트 · 그래프 에디터 · 도프 시트 · 타임 슬라이더) · `Services/DocumentSession`(경로 · 세운 한 벌 · 저장 · 내보내기) |
 | `src/Mt.Cli` | 명령줄 `mt` — 창 없이 검증 · 컷 내보내기 · 그 시각의 포즈 조회 |
 
-테스트: `tests/Ked.Presentation.Core.Tests`(NUnit) · `tests/Mt.Authoring.Tests` · `tests/Mt.App.Tests`(xunit, 화면은 Avalonia.Headless).
+테스트(전부 xunit): `tests/Ked.Presentation.Core.Tests`(코어) · `tests/Mt.Authoring.Tests` · `tests/Mt.App.Tests`(화면은 Avalonia.Headless).
 
 ## 파일
 

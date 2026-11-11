@@ -1,4 +1,3 @@
-using NUnit.Framework;
 
 namespace Ked.Presentation.Core.Tests
 {
@@ -14,20 +13,20 @@ namespace Ked.Presentation.Core.Tests
         // (특히 -0f — Vec2.Equals는 -0f와 +0f를 다르게 본다)
         private static void AssertVec2(Vec2 actual, float x, float y)
         {
-            Assert.That(actual.X, Is.EqualTo(x).Within(Eps), $"X 불일치. actual={actual}");
-            Assert.That(actual.Y, Is.EqualTo(y).Within(Eps), $"Y 불일치. actual={actual}");
+            Assert.Equal(x, actual.X, Eps);
+            Assert.Equal(y, actual.Y, Eps);
         }
 
         private static void AssertVec3(Vec3 actual, float x, float y, float z)
         {
-            Assert.That(actual.X, Is.EqualTo(x).Within(Eps), $"X 불일치. actual={actual}");
-            Assert.That(actual.Y, Is.EqualTo(y).Within(Eps), $"Y 불일치. actual={actual}");
-            Assert.That(actual.Z, Is.EqualTo(z).Within(Eps), $"Z 불일치. actual={actual}");
+            Assert.Equal(x, actual.X, Eps);
+            Assert.Equal(y, actual.Y, Eps);
+            Assert.Equal(z, actual.Z, Eps);
         }
 
         // ── RectSize ─────────────────────────────────────────────────
 
-        [Test]
+        [Fact]
         public void 스트레치_풀_노드는_부모_크기를_그대로_받는다()
         {
             Vec2 size = RectChainMath.RectSize(new Vec2(1920f, 1080f), RectNodeState.StretchFull);
@@ -35,7 +34,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec2(size, 1920f, 1080f);
         }
 
-        [Test]
+        [Fact]
         public void 고정_앵커면_sizeDelta가_크기_그_자체다()
         {
             // 초상 이미지 모양: 앵커가 한 점이라 부모 크기가 개입하지 않는다.
@@ -48,7 +47,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec2(size, 300f, 600f);
         }
 
-        [Test]
+        [Fact]
         public void 부분_스트레치는_앵커_간격에_sizeDelta를_더한다()
         {
             // 오버레이 모양: x는 절반만 스트레치, y는 풀 스트레치.
@@ -64,7 +63,7 @@ namespace Ked.Presentation.Core.Tests
 
         // ── LocalPosition ────────────────────────────────────────────
 
-        [Test]
+        [Fact]
         public void 스트레치_풀_가운데_pivot이면_localPosition은_anchoredPosition이다()
         {
             RectNodeState node = RectNodeState.StretchFull
@@ -76,7 +75,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec2(local, 30f, -20f);
         }
 
-        [Test]
+        [Fact]
         public void 바닥_pivot_노드는_부모_바닥에_붙는다()
         {
             RectNodeState node = RectNodeState.StretchFull.WithPivot(new Vec2(0.5f, 0f));
@@ -88,7 +87,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec2(local, 0f, -250f);
         }
 
-        [Test]
+        [Fact]
         public void 고정_앵커_노드는_앵커점에서_anchoredPosition만큼_떨어진다()
         {
             // 우상단 앵커에 고정.
@@ -102,7 +101,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec2(local, 450f, 220f);
         }
 
-        [Test]
+        [Fact]
         public void 부모_pivot이_가운데가_아니면_rect_원점이_이동한다()
         {
             // 부모 pivot이 좌하단이면 부모 rect가 1사분면에 놓인다.
@@ -115,7 +114,7 @@ namespace Ked.Presentation.Core.Tests
 
         // ── TransformPoint ───────────────────────────────────────────
 
-        [Test]
+        [Fact]
         public void 빈_체인은_점을_그대로_돌려준다()
         {
             Vec3 p = RectChainMath.TransformPoint(
@@ -126,7 +125,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(p, 7f, -3f, 2f);
         }
 
-        [Test]
+        [Fact]
         public void 스트레치_풀_체인은_anchoredPosition의_합이다()
         {
             // 스트레치 풀이라 부모 크기가 그대로 내려가고, 회전·스케일이 없어
@@ -143,7 +142,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(p, 35f, 5f, 0f);
         }
 
-        [Test]
+        [Fact]
         public void 스케일은_아래쪽_변위를_증폭한다()
         {
             // 조상의 스케일이 자손의 변위에 곱해진다 — depth 축이 이걸로 산다.
@@ -158,7 +157,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(p, 20f, 0f, 0f);
         }
 
-        [Test]
+        [Fact]
         public void Z_90도_회전은_X축을_Y축으로_보낸다()
         {
             RectNodeState[] chain =
@@ -172,7 +171,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(p, 0f, 100f, 0f);
         }
 
-        [Test]
+        [Fact]
         public void 바닥_pivot_체인의_바닥점은_부모_바닥이다()
         {
             // pivot.y = 0이면 노드 로컬 원점이 곧 자기 바닥이다.
@@ -186,7 +185,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(p, 0f, -250f, 0f);
         }
 
-        [Test]
+        [Fact]
         public void 부모_크기가_줄면_자손_앵커점도_따라_줄어든다()
         {
             // 고정 앵커 + sizeDelta로 부모 크기를 바꾸면 그 아래 스트레치 자식의
@@ -207,7 +206,7 @@ namespace Ked.Presentation.Core.Tests
 
         // ── InverseTransformPoint ────────────────────────────────────
 
-        [Test]
+        [Fact]
         public void 역변환은_변환을_되돌린다()
         {
             // 전 요소가 섞인 체인에서의 왕복. 개별 기대값을 손으로 못 내는 조합이라
@@ -236,7 +235,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(back, local.X, local.Y, local.Z);
         }
 
-        [Test]
+        [Fact]
         public void 역변환_단독_기대값()
         {
             // 왕복만으로는 두 함수가 같이 틀린 경우를 못 잡는다. 한 방향을 못 박는다.
@@ -254,7 +253,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(local, 20f, 0f, 0f);
         }
 
-        [Test]
+        [Fact]
         public void 오일러_3축은_Z_X_Y_순서로_합성된다()
         {
             // 순서는 손 계산으로 못 박기 나쁘다(3축 삼각함수 곱). 대신 성질로 고정한다:
@@ -285,7 +284,7 @@ namespace Ked.Presentation.Core.Tests
             AssertVec3(a, b.X, b.Y, b.Z);
         }
 
-        [Test]
+        [Fact]
         public void 스트레치_풀_체인은_회전만_남긴다()
         {
             // 위 테스트가 딛고 선 전제 — 이게 깨지면 저기서 회전이 아니라

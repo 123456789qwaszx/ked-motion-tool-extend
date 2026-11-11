@@ -15,7 +15,7 @@
 낱말: **컷**(`Cut`) · **오브젝트**(`Object`) · **타임라인**(`Timeline` — 컷에는 하나, 세트에는 여럿이고 화면은 세트의 것을 "애니메이션"이라 부른다) · **세트**(`Set` — 묶어서 다시 쓰는 오브젝트 계층). `Rig` · `Motion`은 옛 이름이다 — 쓰지 않는다.
 
 `Ked.Presentation.Core`(코어 — 이 저장소의 것. 순수 C#, netstandard2.1 · C# 9. 컷을 읽는 계산 `Cut/`이 여기 있다. 출발점은 런타임의 코어였다 — `src/Ked.Presentation.Core/vendoring.md`) → `Mt.Authoring`(도메인) → `Mt.App`(Avalonia 화면) + `Mt.Cli`.
-테스트: `tests/Mt.Authoring.Tests` · `tests/Mt.App.Tests`(xunit — 화면은 `HeadlessUi.Run`) · `tests/Ked.Presentation.Core.Tests`(NUnit — 코어의 테스트).
+테스트(전부 xunit): `tests/Ked.Presentation.Core.Tests`(코어) · `tests/Mt.Authoring.Tests` · `tests/Mt.App.Tests`(화면은 `HeadlessUi.Run`).
 
 ## 명령
 

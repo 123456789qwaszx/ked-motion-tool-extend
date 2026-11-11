@@ -1,18 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- 코어의 테스트. 출발점이 NUnit이었던 까닭에 이 프로젝트만 NUnit이다 — xunit과 섞지 않는다. -->
+  <!-- 코어의 테스트. 코어(Nullable 끔)를 null로 부르는 시험이 있어 Nullable을 끈다. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>9.0</LangVersion>
-    <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="NUnit" />
-    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
   </ItemGroup>
 
   <ItemGroup>
