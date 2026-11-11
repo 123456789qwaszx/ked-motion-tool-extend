@@ -55,6 +55,86 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
 
 하는 방법: 이름 하나씩 기계적으로 바꾸고(타입 → 파일 → 주석과 문구), 바꿀 때마다 빌드한다. 묶음이 크면 범위와 완료 기준을 적어 에이전트에게 맡기고, 결과는 직접 다시 돌려 확인한 뒤 커밋한다(`CLAUDE.md`의 관습).
 
+#### F2-0 — 대응표 (2026-11-11, **소유자 승인 대기**)
+
+지금의 모델을 읽고 지은 표다. 승인받으면 F2-1~3의 기준이 된다. "쓰임"은 그 이름이 나오는 파일 수/횟수(코드와 테스트).
+
+**낱말 넷** — 소유자의 말(컷 · 오브젝트 · 타임라인 · 묶음)을 코드의 영어와 한 쌍으로:
+
+| 뜻 | 화면 | 코드 | 지금의 옛 이름 |
+|---|---|---|---|
+| 컷 | 컷 | `Cut` | (그대로) |
+| 오브젝트 | 오브젝트 | `Object` | `RigNode` · `Node` · 화면의 "노드" |
+| 타임라인(키를 담는 것 — 컷에는 하나, 묶음에는 여럿) | 컷은 "타임라인", 묶음의 것은 "애니메이션" | `Timeline` | `Motion` · 화면의 "모션" |
+| 묶음(이름 붙은 오브젝트 계층 — 다른 컷·묶음에 인스턴스로 놓는다) | "세트" | `Set` | `Rig` · `rigKind` |
+
+**도메인(`Mt.Authoring`)의 타입:**
+
+| 옛 이름 | 새 이름 | 쓰임 | 덧붙임 |
+|---|---|---|---|
+| `MotionDocument` | `AuthoringDocument` | 28/99 | 저작본 한 벌 |
+| `MotionDocumentJson` | `AuthoringDocumentJson` | 14/68 | |
+| `MotionEditor`(+ 나뉜 파일 12개) | `DocumentEditor` | 49/193 | `MotionEditor.Rigs.cs` → `DocumentEditor.Sets.cs` |
+| `MotionChangedEventArgs` · `MotionChangeKind` | `DocumentChangedEventArgs` · `DocumentChangeKind` | 6/9 · 18/93 | 멤버(`Structure` · `Keys` …)는 그대로 |
+| `MotionAsset` | `TimelineAsset` | 46/215 | `.Rig` → `.Set`, 문서의 `Motions` → `Timelines` |
+| `MotionPlayAsset` | `PlayBlockAsset` | 11/24 | 재생 블록. `.Motion` → `.Timeline` |
+| `MotionSwapAsset` · `MotionSwaps` | `ImageKeyAsset` · `ImageKeys` | 9/15 · 5/16 | 그림 키. `Swaps` → `ImageKeys`, `MotionEditor.Swaps.cs` · `MainWindow.Swaps.cs`도 |
+| `MotionEventAsset` · `MotionEvents` | `EventKeyAsset` · `EventKeys` | 10/21 · 5/9 | 이벤트 키 |
+| `MotionChannelKind` | `ChannelKind` | 39/393 | `ChannelKindLabel`과 짝이 맞는다 |
+| `MotionNames` | `NameRules` | 7/22 | 기본 이름 `"motion"` → `"timeline"` |
+| `MotionFlatten` | `TimelineFlatten` | 6/8 | 재생 블록을 펼쳐 굽기 |
+| `MotionPreview` | `TimelinePose` | 8/34 | 시각 t의 포즈 |
+| `MotionValidator` · `MotionProblem` | `DocumentValidator` · `ValidationProblem` | 11/42 · 9/33 | |
+| `MotionFix` · `MotionFixes` | `ValidationFix` · `ValidationFixes` | 4/16 · 4/14 | |
+| `RigAsset` | `SetAsset` | 21/93 | `.Kind` → `.Name`, `.Nodes` → `.Objects`. 컷의 계층도 같은 그릇이다 — `CutAsset.Rig` → `CutAsset.AsSet` |
+| `RigNodeAsset` | `ObjectAsset` | 30/152 | |
+| `RigAssetCodec` | `SetCodec` | 13/33 | 묶음 → 코어의 계층 DTO |
+| `RigAssets` | `SetBuilder` | 10/14 | 문서의 묶음·컷을 세운 한 벌로 |
+| `RigSchemaFile` | `BuiltSets` | 18/57 | 세운 한 벌(파일이 아니다) |
+| `RigParts` | `ObjectParts` | 5/19 | 그림 오브젝트와 색 사각형 |
+| 문서의 `Rigs` · `FindRig` · `AllRigs` | `Sets` · `FindSet` · `AllSets` | | |
+| 채널·블록·그림 키의 `.Node` | `.Object` | | |
+| 폴더 `Mt.Authoring/Rig/`(네임스페이스 `Mt.Authoring.Rig`) | `Sets/`(`Mt.Authoring.Sets`) | | 깊이 커브 · 기준 해상도 · 층 표도 여기 있다 — 자리가 맞는지는 F4에서 본다 |
+| `SkinAsset` · `SkinPartSetup` · `CutAsset` · `CutStage` · `ChannelAsset` · `KeyAsset` | (그대로) | | 옛 이름이 아니다 |
+
+**코어:**
+
+| 옛 이름 | 새 이름 | 쓰임 |
+|---|---|---|
+| `RigSchemasFileDto` | `HierarchyFileDto` | 4/13 |
+| `RigSchemaRigDto`(`rigKind`) | `HierarchyDto`(`name`) | 12/42 |
+| `RigSchemaNodeDto` | `HierarchyNodeDto` | 10/27 |
+| `RigSchemaLoader`(`AddRigTo`) | `HierarchyLoader`(`AddTo`) | 10/42 |
+| 주석의 "덤프" · "리그" | "계층" | |
+| `RectNodeTree` · `RectNodeState` · `Node`라는 말 | (그대로) | 트리의 마디라는 일반어다 |
+
+**화면 · 명령줄 · 테스트:**
+
+| 옛 것 | 새 것 |
+|---|---|
+| 화면 문구의 "모션"(28곳) — "모션 추가" · "모션 없음" · "모션" 탭 · "먼저 모션을 고른다" … | 컷을 연 때는 "타임라인", 세트의 것은 "애니메이션" |
+| 화면 문구의 "노드"(7곳) | "오브젝트" |
+| `MainWindow.Swaps.cs` | `MainWindow.ImageKeys.cs` |
+| 명령줄 `pose --motion` | `pose --timeline` |
+| `PartsRigFixture` · `RigAssetTests` · `RigSchemaFileTests` · `Motion*Tests` | `PartsSetFixture` · `SetAssetTests` · `BuiltSetsTests` · 새 타입 이름을 따른다 |
+| 테스트 손잡이 이름의 `Motion` · `Rig` | 위 표를 따른다 |
+
+**정해야 하는 것과 권고:**
+
+1. **화면의 낱말 — "세트"인가 "묶음"인가.** 지시서는 "묶음"이라 적었고, 화면은 지금 "세트"다(67곳, "묶음"은 4곳). **권고: 화면은 "세트" 그대로**, 코드는 `Set`. 이미 한결같이 쓰이고 있고 계획서(`PLAN-set.md`)도 그 말로 적혀 있다.
+2. **화면의 "타임라인"과 "애니메이션".** 코드는 `Timeline` 하나지만 화면은 컷의 것을 "타임라인", 세트의 것을 "애니메이션"이라 부른다. **권고: 그대로 둘로 부른다** — 컷에는 하나뿐이라 이름 없이 붙고, 세트에는 이름 붙은 것이 여럿이라 쓰는 사람에게 다르게 보인다. "모션"만 없앤다.
+3. **저작본의 키와 확장자.** 키(`motions` · `rigs` · `rig` · `kind` · `nodes` · `node` · `swaps` · `motion`)와 스키마(`motion-authoring/2`) · 확장자(`.motion-authoring.json`)에도 옛 이름이 있다.
+   **권고: 함께 고친다** — 스키마 `cut-authoring/1`, 확장자 `.cut-authoring.json`, 키는 코드의 새 이름. 옛 판(`motion-authoring/1` · `/2`)을 읽는 길은 두지 않는다(호환 코드를 걷으라는 지시와 같은 방향이다).
+   **단, 소유자가 손에 든 저작본이 있으면 읽지 못하게 된다** — 저장소에는 저작본이 하나도 없다. 지켜야 할 파일이 있으면 키와 확장자는 그대로 두고 코드만 고친다.
+4. **그릇의 이름**(`Ked.Presentation.Core` · `Mt.*` · `KedMotionTool.sln` · 창 제목 `ked-motion-tool`). **권고: 지금은 두지 않는다** — 툴의 이름은 의도와 목적이 확정될 때 정할 일이고, 고치면 모든 파일의 `using`과 폴더가 움직인다. F4의 목록에 올려 둔다.
+5. **컷 파일(`cut/1`)의 키**는 건드리지 않는다 — 이미 `objects` · `tracks` · `target` · `what`으로 적혀 있다.
+
+조사하다 눈에 띈 것(F3 · F4의 몫 — 지금 고치지 않는다):
+
+- `STATUS.md` §6의 "CLI의 컷 내보내기가 없다"는 낡았다 — `Mt.Cli`에 `cut` 명령이 있다.
+- 묶음 → 코어의 계층 DTO → 트리의 세 겹(`RigAsset` → `RigSchemaRigDto` → `RectNodeTree`). 덤프를 읽지 않는 지금 가운데 겹이 필요한지.
+- `MotionDocumentJson`이 옛 판(`motion-authoring/1`)을 읽어 준다(위 3번이 승인되면 F2에서 함께 나간다).
+
 ### F3 — 문서를 지금의 툴에 맞춘다
 
 이름이 정해진 뒤에 한다(F2의 새 이름으로 적기 위해서다).
