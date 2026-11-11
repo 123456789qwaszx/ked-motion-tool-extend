@@ -559,27 +559,6 @@ public sealed partial class DocumentEditor
         return copy;
     }
 
-    public void RemoveKey(string name, string node, ChannelKind kind, Axis axis, int index)
-    {
-        TimelineAsset timeline = Require(name);
-        ChannelAsset channel = RequireChannel(timeline, node, kind);
-        ComponentCurve curve = RequireCurve(channel, axis, index);
-
-        Mutate(DocumentChangeKind.Keys, () =>
-        {
-            curve.Keys.RemoveAt(index);
-
-            if (curve.Keys.Count == 0)
-            {
-                channel.Set(axis, null);
-            }
-            else
-            {
-                TangentMath.Recompute(curve.Keys);
-            }
-        });
-    }
-
     /// <summary>키 하나의 값을 바꾼다. 시각이 바뀌면 다시 정렬하므로 index는 호출 뒤 유효하지 않을 수 있다.</summary>
     public void UpdateKey(string name, string node, ChannelKind kind, Axis axis, int index, KeyAsset value)
     {

@@ -123,7 +123,7 @@ public class ViewportViewTests
             Assert.Equal(0.3, view.Time, 9);
             Assert.Equal(1, changes);
 
-            view.Loop = false;
+            view.Mode = PlaybackMode.Once;
             view.Advance(1);
             Assert.Equal(0.6f, view.Time, 6); // 길이는 float(0.6f)다
             Assert.False(view.IsPlaying);

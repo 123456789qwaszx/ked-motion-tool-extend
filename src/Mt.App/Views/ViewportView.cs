@@ -850,12 +850,6 @@ public sealed class ViewportView : Control
 
     public bool IsPlaying => _clock.IsPlaying;
 
-    public bool Loop
-    {
-        get => _clock.Loop;
-        set => _clock.Loop = value;
-    }
-
     /// <summary>축을 그릴 노드. null이면 안 그린다.</summary>
     public string? SelectedNode { get; set; }
 

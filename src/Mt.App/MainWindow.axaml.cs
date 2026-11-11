@@ -1771,7 +1771,7 @@ public partial class MainWindow : Window
             bool cutOpen = openSet is not null && _session.Editor.Document.FindCut(openSet) is not null;
             _timelineHeader.Text = openSet is null ? "타임라인" : cutOpen ? $"타임라인 — 컷 {openSet}" : $"애니메이션 — 세트 {openSet}";
             _timelineButtons.IsVisible = !cutOpen;
-            // 컷은 제 타임라인 하나만(컷과 같은 이름) — 옛 문서에 그 컷의 애니메이션이 더 있어도 여기서는 안 보인다(아무것도 안 연 목록에서 지운다).
+            // 컷은 제 타임라인 하나만(컷과 같은 이름), 세트는 그 세트의 애니메이션들, 아무것도 안 열었으면 전부.
             List<string> names = _session.Editor.Document.Timelines
                 .Where(m => openSet is null || (cutOpen ? m.Name == openSet : m.Set == openSet))
                 .OrderBy(m => m.Set, StringComparer.Ordinal).ThenBy(m => m.Name, StringComparer.Ordinal)

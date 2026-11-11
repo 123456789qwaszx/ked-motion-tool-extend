@@ -160,20 +160,16 @@ public class DopeSheetRowsTests
     }
 
     [Fact]
-    public void 접힌_노드는_요약_행만_남고_Covers는_계층대로다()
+    public void 접힌_노드는_요약_행만_남는다()
     {
         AuthoringDocument document = Fixtures.ActorDocument();
         List<DopeRow> rows = DopeSheetRows.Build(document.Find("nod")!, node => true);
 
         DopeRow only = Assert.Single(rows);
         Assert.Equal(DopeRowLevel.Node, only.Level);
-        var y = new CurveRef("CharacterPortrait_Track_Move_Y", ChannelKind.Position, Axis.Y);
-        Assert.True(only.Covers(new KeyRef(y, 1)));
-        Assert.False(only.Covers(new KeyRef(new CurveRef("Other", ChannelKind.Position, Axis.Y), 1)));
 
         List<DopeRow> open = DopeSheetRows.Build(document.Find("nod")!);
         Assert.Equal(3, open.Count);
-        Assert.False(open[2].Covers(new KeyRef(new CurveRef(y.Node, y.Kind, Axis.X), 0)));
     }
 
     [Fact]

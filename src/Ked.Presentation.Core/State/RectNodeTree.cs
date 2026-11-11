@@ -58,18 +58,6 @@ namespace Ked.Presentation.Core
 
         public RectNodeState GetState(string key) => Require(key).State;
 
-        public bool TryGetState(string key, out RectNodeState state)
-        {
-            if (key != null && _nodes.TryGetValue(key, out Node node))
-            {
-                state = node.State;
-                return true;
-            }
-
-            state = default;
-            return false;
-        }
-
         public string GetParentKey(string key) => Require(key).ParentKey;
 
         // 있는 노드의 상태만 바꾼다. 없는 키를 조용히 새로 만들지 않음.
@@ -116,31 +104,6 @@ namespace Ked.Presentation.Core
             }
 
             return size;
-        }
-
-        /// <summary>
-        /// 루트→노드 순서의 상태 사슬과 (원하면) 같은 순서의 키 목록.
-        /// </summary>
-        public RectNodeState[] BuildChainTo(string key, List<string> chainKeys = null)
-        {
-            if (chainKeys == null)
-                return BuildChain(key);
-
-            chainKeys.Clear();
-
-            List<string> reversedKeys = new(16);
-            string current = key;
-
-            while (current != null)
-            {
-                reversedKeys.Add(current);
-                current = Require(current).ParentKey;
-            }
-
-            for (int i = reversedKeys.Count - 1; i >= 0; i--)
-                chainKeys.Add(reversedKeys[i]);
-
-            return BuildChain(key);
         }
 
         private RectNodeState[] BuildChain(string key)

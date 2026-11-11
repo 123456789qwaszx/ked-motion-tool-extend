@@ -168,7 +168,7 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
 - `.github/workflows/test.yml`과 `MAINTENANCE.md`의 CI 설명이 지금의 테스트 구성과 맞는지.
 - `Mt.Cli` — 컷 내보내기가 없다(`STATUS.md` §6). 지금 무엇을 하는지, 남길 까닭이 있는지.
 
-#### F4 목록 (2026-11-11, **소유자 승인 대기**)
+#### F4 목록 (2026-11-11, **승인됨** — 권고대로, 소유자 "진행.")
 
 코드를 훑어 찾은 것. 각 항목은 승인받으면 커밋 하나로 걷는다(완료 기준은 §3 공통). "쓰임"은 정의 밖에서 부르는 곳.
 
@@ -194,6 +194,13 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
 | 나7 | 그릇의 이름(`Ked.Presentation.Core` · `Mt.*` · `ked-motion-tool`) · 큰 파일(`ViewportView` 2,581줄 · `MainWindow.axaml.cs` 2,528줄 · `GraphEditorView` 2,193줄) | — | **지금은 둔다** — 이름은 F2-0에서 정한 대로 툴의 의도가 확정될 때. 큰 파일 나누기는 걷어 내기가 아니라 고쳐 짓기다 |
 
 **권고하는 차례**: 가1 → 가2 → 가3 → 가4 → 나1 → 나2① → 나2② → 나3 → 나6. 가는 한 커밋에 묶어도 된다(작다).
+
+**진행.**
+- [x] **가1 · 가2**(`4b0e5d9` 자리 — 아래 기록) — 안 부르는 화면 손잡이와 연결된 곳 없는 그래프 기능(`CenterCurrentTime` · `ClearCurveSelection`)을 걷고, 테스트가 없던 화면 기능 셋(깊이의 키 · 이벤트 추가와 줄 · 제 차례 전까지 숨기기)에 헤드리스 테스트를 붙였다.
+  `EventRowCount` · `HideObjectForTurnFromMenu`는 걷지 않고 가2로 옮겼다(테스트가 그것을 쓴다).
+- [x] **가3 · 가4** — `RectNodeTree.TryGetState` · `BuildChainTo` · `DocumentEditor.RemoveKey`(테스트는 `RemoveKeys`로) · `DopeRow.Covers` · `TimeText.ToSeconds` · `FromSeconds` · `PlaybackClock.Loop`/`ViewportView.Loop`(호환용 — `Mode`를 쓴다)를 걷었다.
+  - **철회**: `RectSpace.Centered` · `RectNodeState.WithAnchors` · `WithPivot` · `WithSizeDelta`는 남긴다 — 코어 테스트가 사각형 계산(앵커 · 피벗)을 검증하려고 값을 짓는 도구다. "테스트만 부른다"는 걷을 까닭이 못 된다.
+  - 옛 속성 테스트(`옛_문서의_걷어_낸_속성은_…`)는 F2-2에서 옛 판 테스트와 함께 이미 나가 있었다.
 
 ## 4. 차례의 까닭
 

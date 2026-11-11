@@ -28,9 +28,6 @@ public sealed record DopeRow(
     CurveRef? Curve)
 {
     public int Depth => (int)Level;
-
-    public bool Covers(KeyRef key)
-        => key.Curve.Node == Node && (Kind is null || key.Curve.Kind == Kind) && (Axis is null || key.Curve.Axis == Axis);
 }
 
 /// <summary>

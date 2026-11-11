@@ -68,13 +68,6 @@ public static class TimeText
         return true;
     }
 
-    /// <summary>표시 단위의 값 → 초. 상대 입력(<c>+=3</c>)이 표시 단위로 적힌 것을 초로 옮길 때 쓴다.</summary>
-    public static double ToSeconds(double shown, TimeDisplay display)
-        => display == TimeDisplay.Frames ? shown / TimeSnap.FramesPerSecond : shown;
-
-    public static double FromSeconds(double seconds, TimeDisplay display)
-        => display == TimeDisplay.Frames ? TimeSnap.ToFrames(seconds) : seconds;
-
     /// <summary>프레임 눈금 간격(프레임 수) — 라벨이 겹치지 않는 1·2·5·10·20·50·100… 중 첫 것.</summary>
     public static int FrameTickStep(double pixelsPerFrame, double minPixelsPerTick = 40)
     {

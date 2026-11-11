@@ -83,19 +83,6 @@ namespace Ked.Presentation.Core.Tests
         }
 
         [Test]
-        public void TryGetState는_없는_키에_false를_준다()
-        {
-            RectNodeTree tree = NewTree();
-            tree.Add("a", null, RectNodeState.StretchFull.WithAnchoredPosition(new Vec2(3f, 4f)));
-
-            Assert.That(tree.TryGetState("a", out RectNodeState found), Is.True);
-            Assert.That(found.AnchoredPosition, Is.EqualTo(new Vec2(3f, 4f)));
-
-            Assert.That(tree.TryGetState("b", out _), Is.False);
-            Assert.That(tree.TryGetState(null, out _), Is.False);
-        }
-
-        [Test]
         public void Contains와_Count와_Keys()
         {
             RectNodeTree tree = NewTree();
