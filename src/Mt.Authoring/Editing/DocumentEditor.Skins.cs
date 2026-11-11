@@ -57,7 +57,7 @@ public sealed partial class DocumentEditor
 
         if (node.Length == 0)
         {
-            throw new InvalidOperationException("조각 노드 id가 비었다.");
+            throw new InvalidOperationException("조각 오브젝트 id가 비었다.");
         }
 
         Mutate(DocumentChangeKind.Stage, () =>
@@ -86,7 +86,7 @@ public sealed partial class DocumentEditor
 
         if (node.Length == 0)
         {
-            throw new InvalidOperationException("조각 노드 id가 비었다.");
+            throw new InvalidOperationException("조각 오브젝트 id가 비었다.");
         }
 
         if (skin.ImagesOf(node).SequenceEqual(list))

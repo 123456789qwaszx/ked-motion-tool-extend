@@ -113,7 +113,7 @@ public sealed partial class DocumentEditor
 
         if (timeline.FindChannel(node, kind) is not null)
         {
-            throw new InvalidOperationException($"타임라인 '{name}'에 채널 {node}/{kind}가 이미 있다 — 같은 노드·종류는 하나뿐이다.");
+            throw new InvalidOperationException($"타임라인 '{name}'에 채널 {node}/{kind}가 이미 있다 — 같은 오브젝트·종류는 하나뿐이다.");
         }
 
         var channel = new ChannelAsset { Object = node, Kind = kind };

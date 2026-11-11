@@ -99,9 +99,9 @@ public class DocumentValidatorTests
         Assert.Contains(messages, m => m.Contains("길이가 0보다 커야 한다", StringComparison.Ordinal));
         Assert.Contains(messages, m => m.Contains("채널 0: X: 키 시각이 오름차순이 아니다", StringComparison.Ordinal));
         Assert.Contains(messages, m => m.Contains("채널 0: Position에는 Z 성분이 없다", StringComparison.Ordinal));
-        Assert.Contains(messages, m => m.Contains("채널 1: 같은 노드·종류의 채널이 둘이다", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("채널 1: 같은 오브젝트·종류의 채널이 둘이다", StringComparison.Ordinal));
         Assert.Contains(messages, m => m.Contains("채널 1: Y: 키의 시각·값·기울기는 수여야 한다", StringComparison.Ordinal));
-        Assert.Contains(messages, m => m.Contains("채널 2: 노드가 비어 있다", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("채널 2: 오브젝트가 비어 있다", StringComparison.Ordinal));
         Assert.Equal(7, messages.Count);
     }
 }

@@ -111,7 +111,7 @@ public class AlphaChannelTests
         editor.SetKeys("fade", "Badge_Anchor", ChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0f) });
         ValidationProblem problem = Assert.Single(DocumentValidator.Validate(editor.Document, BuiltSets.NodeIds, BuiltSets.AlphaNodeIds));
         Assert.True(problem.Blocking);
-        Assert.Contains("불투명도를 받을 수 없는 노드", problem.Message, StringComparison.Ordinal);
+        Assert.Contains("불투명도를 받을 수 없는 오브젝트", problem.Message, StringComparison.Ordinal);
 
         Assert.Equal(new[] { "Badge_Body", "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, BuiltSets.AlphaNodeIds[PartsSetFixture.SetName].OrderBy(n => n, StringComparer.Ordinal));
         Assert.Contains(SpriteRoot, BuiltSets.AlphaNodeIds[Fixtures.Actor]);

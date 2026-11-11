@@ -122,7 +122,7 @@ public sealed partial class DocumentEditor
 
         if (under.Length > 0 && set.Find(under) is null)
         {
-            throw new KeyNotFoundException($"부모 노드 '{under}'가 세트 '{kind}'에 없다.");
+            throw new KeyNotFoundException($"부모 오브젝트 '{under}'가 세트 '{kind}'에 없다.");
         }
 
         var node = new ObjectAsset { Id = name, Parent = under, Image = image, Alpha = image, Width = image ? ObjectAsset.DefaultImageSize : 0f, Height = image ? ObjectAsset.DefaultImageSize : 0f };
@@ -158,7 +158,7 @@ public sealed partial class DocumentEditor
         // 그 세트의 타임라인에 새 이름의 채널이 이미 있으면(지운 노드의 흔적) 합칠 수 없다.
         if (Document.Timelines.Any(m => m.Set == kind && m.Channels.Any(c => c.Object == name)))
         {
-            throw new InvalidOperationException($"세트 '{kind}'의 타임라인에 노드 '{name}'의 채널이 이미 있다 — 먼저 그 채널을 지운다.");
+            throw new InvalidOperationException($"세트 '{kind}'의 타임라인에 오브젝트 '{name}'의 채널이 이미 있다 — 먼저 그 채널을 지운다.");
         }
 
         Mutate(DocumentChangeKind.Document, () =>
@@ -227,12 +227,12 @@ public sealed partial class DocumentEditor
 
         if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Width) || !float.IsFinite(value.Height) || value.Width < 0f || value.Height < 0f)
         {
-            throw new InvalidOperationException("노드의 위치는 수, 크기는 0 이상의 수다.");
+            throw new InvalidOperationException("오브젝트의 위치는 수, 크기는 0 이상의 수다.");
         }
 
         if (!float.IsFinite(value.Rotation) || !float.IsFinite(value.ScaleX) || !float.IsFinite(value.ScaleY) || value.ScaleX == 0f || value.ScaleY == 0f)
         {
-            throw new InvalidOperationException("노드의 회전은 수, 배율은 0이 아닌 수다.");
+            throw new InvalidOperationException("오브젝트의 회전은 수, 배율은 0이 아닌 수다.");
         }
 
         string? color = NormalizeColor(value.Color);
@@ -295,12 +295,12 @@ public sealed partial class DocumentEditor
 
         if (under.Length > 0 && set.Find(under) is null)
         {
-            throw new KeyNotFoundException($"부모 노드 '{under}'가 세트 '{kind}'에 없다.");
+            throw new KeyNotFoundException($"부모 오브젝트 '{under}'가 세트 '{kind}'에 없다.");
         }
 
         if (subtree.Any(n => n.Id == under))
         {
-            throw new InvalidOperationException($"노드 '{id}'를 제 밑('{under}')으로 옮길 수 없다.");
+            throw new InvalidOperationException($"오브젝트 '{id}'를 제 밑('{under}')으로 옮길 수 없다.");
         }
 
         Mutate(DocumentChangeKind.Document, () =>
@@ -359,7 +359,7 @@ public sealed partial class DocumentEditor
     {
         ArgumentNullException.ThrowIfNull(id);
         int index = set.Objects.FindIndex(n => string.Equals(n.Id, id, StringComparison.Ordinal));
-        return index >= 0 ? index : throw new KeyNotFoundException($"노드 '{id}'가 세트 '{set.Name}'에 없다.");
+        return index >= 0 ? index : throw new KeyNotFoundException($"오브젝트 '{id}'가 세트 '{set.Name}'에 없다.");
     }
 
     private static readonly Regex NodeIdRule = new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.Compiled);
@@ -370,12 +370,12 @@ public sealed partial class DocumentEditor
 
         if (!NodeIdRule.IsMatch(name))
         {
-            throw new InvalidOperationException($"노드 이름은 영문자로 시작하는 영문·숫자·_ 다 ('{id}')");
+            throw new InvalidOperationException($"오브젝트 이름은 영문자로 시작하는 영문·숫자·_ 다 ('{id}')");
         }
 
         if (set.Find(name) is not null)
         {
-            throw new InvalidOperationException($"노드 '{name}'가 세트 '{set.Name}'에 이미 있다.");
+            throw new InvalidOperationException($"오브젝트 '{name}'가 세트 '{set.Name}'에 이미 있다.");
         }
 
         if (Preview.CutStage.IsPointNode(name))
@@ -394,17 +394,17 @@ public sealed partial class DocumentEditor
         {
             if (string.IsNullOrEmpty(node.Id) || node.Id.Contains('/', StringComparison.Ordinal))
             {
-                throw new InvalidOperationException($"노드 id가 비었거나 '/'가 들었다 ('{node.Id}')");
+                throw new InvalidOperationException($"오브젝트 id가 비었거나 '/'가 들었다 ('{node.Id}')");
             }
 
             if (!string.IsNullOrEmpty(node.Parent) && !seen.Contains(node.Parent))
             {
-                throw new InvalidOperationException($"노드 '{node.Id}'의 부모 '{node.Parent}'가 앞에 없다 — 부모가 자식보다 먼저 와야 한다.");
+                throw new InvalidOperationException($"오브젝트 '{node.Id}'의 부모 '{node.Parent}'가 앞에 없다 — 부모가 자식보다 먼저 와야 한다.");
             }
 
             if (!seen.Add(node.Id))
             {
-                throw new InvalidOperationException($"노드 '{node.Id}'가 둘이다.");
+                throw new InvalidOperationException($"오브젝트 '{node.Id}'가 둘이다.");
             }
         }
     }

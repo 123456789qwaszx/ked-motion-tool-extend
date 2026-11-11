@@ -111,7 +111,7 @@ public static class DocumentValidator
 
             if (string.IsNullOrEmpty(channel.Object))
             {
-                Block($"채널 {i}: 노드가 비어 있다");
+                Block($"채널 {i}: 오브젝트가 비어 있다");
                 continue;
             }
 
@@ -128,7 +128,7 @@ public static class DocumentValidator
 
             if (!seen.Add((channel.Object, channel.Kind)))
             {
-                Block($"채널 {i}: 같은 노드·종류의 채널이 둘이다 ({channel.Object} {channel.Kind})");
+                Block($"채널 {i}: 같은 오브젝트·종류의 채널이 둘이다 ({channel.Object} {channel.Kind})");
             }
 
             if (channel.Kind != ChannelKind.Euler && channel.Z is not null)
@@ -151,7 +151,7 @@ public static class DocumentValidator
 
                 if (alphaNodes is not null && !alphaNodes.Contains(channel.Object))
                 {
-                    Block($"채널 {i}: '{channel.Object}'는 불투명도를 받을 수 없는 노드다(그 오브젝트의 불투명도 받기가 꺼져 있다). 받을 수 있는 노드: [{string.Join(", ", alphaNodes)}]");
+                    Block($"채널 {i}: '{channel.Object}'는 불투명도를 받을 수 없는 오브젝트다(그 오브젝트의 불투명도 받기가 꺼져 있다). 받을 수 있는 오브젝트: [{string.Join(", ", alphaNodes)}]");
                 }
             }
 
