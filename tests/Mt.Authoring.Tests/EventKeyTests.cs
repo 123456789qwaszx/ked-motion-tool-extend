@@ -8,7 +8,7 @@ using Mt.Authoring.Validation;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>이벤트 키— "이 프레임에 소리".</summary>
+/// <summary>이벤트 키 — "이 프레임에 소리".</summary>
 public class EventKeyTests
 {
     private static readonly BuiltSets BuiltSets = Fixtures.ActorBuiltSets();

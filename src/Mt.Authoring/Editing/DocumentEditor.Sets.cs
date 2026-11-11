@@ -3,7 +3,7 @@ using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Editing;
 
-// 툴에서 정의하는 세트의 명령— 각각 되돌리기 한 칸.
+// 툴에서 정의하는 세트의 명령 — 각각 되돌리기 한 칸.
 public sealed partial class DocumentEditor
 {
     private static readonly Regex SetNameRule = new("^[a-zA-Z][a-zA-Z0-9_]*$", RegexOptions.Compiled);
@@ -109,7 +109,7 @@ public sealed partial class DocumentEditor
         => kind == target
            || (seen.Add(kind) && Document.FindSetOrCut(kind) is { } set && set.Objects.Any(n => n.Set is { Length: > 0 } inner && Holds(inner, target, seen)));
 
-    // ── 세트 편집— 노드를 하나씩 짓고 옮긴다 ────────
+    // ── 세트 편집 — 노드를 하나씩 짓고 옮긴다 ────────
 
     /// <summary>
     /// 노드를 더한다 — <paramref name="parent"/>(비면 루트) 밑의 맨 뒤(그 부모의 식구들 뒤 = 가장 위에 그려진다). id는 그 세트에서 하나뿐이어야 한다.

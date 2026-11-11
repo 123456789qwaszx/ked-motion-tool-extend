@@ -606,13 +606,9 @@ public partial class MainWindow : Window
 
     internal TimeSliderView TimeSlider => _timeSlider;
 
-    internal RangeSliderView RangeSlider => _rangeSlider;
-
     internal DopeSheetView Dope => _dope;
 
     internal KeySelection SharedSelection => _selection;
-
-    internal CurveFlags SharedFlags => _flags;
 
     internal bool AutoKeyChecked
     {
@@ -1501,14 +1497,6 @@ public partial class MainWindow : Window
         get => _inspectorTabs.SelectedIndex;
         set => _inspectorTabs.SelectedIndex = value;
     }
-
-    internal Window? SettingsWindow => _settingsWindow;
-
-    internal Window? ShortcutsWindow => _shortcutsWindow;
-
-    internal void OpenSettingsFromMenu() => OpenSettings();
-
-    internal void OpenShortcutsFromMenu() => OpenShortcuts();
 
     // ── 문서·목록 갱신 ─────────────────────────────────────────────────
 

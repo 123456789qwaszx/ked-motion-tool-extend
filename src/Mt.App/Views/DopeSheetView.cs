@@ -237,8 +237,6 @@ public sealed class DopeSheetView : Control
         }
     }
 
-    public bool IsCollapsed(string node) => _collapsed.Contains(node);
-
     public void ToggleCollapsed(string node)
     {
         if (!_collapsed.Remove(node))

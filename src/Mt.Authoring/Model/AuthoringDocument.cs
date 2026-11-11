@@ -17,7 +17,7 @@ public sealed class AuthoringDocument
     public List<TimelineAsset> Timelines { get; set; } = new();
 
     /// <summary>
-    /// 스킨들— 세트의 조각마다 붙일 그림의 묶음. 미리보기 전용.
+    /// 스킨들 — 세트의 조각마다 붙일 그림의 묶음. 미리보기 전용.
     /// 저작본에는 <see cref="SkinsOrNull"/>로 실린다: 스킨이 없는 문서는 전과 같은 글자다.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -35,7 +35,7 @@ public sealed class AuthoringDocument
         => name is null ? null : Skins.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.Ordinal));
 
     /// <summary>
-    /// 툴에서 정의한 세트들— 세트의 뼈대.
+    /// 툴에서 정의한 세트들 — 세트의 뼈대.
     /// 저작본에는 <see cref="SetsOrNull"/>로 실린다(없으면 안 적는다). 컷 파일에는 컷이 품은 것이 오브젝트로 펼쳐져 나간다.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -92,7 +92,7 @@ public sealed class TimelineAsset
     public List<ChannelAsset> Channels { get; set; } = new();
 
     /// <summary>
-    /// 이벤트 키— 재생이 그 시각을 지나는 순간 울린다 — 컷 파일의 이벤트로 나간다("이 프레임에 소리").
+    /// 이벤트 키 — 재생이 그 시각을 지나는 순간 울린다 — 컷 파일의 이벤트로 나간다("이 프레임에 소리").
     /// 시각 오름차순을 편집기가 지킨다. 저작본에는 <see cref="EventsOrNull"/>로 실린다(없으면 안 적는다).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]

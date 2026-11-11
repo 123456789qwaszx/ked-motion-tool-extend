@@ -10,7 +10,7 @@ using Mt.Authoring.Preview;
 
 namespace Mt.App.Tests;
 
-/// <summary>스킨과 조각의 화면— 조각마다 그림을 주면 그 조각만 그려진다.</summary>
+/// <summary>스킨과 조각의 화면 — 조각마다 그림을 주면 그 조각만 그려진다.</summary>
 public class SkinShellTests
 {
     private static MainWindow NewWindow()
@@ -635,6 +635,26 @@ public class SkinShellTests
                 window.StaggerObjectsFromMenu(a, 0.1f); // a는 그대로, 그 뒤의 형제 b가 0.1초 늦게
                 Assert.Equal(before + 1, editor.Revision);
                 Assert.Equal((0.2f, 0.3f), (MathF.Round(SecondKey(a), 3), MathF.Round(SecondKey(b), 3)));
+
+                // 제 차례 전까지 숨기기 — 불투명도를 받지 않는 오브젝트에는 아무것도 안 한다. 받으면(그림 오브젝트는 처음부터 받는다) 움직이기 시작하는 시각(0.2초)까지 0, 한 칸.
+                void ReceiveAlpha(bool on)
+                {
+                    ObjectAsset changed = editor.Document.FindSetOrCut("set")!.Find(a)!.Clone();
+                    changed.Alpha = on;
+                    editor.UpdateObject("set", a, changed);
+                    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                }
+
+                ReceiveAlpha(false);
+                before = editor.Revision;
+                window.HideObjectForTurnFromMenu(a, until: true);
+                Assert.Equal(before, editor.Revision);
+                ReceiveAlpha(true);
+                before = editor.Revision;
+                window.HideObjectForTurnFromMenu(a, until: true);
+                Assert.Equal(before + 1, editor.Revision);
+                Assert.Equal(new[] { (0f, 0f), (0.2f, 0f), (0.3f, 1f), (1f, 1f) },
+                    editor.Document.Find("timeline")!.FindChannel(a, ChannelKind.Alpha)!.X!.Keys.Select(k => (MathF.Round(k.T, 3), k.V)));
 
                 // 무대만 보기 — 보기 상태(문서는 그대로).
                 Assert.False(view.StageOnly);

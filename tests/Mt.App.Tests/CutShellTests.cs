@@ -328,6 +328,89 @@ public class CutShellTests
     }
 
     [Fact]
+    public void 깊이의_키_단추는_지금_프레임에_깊이의_키를_놓고_그_뒤로_깊이_칸은_그_프레임의_키가_된다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                DocumentEditor editor = window.Session.Editor;
+                window.NewCutFromForm();
+                window.SelectObject(null);
+                window.AddColorNodeFromForm();   // Color1 — 맨 위
+                window.SelectObject("Color1");
+                window.InspectorTab = 1;
+                window.Graph.CurrentTime = 0.0;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.True(window.ObjectDepthShown);
+                Assert.False(editor.CutDepthIsKeyed("cut", "Color1"));
+
+                // "키" — 지금 프레임(0)에 지금의 깊이(mid 14)로 키 하나(한 칸).
+                long revision = editor.Revision;
+                window.KeyCutDepthFromForm();
+                Assert.Equal(revision + 1, editor.Revision);
+                Assert.True(editor.CutDepthIsKeyed("cut", "Color1"));
+
+                // 키가 놓인 뒤로는 칸을 고치는 것이 그 프레임의 키다 — 가만히 선 깊이는 그대로.
+                window.Graph.CurrentTime = 1.0;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Type(window, window.ObjectDepthBox, "20");
+                Assert.Null(editor.Document.FindCut("cut")!.AsSet.Find("Color1")!.Depth);
+                ChannelAsset depth = editor.Document.Find("cut")!.FindChannel(Mt.Authoring.Preview.CutStage.DepthNodeOf("Color1"), ChannelKind.Position)!;
+                Assert.Equal(new[] { (0f, 14f), (1f, 20f) }, depth.X!.Keys.Select(k => (k.T, k.V)));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void 이벤트_추가는_지금_시각에_이벤트_줄을_세우고_줄의_칸이_그_이벤트를_고친다()
+    {
+        HeadlessUi.Run(() =>
+        {
+            MainWindow window = NewWindow();
+            window.Show();
+
+            try
+            {
+                DocumentEditor editor = window.Session.Editor;
+                window.NewCutFromForm();
+                window.InspectorTab = 2;
+                window.Graph.CurrentTime = 0.5;
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(0, window.EventRowCount);
+
+                // 지금 시각(0.5초)에 이름 event로 하나 — 한 칸, 줄이 선다.
+                long revision = editor.Revision;
+                Assert.Equal(0, window.AddEventKeyFromForm());
+                Assert.Equal(revision + 1, editor.Revision);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(1, window.EventRowCount);
+                EventKeyAsset added = editor.Document.Find("cut")!.Events.Single();
+                Assert.Equal((0.5f, "event"), (added.T, added.Name));
+
+                // 줄의 칸 — 이름과 값을 고친다.
+                Type(window, window.EventRow(0).Name, "sfx");
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Type(window, window.EventRow(0).Value, "pop");
+                EventKeyAsset edited = editor.Document.Find("cut")!.Events.Single();
+                Assert.Equal((0.5f, "sfx", "pop"), (edited.T, edited.Name, edited.Value));
+                Assert.Equal(0, window.ProblemRowsShown);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void 그림_키를_놓으면_그_프레임부터_오브젝트의_그림이_바뀐다()
     {
         HeadlessUi.Run(() =>

@@ -145,12 +145,6 @@ public sealed class GraphEditorView : Control
         InvalidateVisual();
     }
 
-    public void ClearCurveSelection()
-    {
-        _selectedCurves.Clear();
-        InvalidateVisual();
-    }
-
     /// <summary>선택한 커브마다 그 시각(스냅)에 곡선 위 값으로 키 하나(한 조작). 마야 Insert Key(MMB 클릭).</summary>
     public List<KeyRef> InsertKeysOnSelectedCurves(double seconds)
     {
@@ -744,14 +738,6 @@ public sealed class GraphEditorView : Control
         }
 
         FitTo(keys, start, Math.Max(end, start + 0.1));
-    }
-
-    /// <summary>마야 "Center Current Time" — 배율은 두고 현재 시각이 플롯 가운데 오게 민다.</summary>
-    public void CenterCurrentTime()
-    {
-        double half = Plot.Width / 2 / _camera.PixelsPerSecond;
-        _camera = _camera with { TimeOrigin = _currentTime - half };
-        InvalidateVisual();
     }
 
     private void FitTo(List<KeyAsset> keys, double? tMinAtLeast, double? tMaxAtLeast)

@@ -10,7 +10,7 @@ using Mt.Cli;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>툴에서 정의한 세트— 세트와 컷의 오브젝트 계층. Spine처럼 툴이 원본.</summary>
+/// <summary>툴에서 정의한 세트 — 세트와 컷의 오브젝트 계층. Spine처럼 툴이 원본.</summary>
 public class SetAssetTests
 {
     private static DocumentEditor NewEditor()

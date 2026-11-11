@@ -3,7 +3,7 @@ using Ked.Presentation.Core;
 namespace Mt.Authoring.Model;
 
 /// <summary>
-/// 툴에서 정의한 세트— 세트의 뼈대. Spine처럼 **툴이 원본**이다.
+/// 툴에서 정의한 세트 — 세트의 뼈대. Spine처럼 **툴이 원본**이다.
 /// 컷의 오브젝트 계층도 같은 그릇이다(<see cref="CutAsset.Set"/>).
 ///
 /// 노드는 단순하다: 부모의 가운데에 앵커·피벗을 둔 사각형(위치 · 크기) + 그림을 그리는가 + 불투명도를 받는가.

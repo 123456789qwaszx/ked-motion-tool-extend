@@ -17,7 +17,7 @@ public sealed class SkinAsset
     public SortedDictionary<string, string> Parts { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// 조각마다의 덧붙임— 그림 넘기기(뒤따르는 장들)와 놓임(자리·크기·회전). 기본값뿐인 조각은 없다.
+    /// 조각마다의 덧붙임 — 그림 넘기기(뒤따르는 장들)와 놓임(자리·크기·회전). 기본값뿐인 조각은 없다.
     /// 저작본에는 <see cref="SetupsOrNull"/>로 실린다(없으면 안 적는다).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
