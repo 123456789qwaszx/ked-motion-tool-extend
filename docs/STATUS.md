@@ -36,7 +36,7 @@
 | C7 (다)-2 | 코어를 컷이 쓰는 것만 남기고 줄였다 — 런타임의 사본이 아니라 이 저장소의 것이 됐다(`vendoring.md`는 출발점의 기록) | `21cebdb` |
 | F2 | 옛 이름을 고쳤다 — `Rig` · `Motion` · `Node`를 묶음(`Set`) · 타임라인(`Timeline`) · 오브젝트(`Object`)로. 저작본은 `cut-authoring/1`(옛 판은 읽지 않는다) | `09c98c4` · `012d746` 외 — `PLAN-foundation.md` |
 | F3 | 문서를 지금의 툴에 맞췄다 — README는 입구, 조작은 `USER-GUIDE.md`, 고치는 사람은 `MAINTENANCE.md`. `HANDOFF.md`와 옛 계획서 아홉을 걷었다 | `ffe95e9` 외 — `PLAN-foundation.md` |
-| F4 | 구조를 훑어 걷었다 — 안 쓰는 손잡이 · 멤버 · 호환 코드, 깊이 커브는 코어의 상수로(재생에 컷 파일 하나면 된다), 계층 DTO 층 대신 펼친 오브젝트, NUnit → xunit, 남은 옛 이름 | `464f6eb` ~ — `PLAN-foundation.md` |
+| F4 | 구조를 훑어 걷었다 — 안 쓰는 손잡이 · 멤버 · 호환 코드, 깊이 커브는 코어의 상수로(재생에 컷 파일 하나면 된다), 계층 DTO 층 대신 펼친 오브젝트, NUnit → xunit, 남은 옛 이름 | `464f6eb` ~ `42bbb30` — `PLAN-foundation.md` |
 
 마지막으로 확인한 수치: 빌드 경고·오류 0, 테스트 299개(Core 46 · Authoring 170 · App 83).
 

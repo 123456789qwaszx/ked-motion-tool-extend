@@ -28,7 +28,7 @@
 | F1 | 코어를 컷이 쓰는 것만 남기고 줄인다(C7 다-2) | 끝 — `21cebdb` |
 | F2 | 옛 이름을 고친다 | 끝 — `09c98c4`(코어) · `012d746`(식별자) · F2-3(문구 — 이 문서와 같은 커밋) |
 | F3 | 문서를 지금의 툴에 맞춘다 | 끝 — `ffe95e9` · F3-3 · F3-4 |
-| F4 | 구조를 훑어 불필요한 것을 찾고, 승인받은 것을 걷는다 | 끝 — `464f6eb` ~ 나6 |
+| F4 | 구조를 훑어 불필요한 것을 찾고, 승인받은 것을 걷는다 | 끝 — `464f6eb` ~ `42bbb30` |
 
 ### F2 — 옛 이름을 고친다
 
@@ -215,7 +215,7 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
   - 로더 테스트가 지키던 규칙 가운데 "부모가 앞에 없으면 세우지 못한다"는 `BuiltSetsTests`로 옮겼다. 화면은 렌더로 보아 바꾸기 전과 같다.
 - [x] **나3 NUnit → xunit**(`ff6da55`) — 코어 테스트(46개) 셋을 xunit으로 옮겼다(단언은 변환기로 기계적으로 — `Assert.That(…, Is.EqualTo(…).Within(Eps))` → `Assert.Equal(…, …, Eps)` 등).
   테스트 프레임워크가 하나가 됐고 `Directory.Packages.props`에서 NUnit 판을 걷었다. 유니티 시절의 폴더 `EditMode/`도 걷었다. 코어 테스트 프로젝트는 Nullable만 끈다(코어를 null로 부르는 시험이 있다).
-- [x] **나6 남은 옛 이름 · 자리**(이 커밋)
+- [x] **나6 남은 옛 이름 · 자리**(`42bbb30`)
   - 세트의 이름을 든 `kind`(약 60곳)를 `setName`으로 — `string kind` 선언(매개변수 · 지역 · 패턴 변수)의 범위 안에서만 바꿨다. 채널 종류의 `kind`(`ChannelKind`)는 그대로다.
     한 메서드(`ThroughInstance`)에는 세트 이름이 둘이라 뒤의 것을 `extracted`로.
   - `BaseResolutionFile.Default`(파일이 아니라 상수 하나) → `Stage.Size`. 견본 `Fixtures.SetOf`(옛 `RigOf`) → `Fixtures.BuiltOf`.
