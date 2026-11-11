@@ -49,23 +49,23 @@ public static class CutFileJson
         // 오브젝트 — 품은 세트를 펼친 것. 그림은 실제로 입는 스킨(제 스킨 + 품은 세트들의 스킨)에서.
         SkinAsset? skin = SetBuilder.EffectiveSkin(document, cut.Name, document.Skins.FirstOrDefault(s => s.Set == cut.Name)?.Name);
 
-        foreach (HierarchyNodeDto node in SetCodec.ToDto(cut.AsSet, stageSize, document.FindSetOrCut).nodes.Where(n => n.id != SetCodec.RootId))
+        foreach (ExpandedObject node in SetCodec.Expand(cut.AsSet, document.FindSetOrCut))
         {
-            bool top = node.parent == SetCodec.RootId;
+            bool top = node.Parent.Length == 0;
             file.objects.Add(new CutObjectDto
             {
-                id = node.id,
-                parent = top ? "" : node.parent,
-                depth = top ? cut.AsSet.Find(node.id)?.Depth ?? CutMath.DefaultDepth : 0f,
-                x = node.anchoredPosition.x,
-                y = node.anchoredPosition.y,
-                rotation = node.localEulerAngles.z,
-                scaleX = node.localScale.x,
-                scaleY = node.localScale.y,
-                width = node.sizeDelta.x,
-                height = node.sizeDelta.y,
-                image = node.hasImage && skin?.ImageAt(node.id, 0) is { } image ? Image(image) : null,
-                color = string.IsNullOrEmpty(node.fillColor) ? null : node.fillColor,
+                id = node.Id,
+                parent = node.Parent,
+                depth = top ? cut.AsSet.Find(node.Id)?.Depth ?? CutMath.DefaultDepth : 0f,
+                x = node.Position.X,
+                y = node.Position.Y,
+                rotation = node.Rotation,
+                scaleX = node.Scale.X,
+                scaleY = node.Scale.Y,
+                width = node.Size.X,
+                height = node.Size.Y,
+                image = node.Image && skin?.ImageAt(node.Id, 0) is { } image ? Image(image) : null,
+                color = node.Color,
             });
         }
 

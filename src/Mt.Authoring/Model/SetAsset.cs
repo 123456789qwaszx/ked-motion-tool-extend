@@ -77,10 +77,28 @@ public sealed class ObjectAsset
     public ObjectAsset Clone() => (ObjectAsset)MemberwiseClone();
 }
 
-/// <summary>툴의 세트 ↔ 코어의 세트 스키마. 해석(트리 세우기)은 코어가 한다.</summary>
+/// <summary>
+/// 세운 한 벌 속의 오브젝트 하나 — 품은 세트를 펼친 것이라 이름은 경로다(<c>인스턴스.이름</c>). 부모가 빈 것은 맨 위.
+/// 모든 오브젝트는 부모의 가운데에 앵커·피벗을 둔 사각형이다 — 그래서 자리 · 크기 · 배율 · 회전만 든다.
+/// </summary>
+public sealed record ExpandedObject(string Id, string Parent, Vec2 Position, Vec2 Size, Vec2 Scale, float Rotation, bool Alpha, bool Image, string? Color)
+{
+    /// <summary>코어 트리에 들어가는 상태 값 — 가운데 앵커 · 가운데 피벗.</summary>
+    public RectNodeState ToState() => new(
+        anchoredPosition: Position,
+        anchorMin: Vec2.Half,
+        anchorMax: Vec2.Half,
+        pivot: Vec2.Half,
+        sizeDelta: Size,
+        localScale: new Vec3(Scale.X, Scale.Y, 1f),
+        localEulerAngles: new Vec3(0f, 0f, Rotation));
+}
+
+/// <summary>세트 → 펼친 오브젝트들, 그리고 그것으로 코어 트리를 세우기.</summary>
 public static class SetCodec
 {
-    public const string RootId = HierarchyLoader.RootKey;
+    /// <summary>트리의 루트 — 무대를 꽉 채운다. 펼친 오브젝트 목록에는 없고, 트리를 세울 때만 붙는다.</summary>
+    public const string RootId = "__root";
 
     /// <summary>품은 세트의 오브젝트를 가리키는 경로의 구분 기호 — <c>차.Body</c>. 오브젝트 이름에는 못 쓰는 글자다(이름은 영문·숫자·_).</summary>
     public const char PathSeparator = '.';
@@ -96,93 +114,70 @@ public static class SetCodec
     }
 
     /// <summary>
-    /// 코어 스키마로 — 루트를 붙이고, 노드는 가운데 앵커·가운데 피벗으로. <paramref name="resolve"/>가 있으면 **품은 세트를 펼친다**:
+    /// 펼친 오브젝트들 — 부모가 자식보다 먼저 온다(그리는 순서도 이 순서). <paramref name="resolve"/>가 있으면 **품은 세트를 펼친다**:
     /// 인스턴스 오브젝트 밑에 그 세트의 오브젝트들이 <c>인스턴스.이름</c>으로 선다(되풀이해서 — 품은 것이 또 품었으면 <c>a.b.c</c>). 없는 세트·순환·너무 깊은 것은 건너뛴다.
     /// 그래서 세운 계층은 늘 한 덩어리다 — 미리보기도 컷 파일도 펼친 것을 본다(<c>PLAN-set.md</c> §7의 A).
     /// </summary>
-    public static HierarchyDto ToDto(SetAsset set, Vec2 stageSize, Func<string, SetAsset?>? resolve = null)
+    public static List<ExpandedObject> Expand(SetAsset set, Func<string, SetAsset?>? resolve = null)
     {
         ArgumentNullException.ThrowIfNull(set);
-        var nodes = new List<HierarchyNodeDto>
-        {
-            new()
-            {
-                id = RootId,
-                parent = "",
-                anchoredPosition = F2(0f, 0f),
-                anchorMin = F2(0f, 0f),
-                anchorMax = F2(1f, 1f),
-                pivot = F2(0.5f, 0.5f),
-                sizeDelta = F2(0f, 0f),
-                localScale = F3(1f, 1f, 1f),
-                localEulerAngles = F3(0f, 0f, 0f),
-            },
-        };
-
-        Expand(nodes, set, "", RootId, resolve, new HashSet<string>(StringComparer.Ordinal) { set.Name }, 0);
-
-        return new HierarchyDto { name = set.Name, nodes = nodes };
+        var objects = new List<ExpandedObject>();
+        Expand(objects, set, "", "", resolve, new HashSet<string>(StringComparer.Ordinal) { set.Name }, 0);
+        return objects;
     }
 
     /// <summary>
-    /// 크기 없는 점 노드를 맨 위에 더한다 — 그리지 않고 값만 담는 자리(컷의 카메라: 그 자리가 곧 밀기·당기기의 값이다). 키를 놓을 수 있는 오브젝트로 선다.
+    /// 크기 없는 점을 맨 위에 더한다 — 그리지 않고 값만 담는 자리(컷의 카메라 · 깊이: 그 자리가 곧 값이다). 키를 놓을 수 있는 오브젝트로 선다.
     /// </summary>
-    public static HierarchyDto WithPoints(HierarchyDto dto, params string[] ids)
+    public static List<ExpandedObject> WithPoints(List<ExpandedObject> objects, params string[] ids)
     {
-        ArgumentNullException.ThrowIfNull(dto);
+        ArgumentNullException.ThrowIfNull(objects);
         ArgumentNullException.ThrowIfNull(ids);
+        objects.AddRange(ids.Select(id => new ExpandedObject(id, "", Vec2.Zero, Vec2.Zero, Vec2.One, 0f, false, false, null)));
+        return objects;
+    }
 
-        foreach (string id in ids)
+    /// <summary>
+    /// 펼친 오브젝트들로 코어 트리를 세운다 — 루트(<see cref="RootId"/>)가 무대를 꽉 채우고, 맨 위 오브젝트는 그 밑에. 키는 <paramref name="prefix"/> + 이름.
+    /// 부모가 앞에 없으면 트리가 던진다.
+    /// </summary>
+    public static RectNodeTree BuildTree(IEnumerable<ExpandedObject> objects, Vec2 stageSize, string prefix = "")
+    {
+        ArgumentNullException.ThrowIfNull(objects);
+        var tree = new RectNodeTree(new RectSpace(stageSize, Vec2.Half));
+        tree.Add(prefix + RootId, null, RectNodeState.StretchFull);
+
+        foreach (ExpandedObject o in objects)
         {
-            dto.nodes.Add(new HierarchyNodeDto
-            {
-                id = id,
-                parent = RootId,
-                anchoredPosition = F2(0f, 0f),
-                anchorMin = F2(0.5f, 0.5f),
-                anchorMax = F2(0.5f, 0.5f),
-                pivot = F2(0.5f, 0.5f),
-                sizeDelta = F2(0f, 0f),
-                localScale = F3(1f, 1f, 1f),
-                localEulerAngles = F3(0f, 0f, 0f),
-            });
+            tree.Add(prefix + o.Id, prefix + (o.Parent.Length == 0 ? RootId : o.Parent), o.ToState());
         }
 
-        return dto;
+        return tree;
     }
 
     /// <summary>세트의 오브젝트들을 <paramref name="prefix"/>를 붙여 더한다 — 맨 위의 것은 <paramref name="under"/> 밑에. 인스턴스를 만나면 그 세트를 그 밑에 펼친다.</summary>
-    private static void Expand(List<HierarchyNodeDto> nodes, SetAsset set, string prefix, string under, Func<string, SetAsset?>? resolve, HashSet<string> open, int depth)
+    private static void Expand(List<ExpandedObject> objects, SetAsset set, string prefix, string under, Func<string, SetAsset?>? resolve, HashSet<string> open, int depth)
     {
         foreach (ObjectAsset node in set.Objects)
         {
             string id = prefix + node.Id;
-            nodes.Add(new HierarchyNodeDto
-            {
-                id = id,
-                parent = string.IsNullOrEmpty(node.Parent) ? under : prefix + node.Parent,
-                anchoredPosition = F2(node.X, node.Y),
-                anchorMin = F2(0.5f, 0.5f),
-                anchorMax = F2(0.5f, 0.5f),
-                pivot = F2(0.5f, 0.5f),
-                sizeDelta = F2(node.Width, node.Height),
-                localScale = F3(node.ScaleX, node.ScaleY, 1f),
-                localEulerAngles = F3(0f, 0f, node.Rotation),
-                hasAlpha = node.Alpha,
-                hasImage = node.Image,
-                fillColor = node.Color,
-            });
+            objects.Add(new ExpandedObject(
+                id,
+                string.IsNullOrEmpty(node.Parent) ? under : prefix + node.Parent,
+                new Vec2(node.X, node.Y),
+                new Vec2(node.Width, node.Height),
+                new Vec2(node.ScaleX, node.ScaleY),
+                node.Rotation,
+                node.Alpha,
+                node.Image,
+                string.IsNullOrEmpty(node.Color) ? null : node.Color));
 
             // 품은 세트 — 이 오브젝트 밑에 펼친다. 제 조상을 다시 품는 것(순환)과 너무 깊은 것은 건너뛴다.
             if (node.Set is { Length: > 0 } inner && resolve?.Invoke(inner) is { } child && depth < MaxNesting && open.Add(inner))
             {
-                Expand(nodes, child, id + PathSeparator, id, resolve, open, depth + 1);
+                Expand(objects, child, id + PathSeparator, id, resolve, open, depth + 1);
                 open.Remove(inner);
             }
         }
     }
-
-    private static Float2Dto F2(float x, float y) => new() { x = x, y = y };
-
-    private static Float3Dto F3(float x, float y, float z) => new() { x = x, y = y, z = z };
 }

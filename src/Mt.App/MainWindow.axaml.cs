@@ -1566,44 +1566,39 @@ public partial class MainWindow : Window
         TreeViewItem? selectedItem = null;
         var itemsByNode = new Dictionary<string, TreeViewItem>(StringComparer.Ordinal);
 
-        if (_session.Built.TryGetSet(kind, out HierarchyDto dto))
+        if (_session.Built.TryGetObjects(kind, out IReadOnlyList<ExpandedObject> objects))
         {
-            foreach (HierarchyNodeDto node in dto.nodes)
+            foreach (ExpandedObject node in objects)
             {
-                if (node.id == HierarchyLoader.RootKey)
-                {
-                    continue; // 맨 위 항목이 곧 루트다.
-                }
-
                 // 깊이의 점(이름__depth)은 오브젝트가 아니다 — 그 오브젝트의 깊이 칸과 그래프의 트랙으로 다룬다. 카메라의 점은 남긴다(골라서 채널 박스로 키를 놓는다).
-                if (CutStage.IsDepthNode(node.id))
+                if (CutStage.IsDepthNode(node.Id))
                 {
                     continue;
                 }
 
-                TreeViewItem nodeParent = string.IsNullOrEmpty(node.parent) || node.parent == HierarchyLoader.RootKey || !itemsByNode.TryGetValue(node.parent, out TreeViewItem? found)
+                TreeViewItem nodeParent = node.Parent.Length == 0 || !itemsByNode.TryGetValue(node.Parent, out TreeViewItem? found)
                     ? root
                     : found;
                 // 따로 보기(숨김 · 솔로)의 표시.
-                bool shown = _viewport.IsObjectShown(node.id);
-                string mark = _viewport.SoloObject == node.id ? "   ◉ 이것만" : _viewport.IsObjectHidden(node.id) ? "   (숨김)" : "";
-                TreeViewItem nodeItem = Folder(node.id + mark, $"node:{kind}/{node.id}");
+                bool shown = _viewport.IsObjectShown(node.Id);
+                string mark = _viewport.SoloObject == node.Id ? "   ◉ 이것만" : _viewport.IsObjectHidden(node.Id) ? "   (숨김)" : "";
+                TreeViewItem nodeItem = Folder(node.Id + mark, $"node:{kind}/{node.Id}");
                 nodeItem.Opacity = shown ? 1 : 0.45;
 
                 // 품은 세트 안쪽의 것 — 참조다: 여기서는 못 고치고 그 세트를 열어 고친다.
-                if (node.id.Contains(SetCodec.PathSeparator, StringComparison.Ordinal))
+                if (node.Id.Contains(SetCodec.PathSeparator, StringComparison.Ordinal))
                 {
                     nodeItem.Opacity *= 0.7;
                 }
 
-                nodeItem.Tag = new HierarchyNode(node.id);
+                nodeItem.Tag = new HierarchyNode(node.Id);
                 nodeItem.FontWeight = FontWeight.Normal;
                 nodeItem.Foreground = ActingNodeBrush;
 
                 Attach(nodeItem, nodeParent);
-                itemsByNode[node.id] = nodeItem;
+                itemsByNode[node.Id] = nodeItem;
 
-                if (nodeWasSelected && node.id == _viewport.SelectedNode)
+                if (nodeWasSelected && node.Id == _viewport.SelectedNode)
                 {
                     selectedItem = nodeItem;
                 }

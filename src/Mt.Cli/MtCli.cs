@@ -140,7 +140,7 @@ public static class MtCli
         // 그림 경로는 컷 파일 기준으로 적는다(문서 기준 → 파일 기준). 그림은 복사하지 않는다.
         string documentFolder = Path.GetDirectoryName(Path.GetFullPath(options.Positional(0, "문서 경로"))) ?? ".";
         string folder = Path.GetDirectoryName(Path.GetFullPath(target)) ?? ".";
-        CutFileDto file = CutFileJson.Build(document, cut, set.Dto.stageSize.ToVec2(),
+        CutFileDto file = CutFileJson.Build(document, cut, set.StageSize,
             image => Path.GetRelativePath(folder, Path.GetFullPath(Path.Combine(documentFolder, image))).Replace('\\', '/'));
         File.WriteAllBytes(target, new System.Text.UTF8Encoding(false).GetBytes(CutFileJson.Write(file)));
         Write(stdout, new JsonObject
@@ -169,7 +169,7 @@ public static class MtCli
         result["timeline"] = timeline.Name;
         result["duration"] = timeline.Duration;
 
-        if (!set.TryGetSet(timeline.Set, out _))
+        if (!set.TryGetObjects(timeline.Set, out _))
         {
             throw new InvalidOperationException($"타임라인 '{timeline.Name}'이 얹히는 세트나 컷 '{timeline.Set}'가 없다.");
         }

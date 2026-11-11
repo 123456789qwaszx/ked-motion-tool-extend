@@ -15,16 +15,17 @@
 
 | 폴더 | 무엇 |
 |---|---|
-| `Cut/` | 컷 파일(`cut/1`)의 모양(`CutFileDto`) · 깊이와 카메라의 계산(`CutMath` — 깊이 커브는 여기의 상수다) · 그 프레임의 모습(`CutPlayer`). 툴의 미리보기와 재생이 이 함수를 쓴다 |
+| `Cut/` | 컷 파일(`cut/1`)의 모양(`CutFileDto`) · 깊이와 카메라의 계산(`CutMath` — 깊이 커브는 여기의 상수다) · 깊이의 눈금(`DepthLevelLabels`) · 그 프레임의 모습(`CutPlayer`). 툴의 미리보기와 재생이 이 함수를 쓴다 |
 | `Ease/` | 곡선의 키와 평가(`CurveKey` · `CurveFunctions`) |
 | `Primitives/` | `Vec2` · `Vec3` |
 | `State/` · `Transforms/` | 사각형 계층(`RectNodeTree` · `RectNodeState` · `RectSpace` · `RectChainMath`) — 유니티 RectTransform과 같은 규약의 좌표 계산 |
-| `Tuning/` | 계층을 적는 DTO와 그것을 트리로 세우는 해석(`HierarchyDto` · `HierarchyLoader`) · 깊이의 눈금(`DepthLevelLabels`) |
 
 ## 걷어 낸 것 (2026-11-11)
 
 대본 커맨드를 무대 상태로 접던 것(`Reduce/` · `State`의 무대 상태 · `Tokens/`) · 모션 클립과 그 규칙(`Motion/`) · 초상 · 자리 · 프리셋의 튜닝 ·
 이름 붙은 이징과 진동(`EaseFunctions` · `OscillationFunctions`) · `Rgba` · `SettledFocusMath` · `Documentation~/`, 그리고 그것들을 보던 테스트. 컷은 이것들을 쓰지 않는다.
+
+그 뒤(같은 날, 기반 F4): 깊이 커브의 DTO(`DepthTuningDto` — 커브는 `CutMath`의 상수가 됐다) · 계층을 적는 DTO와 그 로더(`HierarchyDto` · `HierarchyLoader` · `Float2Dto`/`Float3Dto` — 세트는 도메인의 `ExpandedObject`에서 바로 트리를 세운다) · `Tuning/` 폴더.
 
 ## 컴파일 수준
 

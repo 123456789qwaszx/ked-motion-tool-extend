@@ -201,11 +201,18 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
 - [x] **가3 · 가4**(`796cf47`) — `RectNodeTree.TryGetState` · `BuildChainTo` · `DocumentEditor.RemoveKey`(테스트는 `RemoveKeys`로) · `DopeRow.Covers` · `TimeText.ToSeconds` · `FromSeconds` · `PlaybackClock.Loop`/`ViewportView.Loop`(호환용 — `Mode`를 쓴다)를 걷었다.
   - **철회**: `RectSpace.Centered` · `RectNodeState.WithAnchors` · `WithPivot` · `WithSizeDelta`는 남긴다 — 코어 테스트가 사각형 계산(앵커 · 피벗)을 검증하려고 값을 짓는 도구다. "테스트만 부른다"는 걷을 까닭이 못 된다.
   - 옛 속성 테스트(`옛_문서의_걷어_낸_속성은_…`)는 F2-2에서 옛 판 테스트와 함께 이미 나가 있었다.
-- [x] **나1 깊이 커브를 코드로**(이 커밋) — 크기 커브의 키 셋을 코어 `CutMath`의 상수로 두고, 내장 JSON(`Defaults/ExportedTuning/presets/depth.json`, 유니티 덤프 모양) ·
+- [x] **나1 깊이 커브를 코드로**(`2f1aa72`) — 크기 커브의 키 셋을 코어 `CutMath`의 상수로 두고, 내장 JSON(`Defaults/ExportedTuning/presets/depth.json`, 유니티 덤프 모양) ·
   `BuiltinTuning` · `DepthTuningFile` · 코어 `DepthTuningDto`(커브 DTO · 쓰지 않던 세로 커브) · 테스트 견본(`Fixtures/presets/depth.json`과 `Fixtures.PathOf`) · 뷰포트의 `SetDepth` · 세션의 `Depth`를 없앴다.
   `CutPlayer.Evaluate(cut, frame)` · `CutStage.Apply(tree, cut, prefix)` · `SizeAt(level)`은 커브를 인자로 받지 않는다 — "커브가 없으면 크기 1"인 길이 사라졌다. 앱이 그리는 모습은 그대로다(전부터 내장 커브를 썼다).
   컷 파일의 형식은 그대로이고, **재생에 컷 파일 하나면 된다**(STATUS §6의 "깊이 커브를 넘기는 약속"이 필요 없어졌다).
   카메라만 따로 보던 테스트는 "커브 없음"을 전제로 했다 — 기대값에 그 깊이의 크기를 곱하게 고쳤다.
+- [x] **나2 계층 DTO 층**(이 커밋) — ①(코어에서 도메인으로 내리기)과 ②(펼친 오브젝트로 바꾸기)를 **한 번에** 했다: ②가 끝나면 코어의 DTO는 남지 않으므로 ①을 따로 거칠 까닭이 없었다.
+  - 코어의 `HierarchyFileDto` · `HierarchyDto` · `HierarchyNodeDto` · `Float2Dto`/`Float3Dto` · `HierarchyLoader`와 그 테스트(13개)를 없앴다. `Tuning/`에는 깊이의 눈금만 남아 `Cut/`로 옮기고 폴더를 없앴다.
+  - 도메인에 `ExpandedObject`(경로 이름 · 부모 · 자리 · 크기 · 배율 · 회전 · 불투명도 · 그림 · 색)를 두고, `SetCodec.Expand`(세트 → 펼친 오브젝트) · `WithPoints` · `BuildTree`(→ 코어 트리)로 바로 세운다.
+    모든 오브젝트가 가운데 앵커 · 피벗이라 앵커 · 피벗 · `sizeDelta`를 따로 적을 까닭이 없다.
+  - **루트(`__root`)는 목록에 없다** — 트리를 세울 때만 붙는다. 그래서 하이어아키 · 뷰포트 · 컷 파일 굽기 · 테스트에서 "루트는 건너뛴다"가 다 사라졌다.
+  - `BuiltSets`는 `StageSize`와 이름별 펼친 오브젝트를 든다(`TryGetObjects`). 없는 이름의 `BuildTree`는 던진다.
+  - 로더 테스트가 지키던 규칙 가운데 "부모가 앞에 없으면 세우지 못한다"는 `BuiltSetsTests`로 옮겼다. 화면은 렌더로 보아 바꾸기 전과 같다.
 
 ## 4. 차례의 까닭
 

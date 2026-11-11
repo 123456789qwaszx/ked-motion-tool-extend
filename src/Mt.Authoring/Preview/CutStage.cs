@@ -62,54 +62,49 @@ public static class CutStage
         ArgumentNullException.ThrowIfNull(set);
         ArgumentNullException.ThrowIfNull(cut);
 
-        if (!set.TryGetSet(cut.Name, out HierarchyDto dto))
+        if (!set.TryGetObjects(cut.Name, out IReadOnlyList<ExpandedObject> objects))
         {
             return null;
         }
 
-        var tree = new RectNodeTree(new RectSpace(set.Dto.stageSize.ToVec2(), Vec2.Half));
+        var tree = new RectNodeTree(new RectSpace(set.StageSize, Vec2.Half));
         tree.Add(prefix + Zoom, null, RectNodeState.StretchFull);
         tree.Add(prefix + Pan, prefix + Zoom, RectNodeState.StretchFull);
+        tree.Add(prefix + SetCodec.RootId, prefix + Pan, RectNodeState.StretchFull);
 
-        foreach (HierarchyNodeDto node in dto.nodes)
+        foreach (ExpandedObject node in objects)
         {
-            RectNodeState state = HierarchyLoader.ToState(node, cut.Name);
+            RectNodeState state = node.ToState();
 
-            if (node.id == HierarchyLoader.RootKey)
-            {
-                tree.Add(prefix + node.id, prefix + Pan, state);
-            }
-            else if (node.id == CameraPan)
+            if (node.Id == CameraPan)
             {
                 // 카메라의 점 — 가만히 선 자리가 컷의 카메라 값이다. 카메라에 따라 움직이지 않는 자리(당기기 틀의 바깥)에 둔다.
-                tree.Add(prefix + node.id, null, state.WithAnchoredPosition(new Vec2(cut.Camera.PanX, cut.Camera.PanY)));
+                tree.Add(prefix + node.Id, null, state.WithAnchoredPosition(new Vec2(cut.Camera.PanX, cut.Camera.PanY)));
             }
-            else if (node.id == CameraZoom)
+            else if (node.Id == CameraZoom)
             {
-                tree.Add(prefix + node.id, null, state.WithAnchoredPosition(new Vec2(cut.Camera.Zoom, 0f)));
+                tree.Add(prefix + node.Id, null, state.WithAnchoredPosition(new Vec2(cut.Camera.Zoom, 0f)));
             }
-            else if (IsDepthNode(node.id))
+            else if (IsDepthNode(node.Id))
             {
                 // 깊이의 점 — 가만히 선 자리가 그 오브젝트에 적힌 깊이다.
-                float rest = cut.AsSet.Find(node.id[..^DepthSuffix.Length])?.Depth ?? DefaultDepth;
-                tree.Add(prefix + node.id, null, state.WithAnchoredPosition(new Vec2(rest, 0f)));
+                float rest = cut.AsSet.Find(node.Id[..^DepthSuffix.Length])?.Depth ?? DefaultDepth;
+                tree.Add(prefix + node.Id, null, state.WithAnchoredPosition(new Vec2(rest, 0f)));
             }
-            else if (IsTop(node))
+            else if (node.Parent.Length == 0)
             {
                 // 맨 위 오브젝트 — 제 틀 밑에 선다(틀이 카메라에 따르는 정도를 받는다).
-                tree.Add(prefix + Frame + node.id, prefix + Pan, RectNodeState.StretchFull);
-                tree.Add(prefix + node.id, prefix + Frame + node.id, state);
+                tree.Add(prefix + Frame + node.Id, prefix + Pan, RectNodeState.StretchFull);
+                tree.Add(prefix + node.Id, prefix + Frame + node.Id, state);
             }
             else
             {
-                tree.Add(prefix + node.id, prefix + node.parent, state);
+                tree.Add(prefix + node.Id, prefix + node.Parent, state);
             }
         }
 
         return tree;
     }
-
-    private static bool IsTop(HierarchyNodeDto node) => string.IsNullOrEmpty(node.parent) || node.parent == HierarchyLoader.RootKey;
 
     /// <summary>
     /// 카메라와 깊이를 넣는다 — <see cref="Build"/>로 세워 포즈를 잡은 트리에 **한 번**(맨 위 오브젝트의 배율에 깊이의 배율을 곱하므로 두 번 넣으면 안 된다).
@@ -198,7 +193,7 @@ public static class CutStage
     /// 그리는 순서 — 먼 것부터(깊이가 작은 맨 위 오브젝트와 그 밑의 것들이 먼저), 같은 깊이는 목록 순. 펼친 계층의 노드들을 그 차례로 다시 세운다.
     /// </summary>
     /// <param name="pose">그 시각의 포즈 — 주면 키로 움직인 깊이의 차례다. 없으면 오브젝트에 적힌 깊이.</param>
-    public static IReadOnlyList<HierarchyNodeDto> DrawOrder(CutAsset cut, IReadOnlyList<HierarchyNodeDto> nodes, RectNodeTree? pose = null, string prefix = "")
+    public static IReadOnlyList<ExpandedObject> DrawOrder(CutAsset cut, IReadOnlyList<ExpandedObject> nodes, RectNodeTree? pose = null, string prefix = "")
     {
         ArgumentNullException.ThrowIfNull(cut);
         ArgumentNullException.ThrowIfNull(nodes);
@@ -209,9 +204,9 @@ public static class CutStage
             top[node.Id] = node.Parent.Length == 0 ? node.Id : top.GetValueOrDefault(node.Parent, node.Parent);
         }
 
-        float OrderDepth(HierarchyNodeDto node)
+        float OrderDepth(ExpandedObject node)
         {
-            string owner = SetCodec.OwnerOf(node.id); // 품은 세트 안쪽의 것(a.b)은 그것을 품은 오브젝트를 따른다
+            string owner = SetCodec.OwnerOf(node.Id); // 품은 세트 안쪽의 것(a.b)은 그것을 품은 오브젝트를 따른다
             return top.TryGetValue(owner, out string? root) && cut.AsSet.Find(root) is { } rootNode ? DepthOf(pose, rootNode, prefix) : float.NegativeInfinity;
         }
 

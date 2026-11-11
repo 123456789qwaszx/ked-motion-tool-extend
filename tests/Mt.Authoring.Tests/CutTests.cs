@@ -239,8 +239,8 @@ public class CutTests
         Assert.Equal(300f, tree.TransformPoint("cut/sky", Vec3.Zero).X, 3);
 
         // 그리는 순서 — 먼 것부터. 밑의 것은 제 맨 위 오브젝트를 따라간다. 깊이를 바꾸면 차례가 바뀐다.
-        Fixtures.SetOf(editor.Document).TryGetSet("arrival", out HierarchyDto dto);
-        string[] Order() => CutStage.DrawOrder(cut, dto.nodes).Select(n => n.id).Where(id => id != HierarchyLoader.RootKey && !CutStage.IsPointNode(id)).ToArray();
+        Fixtures.SetOf(editor.Document).TryGetObjects("arrival", out IReadOnlyList<ExpandedObject> objects);
+        string[] Order() => CutStage.DrawOrder(cut, objects).Select(n => n.Id).Where(id => !CutStage.IsPointNode(id)).ToArray();
         Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order());
         editor.SetCutNodeDepth("arrival", "hero", 30f);
         Assert.Equal(new[] { "sky", "near", "hero", "arm" }, Order());
@@ -483,9 +483,9 @@ public class CutTests
         DocumentEditor editor = RichCut();
         CutAsset cut = editor.Document.FindCut("arrival")!;
         BuiltSets set = Fixtures.SetOf(editor.Document);
-        Vec2 stage = set.Dto.stageSize.ToVec2();
+        Vec2 stage = set.StageSize;
         TimelineAsset timeline = editor.Document.Find("arrival")!;
-        set.TryGetSet("arrival", out HierarchyDto dto);
+        set.TryGetObjects("arrival", out IReadOnlyList<ExpandedObject> objects);
         SkinAsset skin = SetBuilder.EffectiveSkin(editor.Document, "arrival", "arrival")!;
 
         // 게임이 읽는 길 그대로: 글로 적은 파일을 코어의 DTO로 읽어 코어의 재생기에 넣는다.
@@ -522,7 +522,7 @@ public class CutTests
             }
 
             Assert.Equal(
-                CutStage.DrawOrder(cut, dto.nodes, tool, "cut/").Select(n => n.id).Where(id => id != HierarchyLoader.RootKey && !CutStage.IsPointNode(id)),
+                CutStage.DrawOrder(cut, objects, tool, "cut/").Select(n => n.Id).Where(id => !CutStage.IsPointNode(id)),
                 game.DrawOrder);
         }
 

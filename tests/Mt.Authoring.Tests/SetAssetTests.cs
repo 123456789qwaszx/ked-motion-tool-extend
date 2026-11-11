@@ -82,7 +82,7 @@ public class SetAssetTests
         // 문서가 정의한 것만의 한 벌(앱이 쓰는 길) — 무대 크기를 받는다.
         BuiltSets alone = SetBuilder.Compose(editor.Document, new Vec2(1920f, 1080f));
         Assert.Equal(new[] { "prop" }, alone.SetNames);
-        Assert.Equal(1920f, alone.BuildTree("prop").GetRectSize(HierarchyLoader.RootKey).X, 3);
+        Assert.Equal(1920f, alone.BuildTree("prop").GetRectSize(SetCodec.RootId).X, 3);
         Assert.Empty(SetBuilder.Compose(new AuthoringDocument(), new Vec2(1920f, 1080f)).SetNames);
     }
 
@@ -171,16 +171,16 @@ public class SetAssetTests
         editor.UpdateObject(PartsSetFixture.SetName, "Badge_Glow", moved);
         Assert.Equal(revision + 1, editor.Revision);
         BuiltSets composed = Fixtures.SetOf(editor.Document);
-        Assert.True(composed.TryGetSet(PartsSetFixture.SetName, out HierarchyDto dto));
-        HierarchyNodeDto node = dto.nodes.Single(n => n.id == "Badge_Glow");
-        Assert.Equal((30f, -12f, 80f, 40f, true, false), (node.anchoredPosition.x, node.anchoredPosition.y, node.sizeDelta.x, node.sizeDelta.y, node.hasImage, node.hasAlpha));
+        Assert.True(composed.TryGetObjects(PartsSetFixture.SetName, out IReadOnlyList<ExpandedObject> objects));
+        ExpandedObject node = objects.Single(n => n.Id == "Badge_Glow");
+        Assert.Equal((30f, -12f, 80f, 40f, true, false), (node.Position.X, node.Position.Y, node.Size.X, node.Size.Y, node.Image, node.Alpha));
         Assert.Contains("Badge_Glow", ObjectParts.Of(composed, PartsSetFixture.SetName));
 
         // 가만히 선 자세의 회전·배율(배치 모드) — 세운 나무에 그대로 선다. 배율 0은 막는다.
         editor.UpdateObject(PartsSetFixture.SetName, "Badge_Glow", new ObjectAsset { X = 30f, Y = -12f, Width = 80f, Height = 40f, Image = true, Rotation = 30f, ScaleX = 2f, ScaleY = -1f });
-        Assert.True(Fixtures.SetOf(editor.Document).TryGetSet(PartsSetFixture.SetName, out HierarchyDto posed));
-        HierarchyNodeDto turned = posed.nodes.Single(n => n.id == "Badge_Glow");
-        Assert.Equal((30f, 2f, -1f), (turned.localEulerAngles.z, turned.localScale.x, turned.localScale.y));
+        Assert.True(Fixtures.SetOf(editor.Document).TryGetObjects(PartsSetFixture.SetName, out IReadOnlyList<ExpandedObject> posed));
+        ExpandedObject turned = posed.Single(n => n.Id == "Badge_Glow");
+        Assert.Equal((30f, 2f, -1f), (turned.Rotation, turned.Scale.X, turned.Scale.Y));
         Assert.Throws<InvalidOperationException>(() => editor.UpdateObject(PartsSetFixture.SetName, "Badge_Glow", new ObjectAsset { ScaleX = 0f }));
         editor.Undo();
 
@@ -246,8 +246,8 @@ public class SetAssetTests
         Assert.Equal("#3D5A80", ObjectParts.ColorsOf(composed, "wipe")["Panel"]);
         Assert.Empty(ObjectParts.Of(composed, "wipe"));
         Assert.Empty(ObjectParts.ColorsOf(composed, "nope"));
-        Assert.True(composed.TryGetSet("wipe", out HierarchyDto wipe));
-        Assert.Equal(new[] { ("Body", ""), ("Panel", "#3D5A80") }, wipe.nodes.Where(n => n.id != HierarchyLoader.RootKey).Select(n => (n.id, n.fillColor ?? "")));
+        Assert.True(composed.TryGetObjects("wipe", out IReadOnlyList<ExpandedObject> wipe));
+        Assert.Equal(new[] { ("Body", ""), ("Panel", "#3D5A80") }, wipe.Select(n => (n.Id, n.Color ?? "")));
 
         // 저작본 — 색이 없는 노드에는 안 적힌다.
         string json = AuthoringDocumentJson.Write(editor.Document);
@@ -396,9 +396,9 @@ public class SetAssetTests
 
         // 세운 계층: 품은 세트가 인스턴스 밑에 "인스턴스.이름"으로 펼쳐진다. 부모·색·그림 표시가 따라온다.
         BuiltSets composed = Fixtures.SetOf(editor.Document);
-        Assert.True(composed.TryGetSet("city", out HierarchyDto dto));
-        Assert.Equal(new[] { "__root", "Ground", "car", "car.Body", "car.Shell", "car.Wheel", "sun", "sun.Disc" }, dto.nodes.Select(n => n.id));
-        Assert.Equal(("car", "car.Body", "car.Body"), (dto.nodes.Single(n => n.id == "car.Body").parent, dto.nodes.Single(n => n.id == "car.Shell").parent, dto.nodes.Single(n => n.id == "car.Wheel").parent));
+        Assert.True(composed.TryGetObjects("city", out IReadOnlyList<ExpandedObject> city));
+        Assert.Equal(new[] { "Ground", "car", "car.Body", "car.Shell", "car.Wheel", "sun", "sun.Disc" }, city.Select(n => n.Id));
+        Assert.Equal(("car", "car.Body", "car.Body"), (city.Single(n => n.Id == "car.Body").Parent, city.Single(n => n.Id == "car.Shell").Parent, city.Single(n => n.Id == "car.Wheel").Parent));
         Assert.Equal(new[] { "car.Shell", "sun.Disc" }, ObjectParts.Of(composed, "city"));
         Assert.Equal("#222222", ObjectParts.ColorsOf(composed, "city")["car.Wheel"]);
         Assert.Equal("car", SetCodec.OwnerOf("car.Wheel"));
@@ -420,8 +420,8 @@ public class SetAssetTests
 
         // 참조다 — 원본 세트를 고치면 품은 곳이 따라온다.
         editor.AddObject("car", "Light", "Body");
-        Assert.True(Fixtures.SetOf(editor.Document).TryGetSet("city", out HierarchyDto after));
-        Assert.Contains(after.nodes, n => n.id == "car.Light");
+        Assert.True(Fixtures.SetOf(editor.Document).TryGetObjects("city", out IReadOnlyList<ExpandedObject> after));
+        Assert.Contains(after, n => n.Id == "car.Light");
 
         // 품은 것의 애니메이션: 인스턴스를 통째로 움직이는 키도, 안쪽의 것을 경로 이름으로 짚는 키도 놓인다 — 검증을 지난다.
         editor.AddTimeline("city_in", "city", 1f);
@@ -461,8 +461,8 @@ public class SetAssetTests
 
         // 품은 것이 또 품은 것 — 경로가 이어진다.
         editor.AddInstance("city", "sun", "sun");
-        Assert.True(Fixtures.SetOf(editor.Document).TryGetSet("city", out HierarchyDto dto));
-        Assert.Contains(dto.nodes, n => n.id == "sun.inner.Wheel");
+        Assert.True(Fixtures.SetOf(editor.Document).TryGetObjects("city", out IReadOnlyList<ExpandedObject> nested));
+        Assert.Contains(nested, n => n.Id == "sun.inner.Wheel");
 
         // 인스턴스를 빼면 지울 수 있다.
         editor.RemoveObject("city", "car");
@@ -474,8 +474,8 @@ public class SetAssetTests
         var broken = new AuthoringDocument();
         broken.Sets.Add(new SetAsset { Name = "a", Objects = { new ObjectAsset { Id = "x", Set = "b" }, new ObjectAsset { Id = "y", Set = "ghost" } } });
         broken.Sets.Add(new SetAsset { Name = "b", Objects = { new ObjectAsset { Id = "z", Set = "a" } } });
-        Assert.True(Fixtures.SetOf(broken).TryGetSet("a", out HierarchyDto looped));
-        Assert.Equal(new[] { "__root", "x", "x.z", "y" }, looped.nodes.Select(n => n.id));
+        Assert.True(Fixtures.SetOf(broken).TryGetObjects("a", out IReadOnlyList<ExpandedObject> looped));
+        Assert.Equal(new[] { "x", "x.z", "y" }, looped.Select(n => n.Id));
     }
 
     // ── 재생 블록 — 품은 세트의 애니메이션을 튼다(PLAN-set.md S10·S11) ───

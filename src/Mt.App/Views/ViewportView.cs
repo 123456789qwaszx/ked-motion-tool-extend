@@ -215,12 +215,12 @@ public sealed class ViewportView : Control
     {
         get
         {
-            if (_set is null || _setView is not { } kind || !_set.TryGetSet(kind, out HierarchyDto dto))
+            if (_set is null || _setView is not { } kind || !_set.TryGetObjects(kind, out IReadOnlyList<ExpandedObject> objects))
             {
                 return Array.Empty<string>();
             }
 
-            return dto.nodes.Select(n => n.id).Where(k => k != HierarchyLoader.RootKey).OrderBy(k => k, StringComparer.Ordinal).ToList();
+            return objects.Select(n => n.Id).OrderBy(k => k, StringComparer.Ordinal).ToList();
         }
     }
 
@@ -369,7 +369,7 @@ public sealed class ViewportView : Control
         return pose.Contains(RootKey) ? StageQuads.RectQuad(pose, RootKey) : null;
     }
 
-    private const string RootKey = Prefix + HierarchyLoader.RootKey;
+    private const string RootKey = Prefix + SetCodec.RootId;
 
     private double SnapTime(double seconds) => SnapEnabled ? TimeSnap.Snap(seconds, SnapStep) : seconds;
 
@@ -1081,7 +1081,7 @@ public sealed class ViewportView : Control
     {
         _template = null;
 
-        if (_set is null || _setView is not { } kind || !_set.TryGetSet(kind, out _))
+        if (_set is null || _setView is not { } kind || !_set.TryGetObjects(kind, out _))
         {
             return;
         }
@@ -1538,12 +1538,12 @@ public sealed class ViewportView : Control
         IReadOnlyList<string> parts = DrawnParts();
         SkinAsset? wornNow = Worn;
 
-        if (_set is not null && _set.TryGetSet(kind, out HierarchyDto drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
+        if (_set is not null && _set.TryGetObjects(kind, out IReadOnlyList<ExpandedObject> drawn) && (colors.Count > 0 || (parts.Count > 0 && wornNow is not null)))
         {
             // 컷이면 먼 것부터(깊이 순), 세트면 목록 순.
-            foreach (HierarchyNodeDto objectAsset in ShownCut is { } drawnCut ? CutStage.DrawOrder(drawnCut, drawn.nodes, pose, Prefix) : drawn.nodes)
+            foreach (ExpandedObject objectAsset in ShownCut is { } drawnCut ? CutStage.DrawOrder(drawnCut, drawn, pose, Prefix) : drawn)
             {
-                string node = objectAsset.id;
+                string node = objectAsset.Id;
                 string key = KeyOf(node);
 
                 if (!pose.Contains(key))
@@ -2174,20 +2174,20 @@ public sealed class ViewportView : Control
         var at = new Pixel(position.X, position.Y);
 
         // 펼친 계층의 순서로(위에 그려진 것 먼저) — 품은 세트 안쪽의 것을 누르면 그것을 품은 오브젝트가 집힌다(안쪽은 그 세트를 열어 고친다).
-        if (_set is not null && _setView is { } kind && _set.TryGetSet(kind, out HierarchyDto dto))
+        if (_set is not null && _setView is { } kind && _set.TryGetObjects(kind, out IReadOnlyList<ExpandedObject> objects))
         {
-            foreach (HierarchyNodeDto node in Enumerable.Reverse(ShownCut is { } pickedCut ? CutStage.DrawOrder(pickedCut, dto.nodes, pose, Prefix) : dto.nodes))
+            foreach (ExpandedObject node in Enumerable.Reverse(ShownCut is { } pickedCut ? CutStage.DrawOrder(pickedCut, objects, pose, Prefix) : objects))
             {
-                string key = KeyOf(node.id);
-                string? owner = PickableOf(node.id);
+                string key = KeyOf(node.Id);
+                string? owner = PickableOf(node.Id);
 
-                if (node.id == HierarchyLoader.RootKey || !pose.Contains(key) || node.sizeDelta is null || node.sizeDelta.x <= 0f || node.sizeDelta.y <= 0f
-                    || owner is null || ResolveObject(owner) is null || !IsObjectShown(node.id))
+                if (!pose.Contains(key) || node.Size.X <= 0f || node.Size.Y <= 0f
+                    || owner is null || ResolveObject(owner) is null || !IsObjectShown(node.Id))
                 {
                     continue;
                 }
 
-                Quad quad = (node.hasImage ? PartQuadOf(pose, node.id) : null) ?? StageQuads.RectQuad(pose, key);
+                Quad quad = (node.Image ? PartQuadOf(pose, node.Id) : null) ?? StageQuads.RectQuad(pose, key);
                 var polygon = new[] { quad.BottomLeft, quad.BottomRight, quad.TopRight, quad.TopLeft }.Select(c => ToControl(c)).Select(p => new Pixel(p.X, p.Y)).ToList();
 
                 if (GraphHitTest.Contains(polygon, at))

@@ -16,8 +16,8 @@ public static class SetBuilder
     {
         ArgumentNullException.ThrowIfNull(document);
         // 컷은 오브젝트 계층에 값만 담는 점들이 더 선다(카메라 둘 · 맨 위 오브젝트마다 깊이 하나) — 카메라와 깊이가 같은 타임라인의 트랙이 된다.
-        return BuiltSets.Of(stageSize, document.Sets.Select(r => SetCodec.ToDto(r, stageSize, document.FindSetOrCut))
-            .Concat(document.Cuts.Select(c => SetCodec.WithPoints(SetCodec.ToDto(c.AsSet, stageSize, document.FindSetOrCut), Preview.CutStage.PointsOf(c)))));
+        return BuiltSets.Of(stageSize, document.Sets.Select(r => (r.Name, SetCodec.Expand(r, document.FindSetOrCut)))
+            .Concat(document.Cuts.Select(c => (c.Name, SetCodec.WithPoints(SetCodec.Expand(c.AsSet, document.FindSetOrCut), Preview.CutStage.PointsOf(c))))));
     }
 
     /// <summary>
