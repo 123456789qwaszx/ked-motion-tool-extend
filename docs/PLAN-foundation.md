@@ -168,6 +168,33 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
 - `.github/workflows/test.yml`과 `MAINTENANCE.md`의 CI 설명이 지금의 테스트 구성과 맞는지.
 - `Mt.Cli` — 컷 내보내기가 없다(`STATUS.md` §6). 지금 무엇을 하는지, 남길 까닭이 있는지.
 
+#### F4 목록 (2026-11-11, **소유자 승인 대기**)
+
+코드를 훑어 찾은 것. 각 항목은 승인받으면 커밋 하나로 걷는다(완료 기준은 §3 공통). "쓰임"은 정의 밖에서 부르는 곳.
+
+**가. 안 쓰는 것 — 작고 확실하다(권고: 걷는다)**
+
+| | 무엇 | 어디 | 걷으면 |
+|---|---|---|---|
+| 가1 | 어디서도 안 부르는 화면 손잡이 | `MainWindow`: `EventRowCount` · `HideObjectForTurnFromMenu` · `OpenSettingsFromMenu` · `OpenShortcutsFromMenu` · `RangeSlider` · `SettingsWindow` · `ShortcutsWindow` · `SharedFlags` / `DopeSheetView.IsCollapsed` · `GraphEditorView.CenterCurrentTime` · `ClearCurveSelection` | 기능은 그대로. 손잡이만 나간다(설정·단축키 창은 헤드리스에서 열 수 없어 테스트가 없다) |
+| 가2 | 테스트가 없는 화면 기능의 손잡이 | `KeyCutDepthFromForm`(깊이의 키) · `AddEventKeyFromForm`(이벤트 추가) | **걷지 않고 헤드리스 테스트를 붙인다**(관습: 화면의 기능에는 손잡이와 테스트) |
+| 가3 | 안 쓰는 도메인·코어 멤버 | `TimeText.ToSeconds` · `RectNodeTree.BuildChainTo`(쓰임 0) / `RectNodeState.Centered` · `WithAnchors` · `WithPivot` · `WithSizeDelta` · `RectNodeTree.TryGetState` · `DocumentEditor.RemoveKey` · `DopeSheetRows.Covers` · `TimeText.FromSeconds`(테스트만 부른다) | 그 멤버와 그것만 보는 테스트가 나간다 |
+| 가4 | 호환 코드 | `PlaybackClock.Loop`("호환용" bool — `Mode`와 겹친다) · `AuthoringDocumentJsonTests.옛_문서의_걷어_낸_속성은_읽을_때_무시된다`(옛 판을 안 읽는 지금은 뜻이 없다) · 타임라인 목록의 "옛 문서" 주석 | 뷰포트는 `Mode`를 쓴다 |
+
+**나. 구조 — 권고와 함께 정해 주셔야 하는 것**
+
+| | 무엇 | 지금 | 권고 |
+|---|---|---|---|
+| 나1 | **깊이 커브를 파일에서 코드로** | 유니티 덤프 모양 그대로의 JSON(`{"MonoBehaviour": {"level": …}}`, 5.5KB)을 어셈블리에 싣고(`Defaults/ExportedTuning/presets/depth.json`) `BuiltinTuning` → `DepthTuningFile` → 코어 `DepthTuningDto`로 읽는다. 쓰는 것은 키 셋의 `scaleCurve` 하나(`yCurve` · 프리셋 · 보존 값은 안 쓴다). 재생기(`CutPlayer.Evaluate`)는 커브를 인자로 받고, 없으면 크기 1로 떨어지는 길이 곳곳에 있다 | **걷는다** — 커브 키를 코어 `CutMath`에 상수로 두고, 파일 · 리소스 · DTO · 로더 · 테스트 견본(`Fixtures/presets/depth.json`) · nullable 경로를 없앤다. 컷 파일의 형식은 그대로이고, 재생에 컷 파일 하나면 된다("깊이 커브를 넘기는 약속"이 필요 없어진다) |
+| 나2 | **계층 DTO 층** | 세트(`SetAsset` — 가운데 기준의 x · y · 너비 · 높이 · 회전 · 배율) → `SetCodec.ToDto` → 코어 `HierarchyDto`(덤프 때의 모양: 앵커 · 피벗 · sizeDelta를 `Float2Dto`/`Float3Dto`로) → `HierarchyLoader` → `RectNodeTree`. 파일로 읽고 쓰는 일이 없는데 직렬화용 DTO가 메모리 속 중간 단계로 남았다. 뷰포트 · 컷 무대 · 검증 · 하이어아키가 이 DTO를 읽는다 | **걷는다 — 둘로 나눠서.** ① 코어의 `Hierarchy*` · `Float*Dto`를 도메인으로 내리고(코어는 `Cut/` · 사각형 계층 · 곡선만) ② DTO를 "펼친 오브젝트" 레코드로 바꿔 거기서 바로 트리를 세운다(`BuiltSets`가 그것을 든다). 크다 — 뷰포트와 컷 무대를 지난다 |
+| 나3 | **코어 테스트의 NUnit** | 코어 테스트(60개)만 NUnit, 나머지는 xunit. 출발점이 유니티 테스트 러너였던 까닭 | **xunit으로 합친다** — 테스트 프레임워크 하나 |
+| 나4 | **코어의 컴파일 제약**(netstandard2.1 · C# 9 · Nullable 끔) | 유니티가 가져갈 수 있게 둔 안전핀 | **둔다** — 비용이 작고, 컷 파일을 읽는 쪽을 언젠가 떼어 갈 때의 자리다. 런타임과의 관계를 다시 열 때 정한다 |
+| 나5 | **돕는 손**(`ValidationFixes`) | 고칠 손이 하나(이름 고치기)이고, 문제의 문구 앞머리로 고른다 | **둔다** — 작다. 손이 늘면 그때 문제에 종류를 단다 |
+| 나6 | **남은 옛 이름 · 자리** | 세트의 이름을 든 변수가 `kind`인 곳(채널 종류의 `kind`와 섞인다) · 견본 `Fixtures.SetOf` · `BaseResolutionFile`(파일이 아니라 상수 하나) · `Sets/` 폴더에 깊이 커브 · 무대 크기 · 층 표가 섞임 | **고친다** — 나1 · 나2 뒤에(그때 자리가 정해진다) |
+| 나7 | 그릇의 이름(`Ked.Presentation.Core` · `Mt.*` · `ked-motion-tool`) · 큰 파일(`ViewportView` 2,581줄 · `MainWindow.axaml.cs` 2,528줄 · `GraphEditorView` 2,193줄) | — | **지금은 둔다** — 이름은 F2-0에서 정한 대로 툴의 의도가 확정될 때. 큰 파일 나누기는 걷어 내기가 아니라 고쳐 짓기다 |
+
+**권고하는 차례**: 가1 → 가2 → 가3 → 가4 → 나1 → 나2① → 나2② → 나3 → 나6. 가는 한 커밋에 묶어도 된다(작다).
+
 ## 4. 차례의 까닭
 
 - **이름(F2)이 문서(F3)보다 먼저** — 문서를 먼저 고치면 이름을 바꾼 뒤 한 번 더 고쳐야 한다.
