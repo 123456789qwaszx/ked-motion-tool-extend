@@ -201,7 +201,7 @@ public class CutTests
         Assert.Equal(100f, Width(rest, "hero"), 3);
         Assert.Equal(50f, X(rest, "arm"), 3); // 밑의 것은 부모를 따른다
 
-        // 밀기 100 — mid는 그대로 100, far는 덜(100 × (1 − 0.04)), close는 더(100 × (1 + 0.2)). 런타임의 층별 상수 그대로.
+        // 밀기 100 — mid는 그대로 100, far는 덜(100 × (1 − 0.04)), close는 더(100 × (1 + 0.2)). 층별 상수 그대로.
         RectNodeTree panned = Staged(editor, cut, new CameraSettings { PanX = 100f }, null);
         Assert.Equal(96f, X(panned, "sky"), 3);
         Assert.Equal(100f, X(panned, "hero"), 3);
@@ -230,7 +230,7 @@ public class CutTests
         RectNodeTree tree = Staged(editor, cut, new CameraSettings(), depth);
         float Width(string id) => tree.TransformPoint("cut/" + id, new Vec3(50f, 0f, 0f)).X - tree.TransformPoint("cut/" + id, new Vec3(-50f, 0f, 0f)).X;
 
-        // mid는 지은 그대로, 먼 것은 작게, 가까운 것은 크게 — 런타임의 깊이 커브.
+        // mid는 지은 그대로, 먼 것은 작게, 가까운 것은 크게 — 깊이 커브.
         Assert.Equal(100f, Width("hero"), 3);
         Assert.True(Width("sky") < 99f, $"sky {Width("sky")}");
         Assert.True(Width("near") > 101f, $"near {Width("near")}");

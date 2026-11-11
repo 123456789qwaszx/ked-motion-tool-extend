@@ -1295,7 +1295,7 @@ public sealed class ViewportView : Control
         }
     }
 
-    // ── 불투명도(알파 채널, PLAN-parts.md P4) ───────────────────────────
+    // ── 불투명도(알파 채널) ───────────────────────────
 
     /// <summary>그리는 중인 프레임의 불투명도 표 — Render가 포즈와 함께 채운다.</summary>
     private readonly Dictionary<string, float> _drawAlphas = new(StringComparer.Ordinal);

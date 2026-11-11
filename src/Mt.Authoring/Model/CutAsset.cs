@@ -8,7 +8,7 @@ namespace Mt.Authoring.Model;
 ///
 /// 오브젝트 계층은 세트와 같은 것이다(<see cref="ObjectAsset"/>) — 그래서 배치·키·품기·새 세트로 빼기가 그대로 컷에서 돈다.
 /// 컷의 이름이 곧 그 계층의 이름(<see cref="SetAsset.Kind"/>)이고, 타임라인은 같은 이름의 애니메이션(<see cref="TimelineAsset"/>) 하나다.
-/// 맨 위 오브젝트는 깊이(<see cref="ObjectAsset.Depth"/> — 런타임의 depthLevel)를 가진다.
+/// 맨 위 오브젝트는 깊이(<see cref="ObjectAsset.Depth"/> — depthLevel)를 가진다.
 /// </summary>
 public sealed class CutAsset
 {

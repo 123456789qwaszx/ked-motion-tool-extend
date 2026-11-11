@@ -10,7 +10,7 @@ public sealed partial class DocumentEditor
     /// <summary>컷 길이의 상한(프레임) — 터무니없는 값이 타임라인을 메우지 않게(10분).</summary>
     public const int MaxCutFrames = CutAsset.Fps * 600;
 
-    /// <summary>깊이(depthLevel)의 범위 — far(0)에서 close(20)의 두 배까지. 런타임의 깊이 커브가 쓰는 구간과 그 너머의 외삽.</summary>
+    /// <summary>깊이(depthLevel)의 범위 — far(0)에서 close(20)의 두 배까지. 깊이 커브가 설계된 구간과 그 너머의 외삽.</summary>
     public const float MinDepth = 0f;
     public const float MaxDepth = 40f;
 

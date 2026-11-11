@@ -8,12 +8,11 @@
     <InternalsVisibleTo Include="Mt.Authoring.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 내장 기본값: 런타임 ExportedTuning에서 가져온 깊이 커브(presets/depth.json).
-         손으로 고치지 않는다 — 원본 커밋은 BuiltinTuning.Source에 적는다. -->
+    <!-- 내장 기본값: 깊이 커브(presets/depth.json). -->
     <EmbeddedResource Include="Defaults\**\*.json" LogicalName="Defaults/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 무대 런타임에서 복사 반입한 연출 코어. 커브 계산 · 사각형 계층 · 컷의 재생(Cut/)은 이 한 벌만 쓴다. -->
+    <!-- 코어 — 커브 계산 · 사각형 계층 · 컷의 재생(Cut/)은 이 한 벌만 쓴다. -->
     <ProjectReference Include="..\Ked.Presentation.Core\Ked.Presentation.Core.csproj" />
   </ItemGroup>
 </Project>

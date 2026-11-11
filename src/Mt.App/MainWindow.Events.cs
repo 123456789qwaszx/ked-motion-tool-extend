@@ -4,7 +4,7 @@ using Mt.Authoring.Model;
 
 namespace Mt.App;
 
-// 이벤트 키의 셸(PLAN-parts.md §2.5) — "타임라인" 탭 아래. 재생이 그 시각을 지나는 순간 런타임이 이름과 값으로 알리는 표시다("이 프레임에 소리").
+// 이벤트 키의 셸— "타임라인" 탭 아래. 재생이 그 시각을 지나는 순간 울리는 표시(컷 파일의 이벤트로 나간다)다("이 프레임에 소리").
 // 그래프가 묶은 타임라인의 것을 보인다.
 public partial class MainWindow
 {
@@ -28,7 +28,7 @@ public partial class MainWindow
         panel.Children.Add(Header("이벤트 키"));
         panel.Children.Add(_eventRows);
         Button add = SmallButton("이벤트 추가 (지금 시각)", (_, _) => Guard("이벤트 추가", () => AddEventKey()));
-        ToolTip.SetTip(add, "지금 시각에 이벤트 키를 놓는다 — 재생이 그 시각을 지나는 순간 런타임이 (이름, 값)으로 알린다. 예: 이름 sfx · 값 pop. 이름은 영문 소문자·숫자·_ , 값은 자유. 컷 파일의 events로 나간다. 상태가 아니라서 건너뛰기·되감기에서는 다시 울리지 않는다");
+        ToolTip.SetTip(add, "지금 시각에 이벤트 키를 놓는다 — 재생이 그 시각을 지나는 순간 (이름, 값)으로 울린다. 예: 이름 sfx · 값 pop. 이름은 영문 소문자·숫자·_ , 값은 자유. 컷 파일의 events로 나간다. 상태가 아니라서 건너뛰기·되감기에서는 다시 울리지 않는다");
         panel.Children.Add(add);
         return panel;
     }

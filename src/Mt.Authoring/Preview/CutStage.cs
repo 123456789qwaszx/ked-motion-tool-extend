@@ -5,15 +5,15 @@ using Mt.Authoring.Sets;
 namespace Mt.Authoring.Preview;
 
 /// <summary>
-/// 컷을 무대에 세운다(<c>PLAN-standalone.md</c> §6 · C2b) — 런타임이 실제 카메라와 깊이 없이 UI로 카메라를 흉내 내는 그 계산을 컷의 오브젝트에 준다.
+/// 컷을 무대에 세운다(<c>PLAN-standalone.md</c> §6 · C2b) — 실제 카메라와 깊이 없이 UI로 카메라를 흉내 내는 계산을 컷의 오브젝트에 준다.
 ///
 /// 맨 위 오브젝트마다 **깊이**(depthLevel, 수)가 있고, 깊이가 두 가지를 정한다:
 /// <list type="bullet">
-/// <item><b>크기</b> — 런타임의 깊이 커브(<see cref="DepthTuningFile"/>). mid(14)에서 지은 그대로, 멀수록 작게. 오브젝트의 제 원점을 중심으로 줄어든다(자리는 그대로다).</item>
+/// <item><b>크기</b> — 깊이 커브(<see cref="DepthTuningFile"/>). mid(14)에서 지은 그대로, 멀수록 작게. 오브젝트의 제 원점을 중심으로 줄어든다(자리는 그대로다).</item>
 /// <item><b>카메라에 따르는 정도</b> — 밀면(pan) 먼 것은 덜·가까운 것은 더 따라오고, 당기면(zoom) 먼 것은 덜·가까운 것은 더 커진다.
-/// 런타임의 층별 상수(<see cref="CutMath.ResponseAt"/>)를 깊이의 눈금(far 0 · back 10 · mid 14 · front 16 · close 20) 사이에서 이어 쓴다 — 수가 층 사이에 있어도 끊기지 않는다.</item>
+/// 층별 상수(<see cref="CutMath.ResponseAt"/>)를 깊이의 눈금(far 0 · back 10 · mid 14 · front 16 · close 20) 사이에서 이어 쓴다 — 수가 층 사이에 있어도 끊기지 않는다.</item>
 /// </list>
-/// 트리의 모양은 런타임의 무대 뼈대와 같은 차례다: 당기기(전체 배율) › 밀기(전체 이동) › 오브젝트별 틀(층의 FramingTransform·FramingScale 자리) › 오브젝트.
+/// 트리의 차례: 당기기(전체 배율) › 밀기(전체 이동) › 오브젝트별 틀 › 오브젝트.
 /// 이 계산은 컷 파일을 읽는 쪽과 같아야 한다 — C6에서 Core로 옮긴다.
 /// </summary>
 public static class CutStage

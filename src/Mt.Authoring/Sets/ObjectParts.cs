@@ -3,7 +3,7 @@ using Ked.Presentation.Core;
 namespace Mt.Authoring.Sets;
 
 /// <summary>
-/// 세트의 조각 — 그림을 하나씩 그리는 오브젝트들(<c>PLAN-parts.md</c> P1)과 색 사각형. 오브젝트의 "그림" 표시와 색에서 읽는다.
+/// 세트의 조각 — 그림을 하나씩 그리는 오브젝트들과 색 사각형. 오브젝트의 "그림" 표시와 색에서 읽는다.
 /// </summary>
 public static class ObjectParts
 {

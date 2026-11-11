@@ -27,8 +27,8 @@
 | F0 | 문서에 방향을 적는다(지시서 4절의 여섯 곳) | 끝 — `8c9b912` |
 | F1 | 코어를 컷이 쓰는 것만 남기고 줄인다(C7 다-2) | 끝 — `21cebdb` |
 | F2 | 옛 이름을 고친다 | 끝 — `09c98c4`(코어) · `012d746`(식별자) · F2-3(문구 — 이 문서와 같은 커밋) |
-| F3 | 문서를 지금의 툴에 맞춘다 | 다음 |
-| F4 | 구조를 훑어 불필요한 것을 찾고, 승인받은 것을 걷는다 | |
+| F3 | 문서를 지금의 툴에 맞춘다 | 끝 — `ffe95e9` · F3-3 · F3-4 |
+| F4 | 구조를 훑어 불필요한 것을 찾고, 승인받은 것을 걷는다 | 다음 |
 
 ### F2 — 옛 이름을 고친다
 
@@ -193,3 +193,18 @@ F2-0에서 **정해야 하는 것**(권고를 함께 보고한다):
     - 화면 쪽의 `SetNode`(세트의 오브젝트)도 `Object`로(`SelectObject` · `RefreshObjectPanel` …).
     - 새 애니메이션의 기본 이름은 `timeline` · `timeline_2`….
   - 남은 것(F4의 목록으로): 세트의 이름을 든 변수가 아직 `kind`인 곳이 많다. 코어의 `HierarchyDto` 겹이 필요한지. 그릇의 이름(`Mt.*` · `ked-motion-tool`).
+- **F3(2026-11-11)** — 문서를 지금의 툴에 맞췄다.
+  - F3-1·2: README는 짧은 입구(무엇 · 낱말 · 실행 · 구조 · 파일 · 문서 지도)로, 화면 조작 전부는 `USER-GUIDE.md` 한 곳으로 모았다(둘이 같은 표를 따로 들고 있었다).
+    지금 화면과 다른 것(재생 기준 · 종료 처리 · 상대값 · restore/commit · `motions/3` · 옛 문서 읽기 · 중립값 알림)을 고쳤다. 화면에 나가는 오류 문구의 "노드"도 "오브젝트"로(F2-3에서 도메인 쪽을 놓쳤다).
+  - F3-3: `HANDOFF.md`를 걷었다 — 아직 맞는 결정은 `MAINTENANCE.md` §1로. `MAINTENANCE.md`는 지금 이름의 코드 지도와 지금의 불변식으로 다시 썼다.
+  - F3-4: 옛 계획서는 **소유자의 "과감하게 정리하며 진행"(2026-11-11)에 따라 목록 보고 없이 걷었다** — 지금의 툴에 없는 것의 기록이다.
+    - 걷은 것: `PLAN.md`(캐릭터 모션 툴 · `motions/2` · M0~M6) · `PLAN-M5.md` · `PLAN-maya.md` · `maya-comparison.md`(M4 시점의 대조표) · `PLAN-controller.md`(컨트롤러) · `PLAN-scene.md`(씬) ·
+      `PLAN-inspector.md` · `PLAN-parts.md`(이모지 · 리그 덤프 · `motions/3`) · `PLAN-undo.md`(옛 이름으로 적힌 지난 수리 — 정책은 `MAINTENANCE.md` §4의 2로 옮겼다).
+    - 남긴 것: `PLAN-standalone.md`(컷의 정의 · 컷 파일 · 단계별 기록)와 `PLAN-set.md`(세트의 단계 S1~S11 — 코드 주석이 가리킨다. 머리에 "기록"임과 바뀐 낱말을 적었다).
+    - 코드 주석의 걷은 계획서 참조를 지웠고, 남은 "런타임의 …" 표현(깊이 · 카메라 · 이벤트)을 지금의 뜻으로 고쳤다. csproj의 옛 견본 설명(`motions.nod-bow.json` · `stage-parity/`)도.
+  - 문서 안의 링크 · 경로 · 식별자가 실제로 있는지 검색으로 맞췄다(0건 어긋남).
+  - F4의 목록에 더할 것(조사하다 본 것):
+    - `AuthoringDocumentJsonTests.옛_문서의_걷어_낸_속성은_읽을_때_무시된다` — 옛 속성(`scenes` · `rigSchemas` …)이 든 문서를 읽는 호환 테스트. 옛 판을 안 읽는 지금은 뜻이 없다.
+    - 내장 깊이 커브: `BuiltinTuning.Source`(런타임 커밋) · 폴더 `Defaults/ExportedTuning/` · 유니티 덤프 모양(`{"MonoBehaviour": {"level": …}}`)을 그대로 읽는 `DepthTuningFile`.
+    - 세트의 이름을 든 변수가 `kind`인 곳 · 테스트 견본 `Fixtures.SetOf`(옛 `RigOf`).
+

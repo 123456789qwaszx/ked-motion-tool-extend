@@ -3,7 +3,7 @@ using Ked.Presentation.Core;
 namespace Mt.Authoring.Model;
 
 /// <summary>
-/// 툴에서 정의한 세트(<c>PLAN-parts.md</c> §9) — 세트의 뼈대. Spine처럼 **툴이 원본**이다.
+/// 툴에서 정의한 세트— 세트의 뼈대. Spine처럼 **툴이 원본**이다.
 /// 컷의 오브젝트 계층도 같은 그릇이다(<see cref="CutAsset.Set"/>).
 ///
 /// 노드는 단순하다: 부모의 가운데에 앵커·피벗을 둔 사각형(위치 · 크기) + 그림을 그리는가 + 불투명도를 받는가.
@@ -63,7 +63,7 @@ public sealed class ObjectAsset
     public string? SetSkin { get; set; }
 
     /// <summary>
-    /// 깊이 — 런타임의 <c>depthLevel</c>(수: far 0 · back 10 · mid 14 · front 16 · close 20은 그 눈금의 이름이다). **컷의 맨 위 오브젝트**만 뜻이 있다:
+    /// 깊이 — <c>depthLevel</c>(수: far 0 · back 10 · mid 14 · front 16 · close 20은 그 눈금의 이름이다). **컷의 맨 위 오브젝트**만 뜻이 있다:
     /// 무대의 어느 깊이에 서는가(멀수록 작게 보이고 카메라에 덜 따라 움직인다). null이면 mid. 밑의 오브젝트는 부모를 따른다.
     /// </summary>
     public float? Depth { get; set; }

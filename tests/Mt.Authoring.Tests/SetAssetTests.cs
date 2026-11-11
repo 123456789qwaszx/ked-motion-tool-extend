@@ -10,7 +10,7 @@ using Mt.Cli;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>툴에서 정의한 세트(<c>PLAN-parts.md</c> §9) — 세트와 컷의 오브젝트 계층. Spine처럼 툴이 원본.</summary>
+/// <summary>툴에서 정의한 세트— 세트와 컷의 오브젝트 계층. Spine처럼 툴이 원본.</summary>
 public class SetAssetTests
 {
     private static DocumentEditor NewEditor()
@@ -114,7 +114,7 @@ public class SetAssetTests
         Assert.Equal(PartsSetFixture.SetName, pose["set"]!.GetValue<string>());
     }
 
-    // ── 세트 편집(PLAN-parts.md §12) ─────────────────────────────────
+    // ── 세트 편집─────────────────────────────────
 
     private static string[] Ids(DocumentEditor editor, string kind = PartsSetFixture.SetName) => editor.Document.FindSetOrCut(kind)!.Objects.Select(n => n.Id).ToArray();
 
