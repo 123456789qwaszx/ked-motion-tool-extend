@@ -95,20 +95,6 @@ public sealed class DocumentSession
     private static string RigsKeyOf(MotionDocument document)
         => string.Join("|", document.AllRigs.Select(r => r.Kind + ":" + string.Join(",", r.Nodes.Select(n => $"{n.Id}<{n.Parent}@{n.X},{n.Y}#{n.Width}x{n.Height}r{n.Rotation}s{n.ScaleX},{n.ScaleY}c{n.Color}S{n.Set}{(n.Image ? "i" : "")}{(n.Alpha ? "a" : "")}"))));
 
-    /// <summary>문서가 정의한 세트를 리그 스키마 모양의 파일로 내보낸다 — 런타임이 그것으로 리그를 세운다.</summary>
-    public bool ExportRigs(string path)
-    {
-        if (Editor.Document.Rigs.Count == 0)
-        {
-            SetStatus("내보낼 세트가 없다.");
-            return false;
-        }
-
-        File.WriteAllBytes(path, new System.Text.UTF8Encoding(false).GetBytes(RigAssets.WriteSchemas(Editor.Document, StageSize)));
-        SetStatus($"내보냈다: {path} — 리그 {Editor.Document.Rigs.Count}개 ({string.Join(", ", Editor.Document.Rigs.Select(r => r.Kind))})");
-        return true;
-    }
-
     /// <summary>
     /// 컷을 컷 파일(<c>cut/1</c>)로 내보낸다 — 다 펼쳐 구운 한 덩어리. 그림 경로는 그 파일 기준으로 적힌다(그림은 복사하지 않는다).
     /// 막는 문제가 있는 타임라인이면 안 나간다.
@@ -123,8 +109,7 @@ public sealed class DocumentSession
             return false;
         }
 
-        List<MotionProblem> blocking = MotionValidator.Blocking(MotionValidator.Validate(Editor.Document, RigNodeIds, Rig.AlphaNodeIds))
-            .Where(p => Editor.Document.Find(p.MotionName)?.Rig is { } rig && (rig == cutName || Editor.Document.FindRig(rig) is not null)).ToList();
+        List<MotionProblem> blocking = MotionValidator.BlockingCutExport(Editor.Document, cutName, RigNodeIds, Rig.AlphaNodeIds);
 
         if (blocking.Count > 0)
         {
@@ -250,38 +235,6 @@ public sealed class DocumentSession
         DocumentPath = path;
         _savedRevision = Editor.Revision;
         SetStatus($"저장했다: {path}");
-    }
-
-    /// <summary><c>motions/1</c>을 읽어 문서로 올린다. 이름이 겹치면 바꿔 넣는다.</summary>
-    public IReadOnlyList<string> ImportMotions(string path)
-    {
-        if (!MotionsJson.TryRead(File.ReadAllText(path), out List<MotionClip> clips, out List<string> problems))
-        {
-            SetStatus($"가져오기 실패: {string.Join(" ", problems)}");
-            return Array.Empty<string>();
-        }
-
-        IReadOnlyList<string> imported = Editor.ImportClips(clips, replace: true);
-        SetStatus(problems.Count == 0
-            ? $"가져왔다: {string.Join(", ", imported)}"
-            : $"가져왔다: {string.Join(", ", imported)} — 건너뜀 {problems.Count}건: {string.Join(" ", problems)}");
-        return imported;
-    }
-
-    /// <summary>문제가 0건일 때만 쓴다. 정규 바이트(UTF-8 BOM 없음·LF)로 — Unity 내보내기와 같은 바이트다.</summary>
-    /// <param name="filter">내보낼 모션(null이면 전부). <paramref name="scopeLabel"/>은 상태 줄 글자.</param>
-    public bool Export(string path, Func<MotionAsset, bool>? filter = null, string? scopeLabel = null)
-    {
-        if (!MotionExport.TryExport(Editor.Document, RigNodeIds, out string json, out IReadOnlyList<MotionProblem> problems, filter, Rig.AlphaNodeIds))
-        {
-            SetStatus($"내보내기 막힘 — 문제 {problems.Count}건을 먼저 고친다.");
-            return false;
-        }
-
-        File.WriteAllBytes(path, new System.Text.UTF8Encoding(false).GetBytes(json));
-        int count = Editor.Document.Motions.Count(m => filter is null || filter(m));
-        SetStatus($"내보냈다: {path} — 모션 {count}개{(scopeLabel is null ? "" : $" ({scopeLabel})")}");
-        return true;
     }
 
     private void Replace(MotionDocument document, string? path)

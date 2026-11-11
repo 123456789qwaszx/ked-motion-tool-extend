@@ -5,7 +5,7 @@ using Mt.Authoring.Model;
 namespace Mt.App;
 
 // 재생 블록의 셸(PLAN-set.md S10) — "모션" 탭 아래. 세트가 품은 세트의 애니메이션을 "언제 튼다"로 놓는다.
-// 품은 세트가 없는 세트의 애니메이션에서는 칸이 숨는다. 구워서 한 덩어리로 나가므로 런타임은 재생 블록을 모른다.
+// 품은 세트가 없는 세트의 애니메이션에서는 칸이 숨는다. 컷 파일에는 구운 키로 나가므로 게임은 재생 블록을 모른다.
 public partial class MainWindow
 {
     private readonly StackPanel _playPanel = new() { Spacing = 4 };
@@ -35,7 +35,7 @@ public partial class MainWindow
         _playPanel.Children.Add(Header("재생 블록"));
         _playPanel.Children.Add(_playRows);
         Button add = SmallButton("재생 블록 추가 (지금 시각)", (_, _) => Guard("재생 블록 추가", () => AddMotionPlay()));
-        ToolTip.SetTip(add, "이 세트가 품은 세트의 애니메이션을 지금 시각부터 튼다 — 유지(commit) 애니메이션은 끝난 자세가 남고 복원(restore)은 시작 전으로 돌아간다. 같은 인스턴스의 블록끼리는 겹칠 수 없다. 품은 애니메이션을 고치면 여기도 따라온다(참조). 내보낼 때는 한 덩어리 모션으로 구워져 나간다");
+        ToolTip.SetTip(add, "이 세트가 품은 세트의 애니메이션을 지금 시각부터 튼다 — 블록이 끝나면 마지막 모습이 다음 블록까지 남고, 첫 블록 앞은 가만히 선 모습이다. 같은 인스턴스의 블록끼리는 겹칠 수 없다. 품은 애니메이션을 고치면 여기도 따라온다(참조). 컷을 내보낼 때는 키로 구워져 나간다");
         _playPanel.Children.Add(add);
         return _playPanel;
     }
@@ -128,7 +128,7 @@ public partial class MainWindow
         ToolTip.SetTip(time, "시작 시각(초, 이 애니메이션 기준)");
         ToolTip.SetTip(node, "어느 품은 세트(인스턴스)를 트나");
         ToolTip.SetTip(child, "그 세트의 어느 애니메이션을 트나");
-        ToolTip.SetTip(repeat, "되풀이 횟수 — 유지(commit) 애니메이션은 바퀴마다 쌓인다");
+        ToolTip.SetTip(repeat, "되풀이 횟수 — 바퀴마다 처음부터 다시 튼다");
 
         void Commit(string? nodeId, string? childName)
         {

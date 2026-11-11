@@ -1,6 +1,5 @@
 using Ked.Presentation.Core;
 using Mt.Authoring.Editing;
-using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 using Mt.Authoring.Rig;
 using Mt.Authoring.Validation;
@@ -9,37 +8,26 @@ namespace Mt.Authoring.Tests;
 
 public class MotionValidatorTests
 {
-    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
+    private static readonly RigSchemaFile RigFile = Fixtures.ActorRigFile();
+    private const string MoveY = "CharacterPortrait_Track_Move_Y";
 
     [Fact]
-    public void nod_bow는_리그_덤프로_검증해도_문제가_0건이다()
+    public void nod_bow는_세운_리그로_검증해도_문제가_0건이다()
     {
-        Assert.Empty(MotionValidator.Validate(Fixtures.NodBowDocument(), RigFile.NodeIds));
+        Assert.Empty(MotionValidator.Validate(Fixtures.ActorDocument(), RigFile.NodeIds, RigFile.AlphaNodeIds));
     }
 
     [Fact]
-    public void 문구는_코어_MotionRules의_것이다_Track_Focus는_키잉할_수_없다()
+    public void 세트에_없는_오브젝트는_거부하고_세운_리그가_없으면_그_검사는_생략한다()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("a", "character", 1f);
-        editor.AddChannel("a", "CharSlot_Track_Focus", MotionChannelKind.Position);
-        editor.SetKeys("a", "CharSlot_Track_Focus", MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(1f, 0f) });
-
-        MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document, RigFile.NodeIds));
-        Assert.Equal("a", problem.MotionName);
-        Assert.Contains("키잉할 수 없다", problem.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void 리그_덤프에_없는_노드는_거부하고_덤프가_없으면_노드_검사는_생략한다()
-    {
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("a", "character", 1f);
+        editor.AddMotion("a", Fixtures.Actor, 1f);
         editor.AddChannel("a", "NoSuchNode", MotionChannelKind.Position);
-        // relative 전 구간 중립값이면 성분이 내보내기에서 빠지므로 가운데 키를 둔다 — 보려는 것은 노드 검사뿐이다.
         editor.SetKeys("a", "NoSuchNode", MotionChannelKind.Position, Axis.X, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.5f, 5f), Fixtures.Key(1f, 0f) });
 
-        Assert.Contains("리그 스키마에 없는 노드", Assert.Single(MotionValidator.Validate(editor.Document, RigFile.NodeIds)).Message, StringComparison.Ordinal);
+        MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document, RigFile.NodeIds));
+        Assert.True(problem.Blocking);
+        Assert.Contains("이 세트·컷에 없는 오브젝트", problem.Message, StringComparison.Ordinal);
         Assert.Empty(MotionValidator.Validate(editor.Document));
     }
 
@@ -51,120 +39,83 @@ public class MotionValidatorTests
 
         MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document, RigFile.NodeIds));
         Assert.Contains("rigKind 'robot'", problem.Message, StringComparison.Ordinal);
-        Assert.Contains("character", problem.Message, StringComparison.Ordinal);
+        Assert.Contains(Fixtures.Actor, problem.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void 같은_이름이_둘이면_문제다()
     {
-        MotionDocument document = Fixtures.NodBowDocument();
-        document.Motions.Add(MotionAssetCodec.FromClip(MotionAssetCodec.ToClip(document.Motions[0])));
+        MotionDocument document = Fixtures.ActorDocument();
+        document.Motions.Add(new MotionAsset { Name = document.Motions[0].Name, Rig = Fixtures.Actor, Duration = 1f });
 
-        Assert.Contains(MotionValidator.Validate(document), p => p.Message == "같은 이름이 둘이다");
+        Assert.Contains(MotionValidator.Validate(document), p => p.Blocking && p.Message == "같은 이름이 둘이다");
     }
 
     [Fact]
-    public void 편집_중간_상태는_허용되고_내보내기만_막힌다()
+    public void 키는_처음과_끝에_없어도_하나뿐이어도_되고_값은_묻지_않으며_길이_밖의_키는_막지_않고_알린다()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("a", "character", 1f, MotionEnd.Restore);
-        editor.AddChannel("a", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position);
-        // 마지막 키가 길이(1)에 있지 않다 — 편집 중엔 자연스러운 상태.
-        editor.SetKeys("a", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.25f, -10f), Fixtures.Key(0.5f, 0f) });
+        editor.AddRig(Fixtures.ActorRig());
+        editor.AddMotion("a", Fixtures.Actor, 1f);
+        editor.AddChannel("a", MoveY, MotionChannelKind.Position);
+        IReadOnlyList<MotionProblem> Problems() => MotionValidator.Validate(editor.Document, RigFile.NodeIds, RigFile.AlphaNodeIds);
 
-        Assert.False(MotionExport.TryExport(editor.Document, RigFile.NodeIds, out string json, out IReadOnlyList<MotionProblem> problems));
-        Assert.Equal("", json);
-        Assert.Contains("마지막 키 시각이 길이와 다르다", Assert.Single(problems).Message, StringComparison.Ordinal);
+        // 첫 키가 0초에 없고 마지막 키가 길이에 없다 — 앞뒤로는 그 키의 값이 이어진다. 값이 어디서 시작하고 끝나든 작가의 뜻이다.
+        editor.SetKeys("a", MoveY, MotionChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0.25f, 3f), Fixtures.Key(0.5f, -10f) });
+        Assert.Empty(Problems());
 
+        // 키가 하나뿐이어도 된다. 키가 다 지워져 빈 채널도 문제가 아니다(컷 파일에 아무것도 안 나간다).
+        editor.SetKeys("a", MoveY, MotionChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0.5f, -10f) });
+        Assert.Empty(Problems());
+        editor.SetKeys("a", MoveY, MotionChannelKind.Position, Axis.Y, Array.Empty<KeyAsset>());
+        Assert.Empty(Problems());
+
+        // 길이를 줄여 키가 길이 밖에 남았다 — 막지 않고 알린다(그 자리는 재생되지 않는다).
+        editor.SetKeys("a", MoveY, MotionChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.4f, -10f), Fixtures.Key(0.9f, 0f) });
         editor.SetDuration("a", 0.5f);
+        MotionProblem notice = Assert.Single(Problems());
+        Assert.False(notice.Blocking);
+        Assert.Contains("밖에 키가 1개", notice.Message, StringComparison.Ordinal);
+        Assert.Empty(MotionValidator.Blocking(Problems()));
+        Assert.Empty(MotionFixes.Suggest(notice));
 
-        Assert.True(MotionExport.TryExport(editor.Document, RigFile.NodeIds, out json, out problems));
-        Assert.Empty(problems);
-        Assert.Contains("\"duration\": 0.5", json, StringComparison.Ordinal);
+        editor.SetDuration("a", 1f);
+        Assert.Empty(Problems());
+    }
+
+    [Fact]
+    public void 컷_파일로_나갈_수_없는_모양은_막고_문제는_처음_것_하나가_아니라_전부_낸다()
+    {
+        // 편집기는 이런 모양을 만들지 않는다 — 손으로 쓴 문서나 옛 파일에서 온다.
+        var motion = new MotionAsset { Name = "Bad Name", Rig = Fixtures.Actor, Duration = 0f };
+        KeyAsset K(float t, float v) => new() { T = t, V = v };
+        motion.Channels.Add(new ChannelAsset { Node = MoveY, Kind = MotionChannelKind.Position, X = new ComponentCurve { Keys = { K(0.5f, 1f), K(0.2f, 2f) } }, Z = new ComponentCurve { Keys = { K(0f, 0f) } } });
+        motion.Channels.Add(new ChannelAsset { Node = MoveY, Kind = MotionChannelKind.Position, Y = new ComponentCurve { Keys = { K(0f, float.NaN) } } });
+        motion.Channels.Add(new ChannelAsset { Node = "", Kind = MotionChannelKind.Scale });
+        var document = new MotionDocument { Rigs = { Fixtures.ActorRig() }, Motions = { motion } };
+
+        List<string> messages = MotionValidator.Validate(document, RigFile.NodeIds, RigFile.AlphaNodeIds).Where(p => p.Blocking).Select(p => p.Message).ToList();
+
+        Assert.Contains(messages, m => m.StartsWith("이름은 [a-z0-9_]+ 여야 한다", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("길이가 0보다 커야 한다", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("채널 0: X: 키 시각이 오름차순이 아니다", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("채널 0: Position에는 Z 성분이 없다", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("채널 1: 같은 노드·종류의 채널이 둘이다", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("채널 1: Y: 키의 시각·값·기울기는 수여야 한다", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("채널 2: 노드가 비어 있다", StringComparison.Ordinal));
+        Assert.Equal(7, messages.Count);
     }
 }
 
 public class MotionFixesTests
 {
-    private static readonly CurveRef Y = new("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
-
     [Fact]
-    public void 문구에서_돕는_손을_고른다()
+    public void 문구에서_돕는_손을_고른다_이름을_고치는_손_하나다()
     {
-        Assert.Equal(new[] { MotionFix.EndKeysToDuration, MotionFix.DurationToLastKey, MotionFix.KeyAtDuration }, MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: 마지막 키 시각이 길이와 다르다 (0.5 ≠ 1)")));
+        Assert.Equal(new[] { MotionFix.NameToValid }, MotionFixes.Suggest(new MotionProblem("Nod", "이름은 [a-z0-9_]+ 여야 한다 ('Nod')")));
         Assert.Empty(MotionFixes.Suggest(new MotionProblem("a", "같은 이름이 둘이다")));
-    }
-
-    [Fact]
-    public void 끝_키를_길이로_옮기면_문제가_사라지고_되돌리기_한_번이다()
-    {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
-        editor.SetDuration("nod", 0.5f); // 마지막 키 0.6 ≠ 0.5
-        Assert.NotEmpty(MotionValidator.Validate(editor.Document));
-        long before = editor.Revision;
-
-        Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.EndKeysToDuration));
-
-        Assert.Equal(before + 1, editor.Revision);
-        Assert.Empty(MotionValidator.Validate(editor.Document));
-        Assert.Equal(0.5f, Y.Resolve(editor.Document.Find("nod")!)!.Keys[^1].T, 4);
-        Assert.False(MotionFixes.Apply(editor, "nod", MotionFix.EndKeysToDuration)); // 바꿀 것이 없다
-    }
-
-    [Fact]
-    public void 길이를_마지막_키에_맞추기_그리고_키의_값은_복원의_끝이_중립값이_아니어도_알리지_않는다()
-    {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
-        editor.SetDuration("nod", 0.5f);
-        Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.DurationToLastKey));
-        Assert.Equal(0.6f, editor.Document.Find("nod")!.Duration, 4);
-
-        // 첫 키가 중립값이 아닌 것은 뜻이다("지금 값 +3에서 시작") — 문제도 경고도 아니다.
-        editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 0, new KeyAsset { T = 0f, V = 3f });
-        Assert.Empty(MotionValidator.Validate(editor.Document));
-
-        // 복원(restore)이 중립값이 아닌 데서 끝나도 알리지 않는다 — 끝에서 시작값으로 돌아가는 것은 작가의 뜻이다. 그대로 나간다.
-        editor.UpdateKey("nod", Y.Node, Y.Kind, Y.Axis, 2, new KeyAsset { T = 0.6f, V = 5f });
-        Assert.Empty(MotionValidator.Validate(editor.Document));
-        Assert.True(MotionExport.TryExport(editor.Document, null, out string json, out IReadOnlyList<MotionProblem> blocking));
-        Assert.Empty(blocking);
-        Assert.Contains("\"v\": 5", json, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void 길이_자리에_키_넣기는_곡선_위_값으로_키를_더하고_길이_밖_키는_지운다()
-    {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
-        editor.SetDuration("nod", 0.8f);
-        MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document));
-        Assert.Contains(MotionFix.KeyAtDuration, MotionFixes.Suggest(problem));
-
-        Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.KeyAtDuration));
-
-        IReadOnlyList<KeyAsset> keys = Y.Resolve(editor.Document.Find("nod")!)!.Keys;
-        Assert.Equal(new[] { 0f, 0.3f, 0.6f, 0.8f }, keys.Select(k => (float)Math.Round(k.T, 4)));
-        Assert.Equal(0f, keys[3].V, 4); // 마지막 키 값이 이어진다
-        Assert.Empty(MotionValidator.Validate(editor.Document));
-        Assert.False(MotionFixes.Apply(editor, "nod", MotionFix.KeyAtDuration));
-
-        var shorter = new MotionEditor(Fixtures.NodBowDocument());
-        shorter.SetDuration("nod", 0.5f);
-        Assert.True(MotionFixes.Apply(shorter, "nod", MotionFix.KeyAtDuration));
-        keys = Y.Resolve(shorter.Document.Find("nod")!)!.Keys;
-        Assert.Equal(new[] { 0f, 0.3f, 0.5f }, keys.Select(k => (float)Math.Round(k.T, 4)));
-        // 길이를 줄이면 새 끝 키는 곡선 위 값이라 중립값이 아니다 — 그래도 문제가 없다(값은 알리지 않는다).
-        Assert.Empty(MotionValidator.Validate(shorter.Document));
-    }
-
-    [Fact]
-    public void 첫_키를_0초로_옮기면_겹치는_키는_사라진다()
-    {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
-        editor.SetKeys("nod", Y.Node, Y.Kind, Y.Axis, new[] { Fixtures.Key(0.1f, 0f), Fixtures.Key(0.3f, -18f), Fixtures.Key(0.6f, 0f) });
-
-        Assert.True(MotionFixes.Apply(editor, "nod", MotionFix.FirstKeysToZero));
-
-        Assert.Equal(new[] { 0f, 0.3f, 0.6f }, Y.Resolve(editor.Document.Find("nod")!)!.Keys.Select(k => (float)Math.Round(k.T, 4)));
+        Assert.Empty(MotionFixes.Suggest(new MotionProblem("a", "채널 0: Y: 길이(0~0.5초) 밖에 키가 1개 있다 — 그 자리는 재생되지 않는다", Blocking: false)));
+        Assert.Equal("이름 고치기 (소문자·숫자·_)", MotionFixes.Label(MotionFix.NameToValid));
     }
 }
 
@@ -184,8 +135,8 @@ public class MotionNamesTests
         Assert.Equal("a_b", MotionNames.Sanitize("--a--b--"));
 
         var document = new MotionDocument();
-        document.Motions.Add(new MotionAsset { Name = "motion", Rig = "character", Duration = 1 });
-        document.Motions.Add(new MotionAsset { Name = "motion_2", Rig = "character", Duration = 1 });
+        document.Motions.Add(new MotionAsset { Name = "motion", Rig = Fixtures.Actor, Duration = 1 });
+        document.Motions.Add(new MotionAsset { Name = "motion_2", Rig = Fixtures.Actor, Duration = 1 });
         Assert.Equal("motion_3", MotionNames.Unique(document, "motion"));
         Assert.Equal("motion", MotionNames.Unique(document, "motion", except: "motion"));
     }
@@ -194,14 +145,14 @@ public class MotionNamesTests
     public void 편집기는_규칙_밖_이름을_거부하고_돕는_손이_빈_이름을_고친다()
     {
         var editor = new MotionEditor(new MotionDocument());
-        Assert.Throws<InvalidOperationException>(() => editor.AddMotion("", "character", 1f));
-        Assert.Throws<InvalidOperationException>(() => editor.AddMotion("Nod", "character", 1f));
-        editor.AddMotion("nod", "character", 1f);
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotion("", Fixtures.Actor, 1f));
+        Assert.Throws<InvalidOperationException>(() => editor.AddMotion("Nod", Fixtures.Actor, 1f));
+        editor.AddMotion("nod", Fixtures.Actor, 1f);
         Assert.Throws<InvalidOperationException>(() => editor.RenameMotion("nod", "Nod!"));
 
         // 이미 빈 이름으로 저장된 문서(예전 버전)는 돕는 손으로 고친다.
         var document = new MotionDocument();
-        document.Motions.Add(new MotionAsset { Name = "", Rig = "character", Duration = 1 });
+        document.Motions.Add(new MotionAsset { Name = "", Rig = Fixtures.Actor, Duration = 1 });
         var old = new MotionEditor(document);
         MotionProblem problem = Assert.Single(MotionValidator.Validate(old.Document), p => p.Message.Contains("이름은", StringComparison.Ordinal));
         Assert.Equal(new[] { MotionFix.NameToValid }, MotionFixes.Suggest(problem));

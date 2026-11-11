@@ -12,8 +12,8 @@ namespace Mt.Authoring.Editing;
 /// 되돌리기는 문서 전체 스냅샷(<see cref="MotionDocumentJson"/>)이다: 되돌리기 한 번 = 조작 하나이고,
 /// 명령마다 역연산을 짓지 않으므로 새 명령이 생겨도 되돌리기가 빠질 수 없다.
 ///
-/// 명령은 모델을 고치되 **규칙을 강제하지 않는다** — 키를 길이 밖에 두거나 relative 첫 키를 0 아닌 값으로 두는 것은
-/// 편집 중 자연스러운 중간 상태다. 어긋남은 <c>MotionValidator</c>가 계속 알리고, 내보내기만 막는다.
+/// 명령은 모델을 고치되 **규칙을 강제하지 않는다** — 키를 길이 밖에 두는 것은 편집 중 자연스러운 중간 상태다.
+/// 어긋남은 <c>MotionValidator</c>가 계속 알리고, 막는 문제만 내보내기를 막는다.
 /// 단 하나, 키 목록의 시각 오름차순은 편집기가 지킨다(그래프가 그것을 전제한다).
 /// </summary>
 public sealed partial class MotionEditor
@@ -40,12 +40,7 @@ public sealed partial class MotionEditor
 
     // ── 모션 ──────────────────────────────────────────────────────────
 
-    public MotionAsset AddMotion(
-        string name,
-        string rig,
-        float duration,
-        MotionEnd end = MotionEnd.Restore,
-        MotionChannelMode previewMode = MotionChannelMode.Relative)
+    public MotionAsset AddMotion(string name, string rig, float duration)
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(rig);
@@ -60,7 +55,7 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException($"모션 '{name}'이 이미 있다 — 이름은 하나뿐이어야 한다.");
         }
 
-        var motion = new MotionAsset { Name = name, Rig = rig, Duration = duration, End = end, PreviewMode = previewMode };
+        var motion = new MotionAsset { Name = name, Rig = rig, Duration = duration };
         Mutate(MotionChangeKind.Structure, () => Document.Motions.Add(motion));
         return motion;
     }
@@ -103,33 +98,11 @@ public sealed partial class MotionEditor
         });
     }
 
-    /// <summary>
-    /// 길이를 바꾼다. 키는 옮기지 않는다 — "끝 키를 길이로 옮기기"는 따로 있는 돕는 손이고,
-    /// 어긋난 동안은 검증이 알린다.
-    /// </summary>
+    /// <summary>길이를 바꾼다. 키는 옮기지 않는다 — 길이 밖에 남은 키는 검증이 알린다.</summary>
     public void SetDuration(string name, float seconds)
     {
         MotionAsset motion = Require(name);
         Mutate(MotionChangeKind.Metadata, () => motion.Duration = seconds);
-    }
-
-    public void SetEnd(string name, MotionEnd end)
-    {
-        MotionAsset motion = Require(name);
-        Mutate(MotionChangeKind.Metadata, () => motion.End = end);
-    }
-
-    /// <summary>뷰포트의 렌즈(relative/absolute) — 키 값은 그대로이고 산출물에도 안 나간다(mode는 motion 커맨드가 정한다).</summary>
-    public void SetPreviewMode(string name, MotionChannelMode mode)
-    {
-        MotionAsset motion = Require(name);
-
-        if (motion.PreviewMode == mode)
-        {
-            return;
-        }
-
-        Mutate(MotionChangeKind.Metadata, () => motion.PreviewMode = mode);
     }
 
     // ── 채널 ──────────────────────────────────────────────────────────
@@ -270,7 +243,7 @@ public sealed partial class MotionEditor
     }
 
     /// <summary>
-    /// 포즈를 키로(Set Key·Auto Key). 채널이 없으면 모션 기본 mode로 만들고, 성분이 없으면 만들고, 같은 시각의 키는 바꾼다 —
+    /// 포즈를 키로(Set Key·Auto Key). 채널이 없으면 만들고, 성분이 없으면 만들고, 같은 시각의 키는 바꾼다 —
     /// 전부 **한 번의 조작**이다. 돌려주는 것은 생긴 키들이다.
     /// </summary>
     public List<KeyRef> KeyComponents(
@@ -300,12 +273,12 @@ public sealed partial class MotionEditor
             foreach ((Axis axis, float value) in values)
             {
                 ComponentCurve curve = channel.Get(axis) ?? new ComponentCurve();
-                curve.Keys.RemoveAll(k => Math.Abs(k.T - time) <= MotionRules.Tolerance);
+                curve.Keys.RemoveAll(k => Math.Abs(k.T - time) <= KeyTimes.Tolerance);
                 curve.Keys.Add(new KeyAsset { T = time, V = value, Tangent = tangent });
                 curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
                 TangentMath.Recompute(curve.Keys);
                 channel.Set(axis, curve);
-                result.Add(new KeyRef(new CurveRef(node, kind, axis), curve.Keys.FindIndex(k => Math.Abs(k.T - time) <= MotionRules.Tolerance)));
+                result.Add(new KeyRef(new CurveRef(node, kind, axis), curve.Keys.FindIndex(k => Math.Abs(k.T - time) <= KeyTimes.Tolerance)));
             }
         });
 
@@ -343,12 +316,12 @@ public sealed partial class MotionEditor
                 foreach ((Axis axis, float value) in values)
                 {
                     ComponentCurve curve = channel.Get(axis) ?? new ComponentCurve();
-                    curve.Keys.RemoveAll(k => Math.Abs(k.T - time) <= MotionRules.Tolerance);
+                    curve.Keys.RemoveAll(k => Math.Abs(k.T - time) <= KeyTimes.Tolerance);
                     curve.Keys.Add(new KeyAsset { T = time, V = value, Tangent = tangent });
                     curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
                     TangentMath.Recompute(curve.Keys);
                     channel.Set(axis, curve);
-                    result.Add(new KeyRef(new CurveRef(node, kind, axis), curve.Keys.FindIndex(k => Math.Abs(k.T - time) <= MotionRules.Tolerance)));
+                    result.Add(new KeyRef(new CurveRef(node, kind, axis), curve.Keys.FindIndex(k => Math.Abs(k.T - time) <= KeyTimes.Tolerance)));
                 }
             }
         });
@@ -365,7 +338,7 @@ public sealed partial class MotionEditor
     }
 
     /// <summary>
-    /// 클립보드를 현재 시각에 붙인다(merge — 같은 시각의 키는 바뀐다). 채널·성분이 없으면 모션 기본 mode로 만든다. 한 번의 조작.
+    /// 클립보드를 현재 시각에 붙인다(merge — 같은 시각의 키는 바뀐다). 채널·성분이 없으면 만든다. 한 번의 조작.
     /// 돌려주는 것은 붙은 키들이다.
     /// targets를 주면 복사한 커브 대신 그 커브들에 붙인다(마야 paste to selected channels): 복사한 커브가 하나면 모든 대상에,
     /// 여럿이면 순서대로 짝지어(남는 쪽은 버린다). 그래서 scale X의 키를 복사해 scale Y에 붙일 수 있다.
@@ -406,7 +379,7 @@ public sealed partial class MotionEditor
                 foreach (KeyAsset key in keys)
                 {
                     float t = Math.Max(0f, snap is null ? key.T + shift : snap(key.T + shift));
-                    curve.Keys.RemoveAll(k => Math.Abs(k.T - t) <= MotionRules.Tolerance);
+                    curve.Keys.RemoveAll(k => Math.Abs(k.T - t) <= KeyTimes.Tolerance);
                     curve.Keys.Add(new KeyAsset
                     {
                         T = t, V = key.V, InTangent = key.InTangent, OutTangent = key.OutTangent, Tangent = key.Tangent, Broken = key.Broken,
@@ -420,7 +393,7 @@ public sealed partial class MotionEditor
 
                 foreach (float t in pastedTimes)
                 {
-                    int index = curve.Keys.FindIndex(k => Math.Abs(k.T - t) <= MotionRules.Tolerance);
+                    int index = curve.Keys.FindIndex(k => Math.Abs(k.T - t) <= KeyTimes.Tolerance);
 
                     if (index >= 0)
                     {
@@ -577,7 +550,7 @@ public sealed partial class MotionEditor
         Mutate(MotionChangeKind.Keys, () =>
         {
             ComponentCurve curve = channel.Get(axis) ?? new ComponentCurve();
-            curve.Keys.RemoveAll(k => Math.Abs(k.T - copy.T) <= MotionRules.Tolerance);
+            curve.Keys.RemoveAll(k => Math.Abs(k.T - copy.T) <= KeyTimes.Tolerance);
             curve.Keys.Add(copy);
             curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
             TangentMath.Recompute(curve.Keys);
@@ -623,55 +596,6 @@ public sealed partial class MotionEditor
             curve.Keys.Sort((a, b) => a.T.CompareTo(b.T));
             TangentMath.Recompute(curve.Keys);
         });
-    }
-
-    // ── 가져오기 ──────────────────────────────────────────────────────
-
-    /// <summary>
-    /// <c>motions/1</c> 클립들을 저작본으로 올린다(탄젠트는 free). 이름이 겹치면 <paramref name="replace"/>가
-    /// 참일 때만 바꿔 넣고, 아니면 건너뛴다. 돌려주는 것은 들어온 이름들이다.
-    /// </summary>
-    public IReadOnlyList<string> ImportClips(IEnumerable<MotionClip> clips, bool replace)
-    {
-        ArgumentNullException.ThrowIfNull(clips);
-
-        var incoming = clips.Select(MotionAssetCodec.FromClip).ToList();
-        var imported = new List<string>();
-        var plan = new List<(int Index, MotionAsset Asset)>();
-
-        foreach (MotionAsset asset in incoming)
-        {
-            int existing = Document.Motions.FindIndex(m => string.Equals(m.Name, asset.Name, StringComparison.Ordinal));
-
-            if (existing < 0 || replace)
-            {
-                plan.Add((existing, asset));
-                imported.Add(asset.Name);
-            }
-        }
-
-        // 바뀔 것이 없으면 조작도 없다 — Revision과 되돌리기 기록에 빈 항목을 남기지 않는다.
-        if (plan.Count == 0)
-        {
-            return imported;
-        }
-
-        Mutate(MotionChangeKind.Structure, () =>
-        {
-            foreach ((int index, MotionAsset asset) in plan)
-            {
-                if (index < 0)
-                {
-                    Document.Motions.Add(asset);
-                }
-                else
-                {
-                    Document.Motions[index] = asset;
-                }
-            }
-        });
-
-        return imported;
     }
 
     // ── 되돌리기 ───────────────────────────────────────────────────────
@@ -794,7 +718,7 @@ public sealed partial class MotionEditor
     /// <summary>
     /// 문서 밖 상태의 조작(뷰포트의 키 없는 포즈)을 이력에 올린다 — 되돌리기·다시하기가 문서 조작과 같은 줄에서 실제 순서대로 돈다.
     /// 묶음 안이면 그 묶음의 칸에 붙고, 밖이면 손만 있는 칸이 된다(Revision은 안 오른다). 새 조작이므로 다시하기는 지운다.
-    /// 저장 파일·산출물에는 아무것도 안 들어간다.
+    /// 저장 파일·컷 파일에는 아무것도 안 들어간다.
     /// </summary>
     public void RecordExternal(Action undo, Action redo)
     {
@@ -935,11 +859,11 @@ public enum MotionChangeKind
     /// <summary>모션·채널이 생기거나 사라졌다. 목록을 다시 만든다.</summary>
     Structure,
 
-    /// <summary>이름·길이·end·mode·메모. 목록은 그대로, 글자만 다시 쓴다.</summary>
+    /// <summary>이름·길이. 목록은 그대로, 글자만 다시 쓴다.</summary>
     Metadata,
 
-    /// <summary>컷의 카메라·스킨이 바뀌었다. 뷰포트가 무대를 다시 세운다.</summary>
-    Scene,
+    /// <summary>무대에 선 모습이 바뀌었다(컷의 가만히 선 카메라 · 스킨). 뷰포트가 무대를 다시 세운다.</summary>
+    Stage,
 
     /// <summary>키 값. 그래프·뷰포트만 다시 그린다.</summary>
     Keys,

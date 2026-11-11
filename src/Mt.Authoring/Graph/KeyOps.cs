@@ -20,7 +20,7 @@ public static class KeyOps
     {
         ArgumentNullException.ThrowIfNull(keys);
         (float value, float slope) = TangentMath.OnCurve(keys, t);
-        List<KeyAsset> result = keys.Where(k => Math.Abs(k.T - t) > MotionRules.Tolerance).Select(Clone).ToList();
+        List<KeyAsset> result = keys.Where(k => Math.Abs(k.T - t) > KeyTimes.Tolerance).Select(Clone).ToList();
 
         result.Add(new KeyAsset
         {
@@ -177,7 +177,7 @@ public static class KeyOps
                 }
 
                 // 움직인 키가 닿은 자리의 키는 사라진다 — 움직인 키가 이긴다.
-                if (moved.Any(m => Math.Abs(m.T - curve.Keys[i].T) <= MotionRules.Tolerance))
+                if (moved.Any(m => Math.Abs(m.T - curve.Keys[i].T) <= KeyTimes.Tolerance))
                 {
                     continue;
                 }
@@ -188,7 +188,7 @@ public static class KeyOps
             // 움직인 키끼리 겹치면 뒤의 것이 이긴다(시각 스케일 0에 가까울 때).
             foreach (KeyAsset m in moved)
             {
-                result.RemoveAll(k => Math.Abs(k.T - m.T) <= MotionRules.Tolerance);
+                result.RemoveAll(k => Math.Abs(k.T - m.T) <= KeyTimes.Tolerance);
                 result.Add(m);
             }
 

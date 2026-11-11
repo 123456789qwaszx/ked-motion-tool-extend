@@ -97,7 +97,7 @@ public class ViewportViewTests
             Quad dipped = view.ShownQuad()!.Value;
             Assert.Equal(-18f, dipped.Center.Y, 2);
 
-            // 길이에서는 restore라 시작 상태.
+            // 길이에서는 마지막 키의 모습(0).
             view.ScrubTo(0.6);
             Assert.Equal(0f, view.ShownQuad()!.Value.Center.Y, 2);
         }

@@ -8,7 +8,7 @@ namespace Mt.Authoring.Rig;
 /// </summary>
 public static class BuiltinTuning
 {
-    /// <summary>원본 — 무대 런타임 커밋과 익스포트 시각(export-report.json).</summary>
+    /// <summary>원본 — 무대 런타임 커밋과 익스포트 날짜.</summary>
     public const string Source = "ked-stage-runtime dc690c1 · ExportedTuning 2026-08-21";
 
     private const string Prefix = "Defaults/";

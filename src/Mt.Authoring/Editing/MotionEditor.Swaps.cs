@@ -1,4 +1,5 @@
 using Ked.Presentation.Core;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Editing;
@@ -21,7 +22,7 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException("그림 키에는 그림이 있어야 한다.");
         }
 
-        if (!float.IsFinite(time) || time < 0f || time > motion.Duration + MotionRules.Tolerance)
+        if (!float.IsFinite(time) || time < 0f || time > motion.Duration + KeyTimes.Tolerance)
         {
             throw new InvalidOperationException($"그림 키의 시각은 길이(0~{motion.Duration:0.###}초) 안이다 ('{time}')");
         }
@@ -35,7 +36,7 @@ public sealed partial class MotionEditor
 
         Mutate(MotionChangeKind.Metadata, () =>
         {
-            motion.Swaps.RemoveAll(s => s.Node == node && Math.Abs(s.T - time) <= MotionRules.Tolerance);
+            motion.Swaps.RemoveAll(s => s.Node == node && Math.Abs(s.T - time) <= KeyTimes.Tolerance);
             int at = motion.Swaps.FindIndex(s => s.T > time);
             motion.Swaps.Insert(at < 0 ? motion.Swaps.Count : at, added);
         });

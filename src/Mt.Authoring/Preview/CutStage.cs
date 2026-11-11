@@ -55,7 +55,7 @@ public static class CutStage
 
     /// <summary>
     /// 컷의 오브젝트들을 세운 트리 — 카메라와 깊이는 아직 안 들어갔다(틀이 전부 제자리). 포즈를 잡은 뒤 <see cref="Apply"/>로 넣는다.
-    /// 노드 키는 <paramref name="prefix"/> + 오브젝트 이름(세트를 세울 때와 같다 — 타임라인의 키가 그대로 얹힌다). 컷이 덤프에 없으면 null.
+    /// 노드 키는 <paramref name="prefix"/> + 오브젝트 이름(세트를 세울 때와 같다 — 타임라인의 키가 그대로 얹힌다). 그 한 벌에 컷이 없으면 null.
     /// </summary>
     public static RectNodeTree? Build(RigSchemaFile rig, CutAsset cut, string prefix)
     {

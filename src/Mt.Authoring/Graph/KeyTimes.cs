@@ -6,6 +6,9 @@ namespace Mt.Authoring.Graph;
 /// <summary>모션의 키 시각 목록 — 타임 슬라이더의 틱과 다음/이전 키 점프(`.` `,`)에 쓴다.</summary>
 public static class KeyTimes
 {
+    /// <summary>두 시각을 같은 자리로 치는 허용 오차(초) — 파일을 오가며 생기는 부동소수 잡음만 흡수한다.</summary>
+    public const float Tolerance = 1e-4f;
+
     /// <summary>모든 성분의 키 시각을 허용 오차로 합쳐 오름차순으로.</summary>
     public static List<float> All(MotionAsset motion)
     {
@@ -23,7 +26,7 @@ public static class KeyTimes
 
                 foreach (KeyAsset key in curve.Keys)
                 {
-                    if (!times.Any(t => Math.Abs(t - key.T) <= MotionRules.Tolerance))
+                    if (!times.Any(t => Math.Abs(t - key.T) <= KeyTimes.Tolerance))
                     {
                         times.Add(key.T);
                     }
@@ -43,7 +46,7 @@ public static class KeyTimes
 
         foreach (KeyRef key in selection)
         {
-            if (key.Resolve(motion) is { } k && !times.Any(t => Math.Abs(t - k.T) <= MotionRules.Tolerance))
+            if (key.Resolve(motion) is { } k && !times.Any(t => Math.Abs(t - k.T) <= KeyTimes.Tolerance))
             {
                 times.Add(k.T);
             }
@@ -58,7 +61,7 @@ public static class KeyTimes
     {
         foreach (float t in times)
         {
-            if (t > now + MotionRules.Tolerance)
+            if (t > now + KeyTimes.Tolerance)
             {
                 return t;
             }
@@ -72,7 +75,7 @@ public static class KeyTimes
     {
         for (int i = times.Count - 1; i >= 0; i--)
         {
-            if (times[i] < now - MotionRules.Tolerance)
+            if (times[i] < now - KeyTimes.Tolerance)
             {
                 return times[i];
             }

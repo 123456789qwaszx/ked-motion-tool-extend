@@ -1,32 +1,24 @@
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using Ked.Presentation.Core;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Rig;
 
 /// <summary>
-/// 문서가 정의한 리그를 덤프와 한 벌로(<c>PLAN-parts.md</c> §9), 그리고 런타임이 읽을 파일로.
+/// 문서가 정의한 리그(세트 · 컷)를 세운 한 벌로, 그리고 그 세트가 실제로 입는 스킨.
 /// </summary>
 public static class RigAssets
 {
     /// <summary>
-    /// 덤프의 리그 + 문서의 리그. 같은 rigKind면 문서의 것이 이긴다. 문서의 리그가 세울 수 없는 모양이면 예외 —
-    /// 호출부(세션)가 덤프만으로 물러나고 사람에게 알린다.
+    /// 문서가 정의한 리그(세트 · 컷)로 세운 한 벌 — 무대 크기는 <paramref name="stageSize"/>. 세울 수 없는 모양이면 예외 —
+    /// 호출부(세션)가 빈 한 벌로 물러나고 사람에게 알린다.
     /// </summary>
-    public static RigSchemaFile Compose(RigSchemaFile dump, MotionDocument document)
-    {
-        ArgumentNullException.ThrowIfNull(dump);
-        ArgumentNullException.ThrowIfNull(document);
-        Vec2 stage = dump.Dto.capturedUnderParentSize.ToVec2();
-        // 컷은 오브젝트 계층에 값만 담는 점들이 더 선다(카메라 둘 · 맨 위 오브젝트마다 깊이 하나) — 카메라와 깊이가 같은 타임라인의 트랙이 된다.
-        return dump.With(document.Rigs.Select(r => RigAssetCodec.ToDto(r, stage, document.FindRig))
-            .Concat(document.Cuts.Select(c => RigAssetCodec.WithPoints(RigAssetCodec.ToDto(c.Rig, stage, document.FindRig), Preview.CutStage.PointsOf(c)))));
-    }
-
-    /// <summary>문서가 정의한 리그(세트 · 컷)만으로 세운 한 벌 — 덤프 없이. 무대 크기는 <paramref name="stageSize"/>.</summary>
     public static RigSchemaFile Compose(MotionDocument document, Vec2 stageSize)
-        => Compose(RigSchemaFile.Empty(stageSize), document);
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        // 컷은 오브젝트 계층에 값만 담는 점들이 더 선다(카메라 둘 · 맨 위 오브젝트마다 깊이 하나) — 카메라와 깊이가 같은 타임라인의 트랙이 된다.
+        return RigSchemaFile.Of(stageSize, document.Rigs.Select(r => RigAssetCodec.ToDto(r, stageSize, document.FindRig))
+            .Concat(document.Cuts.Select(c => RigAssetCodec.WithPoints(RigAssetCodec.ToDto(c.Rig, stageSize, document.FindRig), Preview.CutStage.PointsOf(c)))));
+    }
 
     /// <summary>
     /// 그 세트가 실제로 입는 스킨 — 제 스킨(<paramref name="skinName"/>)의 그림에, 품은 세트들의 스킨을 경로 이름(<c>인스턴스.조각</c>)으로 더한 것.
@@ -90,27 +82,5 @@ public static class RigAssets
             Merge(document, child, path, into, open, depth + 1);
             open.Remove(inner);
         }
-    }
-
-    private static readonly JsonSerializerOptions WriteOptions = new()
-    {
-        IncludeFields = true,
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
-
-    /// <summary>
-    /// 문서가 정의한 리그들을 **덤프와 같은 모양**(<c>rig-schemas.json</c>)으로 — 런타임은 캐릭터 리그를 읽는 그 로더로 읽어 세운다.
-    /// 덤프의 리그는 싣지 않는다(저쪽이 원본이다).
-    /// </summary>
-    public static string WriteSchemas(MotionDocument document, Vec2 stageSize)
-    {
-        ArgumentNullException.ThrowIfNull(document);
-        var dto = new RigSchemasFileDto
-        {
-            capturedUnderParentSize = new Float2Dto { x = stageSize.X, y = stageSize.Y },
-            rigs = document.Rigs.OrderBy(r => r.Kind, StringComparer.Ordinal).Select(r => RigAssetCodec.ToDto(r, stageSize, document.FindRig)).ToList(),
-        };
-        return JsonSerializer.Serialize(dto, WriteOptions) + "\n";
     }
 }

@@ -1,3 +1,4 @@
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Editing;
@@ -49,7 +50,7 @@ public sealed partial class MotionEditor
     /// <summary>
     /// 그 인스턴스의 재생 블록들을 **따로 뗀다** — 블록들이 구워 내던 키를 이 애니메이션의 제 키(경로 이름의 채널)로 굳히고 블록을 지운다.
     /// 재생은 그대로이고, 그 뒤로는 품은 애니메이션을 고쳐도 여기는 안 따라온다(여기서만 다르게 고칠 수 있다). 굳힌 채널의 수를 돌려준다.
-    /// 같은 인스턴스의 블록은 이어져 한 커브로 구워지므로(유지는 쌓인다) 하나만 뗄 수는 없다 — 그 인스턴스의 것을 다 뗀다.
+    /// 같은 인스턴스의 블록은 이어져 한 커브로 구워지므로(앞 블록의 마지막 값이 다음 블록까지 남는다) 하나만 뗄 수는 없다 — 그 인스턴스의 것을 다 뗀다.
     /// </summary>
     public int DetachMotionPlays(string motionName, string node)
     {
@@ -62,7 +63,7 @@ public sealed partial class MotionEditor
         }
 
         // 그 블록들만 가진 빈 애니메이션을 구워, 나온 채널·이벤트를 제 것으로 들인다.
-        var probe = new MotionAsset { Name = motion.Name, Rig = motion.Rig, Duration = motion.Duration, End = motion.End, PreviewMode = motion.PreviewMode, Plays = plays };
+        var probe = new MotionAsset { Name = motion.Name, Rig = motion.Rig, Duration = motion.Duration, Plays = plays };
         MotionAsset baked = Preview.MotionFlatten.Flatten(Document, probe);
         int count = 0;
 
@@ -132,7 +133,7 @@ public sealed partial class MotionEditor
 
         float end = play.At + child.Duration * play.Repeat;
 
-        if (end > motion.Duration + Ked.Presentation.Core.MotionRules.Tolerance)
+        if (end > motion.Duration + KeyTimes.Tolerance)
         {
             throw new InvalidOperationException($"블록이 {end:0.###}초에 끝난다 — 이 애니메이션의 길이({motion.Duration:0.###}초)를 넘는다. 길이를 늘리거나 블록을 당긴다.");
         }

@@ -103,7 +103,7 @@ public static class DopeSheetRows
         {
             float t = key.Resolve(motion)?.T ?? 0f;
 
-            if (blocks.Count > 0 && Math.Abs(blocks[^1].Time - t) <= MotionRules.Tolerance)
+            if (blocks.Count > 0 && Math.Abs(blocks[^1].Time - t) <= KeyTimes.Tolerance)
             {
                 blocks[^1].Keys.Add(key);
             }

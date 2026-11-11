@@ -1,84 +1,37 @@
 using Ked.Presentation.Core;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Preview;
 
 /// <summary>
-/// 시각 t의 포즈 — 리그 트리(덤프에서 세운 시작 상태)에 모션 채널을 얹은 것.
+/// 시각 t의 포즈 — 가만히 선 트리(세트·컷을 세운 것)에 애니메이션의 키를 얹은 것.
 ///
-/// 수학은 전부 코어다: 시작값 <see cref="MotionMath.StartOf"/>, 합성 <see cref="MotionMath.Compose"/>,
-/// 종점 <see cref="MotionMath.EndValue"/>. 그래서 뷰포트가 보여 주는 포즈 = 런타임이 재생하는 포즈다.
-///
-/// 끝 규칙도 런타임과 같다: 길이를 지나면 restore는 시작 상태(남기는 것이 없다), commit은 마지막 키(클레임)다.
-/// relative/absolute는 모션의 <see cref="MotionAsset.PreviewMode"/>(뷰포트의 렌즈)다 — 재생에서는 motion 커맨드의 인자가 그 자리다.
+/// **키는 "그 프레임의 모습"이다**: 키가 있는 성분은 커브의 값이 곧 그 속성의 값이고, 키가 없는 성분은 가만히 선 값 그대로다.
+/// 첫 키 앞과 마지막 키 뒤로는 그 키의 값이 이어진다(길이를 지나도 마지막 모습이 남는다). 커브의 계산은 코어(<see cref="CurveFunctions.Evaluate"/>) —
+/// 컷 파일을 읽는 재생(<see cref="CutPlayer"/>)과 같은 함수라 뷰포트가 보여 주는 포즈 = 게임이 재생하는 포즈다.
+/// 재생 블록이 있는 애니메이션은 펼쳐 구운 것(<see cref="MotionAsset.Flattened"/>)으로 본다.
 /// </summary>
 public static class MotionPreview
 {
-    /// <param name="isMuted">뮤트된 성분(재생에서 뺀다 — 시작값 그대로). null이면 없음.</param>
+    /// <param name="isMuted">뮤트된 성분(재생에서 뺀다 — 가만히 선 값 그대로). null이면 없음.</param>
     /// <param name="keyPrefix">노드 키의 접두사(예: "set/") — 접두사를 붙여 세운 트리에 얹을 때. 비면 접두사 없는 트리.</param>
-    public static RectNodeTree Pose(RectNodeTree template, MotionAsset motion, double seconds, Func<Graph.CurveRef, bool>? isMuted = null, string keyPrefix = "")
-    {
-        ArgumentNullException.ThrowIfNull(motion);
-        return Pose(template, motion, seconds, motion.PreviewMode, isMuted, keyPrefix);
-    }
-
-    /// <summary>
-    /// mode를 쓰는 쪽이 정하는 포즈 — 재생 블록이 그 "쓰는 쪽"이다(재생에서는 motion 커맨드의 인자).
-    /// 모션의 <see cref="MotionAsset.PreviewMode"/>는 읽지 않는다.
-    /// </summary>
     /// <param name="alphas">
-    /// 노드 키 → 불투명도(없는 키는 1). 알파 채널은 트리가 아니라 이 표에 얹힌다 — 불투명도는 <c>RectNodeState</c>에 없다(코어도 따로 든다).
-    /// 받은 표를 **그 자리에서 고친다**(앞 블록이 남긴 값이 뒤 블록의 시작값이 되게). null이면 알파 채널은 건너뛴다.
+    /// 노드 키 → 불투명도(없는 키는 1). 불투명도 채널은 트리가 아니라 이 표에 적힌다 — 불투명도는 <c>RectNodeState</c>에 없다.
+    /// null이면 불투명도 채널은 건너뛴다.
     /// </param>
-    public static RectNodeTree Pose(RectNodeTree template, MotionAsset motion, double seconds, MotionChannelMode mode, Func<Graph.CurveRef, bool>? isMuted = null, string keyPrefix = "", IDictionary<string, float>? alphas = null)
+    public static RectNodeTree Pose(RectNodeTree template, MotionAsset motion, double seconds, Func<CurveRef, bool>? isMuted = null, string keyPrefix = "", IDictionary<string, float>? alphas = null)
     {
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(motion);
         keyPrefix ??= "";
 
         RectNodeTree tree = template.Clone();
-        MotionClip clip = MotionAssetCodec.ToClip(motion);
-
-        MotionChannel[] channels = clip.Channels ?? Array.Empty<MotionChannel>();
-
-        if (isMuted is not null)
-        {
-            for (int i = 0; i < channels.Length; i++)
-            {
-                MotionChannel ch = channels[i];
-
-                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.X)))
-                {
-                    ch.X = null;
-                }
-
-                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.Y)))
-                {
-                    ch.Y = null;
-                }
-
-                if (isMuted(new Graph.CurveRef(ch.Node, ch.Kind, Axis.Z)))
-                {
-                    ch.Z = null;
-                }
-
-                channels[i] = ch;
-            }
-        }
-        // 길이 자리(= 마지막 프레임)는 아직 클립 안이다 — 마지막 키의 포즈가 보인다. restore는 길이를 **지난** 뒤에야 시작 상태로 돌아간다.
-        // (전에는 길이 자리부터 되돌려서, 끝 프레임의 채널 박스가 키 값 대신 시작값을 보였다.)
-        bool ended = seconds > motion.Duration + 1e-6;
-
-        if (ended && clip.End == MotionEnd.Restore)
-        {
-            return tree;
-        }
-
         float t = (float)Math.Max(0, seconds);
 
-        foreach (MotionChannel channel in channels)
+        foreach (ChannelAsset channel in (motion.Flattened ?? motion).Channels)
         {
-            // 덤프에 없는 노드는 건너뛴다 — 검증이 이미 소리를 낸다. 여기서 던지면 편집 중 화면이 죽는다.
+            // 세운 것에 없는 노드는 건너뛴다 — 검증이 이미 소리를 낸다. 여기서 던지면 편집 중 화면이 죽는다.
             string key = keyPrefix + channel.Node;
 
             if (string.IsNullOrEmpty(channel.Node) || !tree.Contains(key))
@@ -86,41 +39,49 @@ public static class MotionPreview
                 continue;
             }
 
-            if (!channel.HasX && !channel.HasY && !channel.HasZ)
+            float? x = Sample(channel, Axis.X, t, isMuted);
+            float? y = Sample(channel, Axis.Y, t, isMuted);
+            float? z = Sample(channel, Axis.Z, t, isMuted);
+
+            if (x is null && y is null && z is null)
             {
                 continue;
             }
 
-            RectNodeState state = tree.GetState(key);
-
             if (channel.Kind == MotionChannelKind.Alpha)
             {
-                if (alphas is not null)
+                if (alphas is not null && x is { } alpha)
                 {
-                    float from = alphas.TryGetValue(key, out float current) ? current : 1f;
-                    Vec3 a0 = MotionMath.StartOf(channel, state, from);
-                    Vec3 a = ended ? MotionMath.EndValue(channel, mode, a0) : MotionMath.Compose(channel, mode, a0, t);
-                    alphas[key] = Math.Clamp(a.X, 0f, 1f);
+                    alphas[key] = Math.Clamp(alpha, 0f, 1f);
                 }
 
                 continue;
             }
 
-            Vec3 start = MotionMath.StartOf(channel, state);
-            Vec3 value = ended ? MotionMath.EndValue(channel, mode, start) : MotionMath.Compose(channel, mode, start, t);
-            tree.SetState(key, Apply(channel.Kind, state, value));
+            RectNodeState state = tree.GetState(key);
+            tree.SetState(key, Apply(channel.Kind, state, x, y, z));
         }
 
         return tree;
     }
 
-    /// <summary>채널 종류가 노드 상태의 어느 자리를 쓰는가 — 코어 <c>StageNodeClaim</c>과 같은 대응.</summary>
-    public static RectNodeState Apply(MotionChannelKind kind, in RectNodeState state, Vec3 value) => kind switch
+    /// <summary>그 성분의 그 시각의 값 — 키가 없거나 뮤트됐으면 null(가만히 선 값 그대로).</summary>
+    private static float? Sample(ChannelAsset channel, Axis axis, float t, Func<CurveRef, bool>? isMuted)
     {
-        MotionChannelKind.Position => state.WithAnchoredPosition(value.XY),
-        MotionChannelKind.Scale => state.WithLocalScale(new Vec3(value.X, value.Y, state.LocalScale.Z)),
-        MotionChannelKind.Euler => state.WithLocalEuler(value),
-        MotionChannelKind.Alpha => state, // 불투명도는 노드 상태에 없다 — Pose의 alphas 표로 간다
+        if (channel.Get(axis) is not { Keys.Count: > 0 } curve || isMuted?.Invoke(new CurveRef(channel.Node, channel.Kind, axis)) == true)
+        {
+            return null;
+        }
+
+        return CurveFunctions.Evaluate(TangentMath.ToCurveKeys(curve.Keys), t);
+    }
+
+    /// <summary>채널 종류가 노드 상태의 어느 자리를 쓰는가 — 값이 없는(null) 성분은 그 상태의 값 그대로.</summary>
+    private static RectNodeState Apply(MotionChannelKind kind, in RectNodeState state, float? x, float? y, float? z) => kind switch
+    {
+        MotionChannelKind.Position => state.WithAnchoredPosition(new Vec2(x ?? state.AnchoredPosition.X, y ?? state.AnchoredPosition.Y)),
+        MotionChannelKind.Scale => state.WithLocalScale(new Vec3(x ?? state.LocalScale.X, y ?? state.LocalScale.Y, state.LocalScale.Z)),
+        MotionChannelKind.Euler => state.WithLocalEuler(new Vec3(x ?? state.LocalEulerAngles.X, y ?? state.LocalEulerAngles.Y, z ?? state.LocalEulerAngles.Z)),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "모르는 채널 종류"),
     };
 }

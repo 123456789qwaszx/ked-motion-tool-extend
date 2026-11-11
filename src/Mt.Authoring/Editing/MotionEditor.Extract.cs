@@ -132,8 +132,6 @@ public sealed partial class MotionEditor
                     Name = UniqueName($"{name}_{suffix}", n => Document.Find(n) is not null),
                     Rig = name,
                     Duration = motion.Duration,
-                    End = motion.End,
-                    PreviewMode = motion.PreviewMode,
                     Channels = channels,
                     Plays = plays,
                     Swaps = swaps,
@@ -142,14 +140,11 @@ public sealed partial class MotionEditor
                 motion.Plays.RemoveAll(plays.Contains);
                 motion.Swaps.RemoveAll(swaps.Contains);
 
-                // 절대값 애니메이션의 자리 키는 "세트 안의 자리"다 — 맨 위 오브젝트는 가운데만큼 옮겨졌다.
-                if (motion.PreviewMode == MotionChannelMode.Absolute)
+                // 자리 키는 "세트 안의 자리"다 — 맨 위 오브젝트는 가운데만큼 옮겨졌다.
+                foreach (ChannelAsset channel in channels.Where(c => c.Kind == MotionChannelKind.Position && roots.Any(r => r.Id == c.Node)))
                 {
-                    foreach (ChannelAsset channel in channels.Where(c => c.Kind == MotionChannelKind.Position && roots.Any(r => r.Id == c.Node)))
-                    {
-                        channel.X?.Keys.ForEach(k => k.V -= cx);
-                        channel.Y?.Keys.ForEach(k => k.V -= cy);
-                    }
+                    channel.X?.Keys.ForEach(k => k.V -= cx);
+                    channel.Y?.Keys.ForEach(k => k.V -= cy);
                 }
 
                 Document.Motions.Insert(Document.Motions.IndexOf(motion), part);

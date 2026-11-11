@@ -5,8 +5,7 @@ namespace Mt.Authoring.Model;
 /// <summary>
 /// 저작 원본 한 벌 (<c>*.motion-authoring.json</c>, 스키마 <see cref="AuthoringFormat.AuthoringSchema"/>).
 ///
-/// 산출물(<c>motions/2</c>)에 들어가지 않는 제작 정보 — 탄젠트 모드·끊김·재생 기준(relative/absolute) —을
-/// 함께 든다. 내보내기는 그것을 벗기고 <see cref="MotionAsset"/>을 코어 <see cref="MotionClip"/>으로 바꾼다.
+/// 컷 파일(<c>cut/1</c>)에 구워져 나가기 전의 것 — 세트의 참조 · 재생 블록 · 탄젠트 모드와 끊김 — 을 함께 든다.
 ///
 /// 전부 가변 클래스다. 편집은 <see cref="Editing.MotionEditor"/>만 하고, 되돌리기는 문서 전체 스냅샷이다
 /// (VnTool <c>ProjectEditor</c>의 방식) — 명령마다 역연산을 짓지 않는다.
@@ -37,7 +36,7 @@ public sealed class MotionDocument
 
     /// <summary>
     /// 툴에서 정의한 리그들(<c>PLAN-parts.md</c> §9) — 세트의 뼈대.
-    /// 저작본에는 <see cref="RigsOrNull"/>로 실린다(없으면 안 적는다). 런타임에는 리그 스키마 모양으로 따로 나간다.
+    /// 저작본에는 <see cref="RigsOrNull"/>로 실린다(없으면 안 적는다). 컷 파일에는 컷이 품은 것이 오브젝트로 펼쳐져 나간다.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public List<RigAsset> Rigs { get; set; } = new();
@@ -76,7 +75,10 @@ public sealed class MotionDocument
         => Motions.FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.Ordinal));
 }
 
-/// <summary>모션 하나의 저작본. 수치는 코어 <see cref="MotionClip"/>과 같고, 제작 정보만 더 든다.</summary>
+/// <summary>
+/// 애니메이션 하나 — 컷의 타임라인이거나 세트의 애니메이션. **키는 "그 프레임의 모습"이다**: 키 값이 곧 그 속성의 값이고,
+/// 키가 없는 속성은 오브젝트의 가만히 선 값 그대로다. 첫 키 앞과 마지막 키 뒤로는 그 키의 값이 이어진다.
+/// </summary>
 public sealed class MotionAsset
 {
     public string Name { get; set; } = "";
@@ -87,23 +89,10 @@ public sealed class MotionAsset
     /// <summary>초.</summary>
     public float Duration { get; set; }
 
-    public MotionEnd End { get; set; } = MotionEnd.Restore;
-
-    /// <summary>
-    /// 뷰포트가 키 값을 어떻게 보여 줄지 — relative(시작값 + 키, 배율은 ×) 또는 absolute(키 그대로).
-    /// 산출물에는 **안 나간다**: motions/2에서 mode는 재생하는 커맨드(<c>motion slot 이름 relative|absolute</c>)가 정한다.
-    /// 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때도 이 렌즈를 쓴다(PoseEdit.KeyValueFor).
-    /// </summary>
-    public MotionChannelMode PreviewMode { get; set; } = MotionChannelMode.Relative;
-
-    /// <summary>motion-authoring/1의 <c>defaultMode</c> — 읽을 때 <see cref="PreviewMode"/>로 옮기고 비운다. 쓰지 않는다.</summary>
-    [System.Text.Json.Serialization.JsonPropertyName("defaultMode")]
-    public MotionChannelMode? LegacyDefaultMode { get; set; }
-
     public List<ChannelAsset> Channels { get; set; } = new();
 
     /// <summary>
-    /// 이벤트 키(<c>PLAN-parts.md</c> §2.5, <c>motions/3</c>) — 재생이 그 시각을 지나는 순간 런타임이 이름과 값으로 알린다("이 프레임에 소리").
+    /// 이벤트 키(<c>PLAN-parts.md</c> §2.5) — 재생이 그 시각을 지나는 순간 런타임이 이름과 값으로 알린다("이 프레임에 소리").
     /// 시각 오름차순을 편집기가 지킨다. 저작본에는 <see cref="EventsOrNull"/>로 실린다(없으면 안 적는다).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -146,7 +135,7 @@ public sealed class MotionAsset
 
     /// <summary>
     /// 재생 블록을 다 펼쳐 구운 것(<see cref="Preview.MotionFlatten"/>) — 품은 세트의 애니메이션이 경로 이름의 채널(<c>차.Body</c>)로 들어와 한 덩어리가 된 모션.
-    /// 재생 블록이 없으면 null. 미리보기와 산출물은 이것을 쓴다(<see cref="MotionAssetCodec.ToClip"/>) — 저작본에는 안 적힌다. 편집기가 문서가 바뀔 때마다 다시 굽는다.
+    /// 재생 블록이 없으면 null. 미리보기와 컷 파일은 이것을 쓴다 — 저작본에는 안 적힌다. 편집기가 문서가 바뀔 때마다 다시 굽는다.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public MotionAsset? Flattened { get; set; }
@@ -191,7 +180,7 @@ public sealed class MotionEventAsset
     public string? Value { get; set; }
 }
 
-/// <summary>노드 하나의 속성 하나. 성분이 null이면 "건드리지 않는다"(코어와 같은 뜻).</summary>
+/// <summary>노드 하나의 속성 하나. 성분이 null이면 "건드리지 않는다" — 그 성분은 가만히 선 값 그대로다.</summary>
 public sealed class ChannelAsset
 {
     public string Node { get; set; } = "";
@@ -236,7 +225,7 @@ public sealed class ComponentCurve
 
 /// <summary>
 /// 키 하나. 수치 넷은 코어 <see cref="CurveKey"/>와 1:1이고, <see cref="Tangent"/>·<see cref="Broken"/>은
-/// 그래프 편집기의 손잡이 상태다 — 산출물에는 탄젠트 **값**만 나간다.
+/// 그래프 편집기의 손잡이 상태다 — 컷 파일에는 탄젠트 **값**만 나간다.
 /// </summary>
 public sealed class KeyAsset
 {
@@ -247,27 +236,17 @@ public sealed class KeyAsset
     public float InTangent { get; set; }
     public float OutTangent { get; set; }
 
-    /// <summary>탄젠트를 누가 정하는가. 가져온 키는 <see cref="TangentMode.Free"/>다 — 값을 그대로 지킨다.</summary>
+    /// <summary>탄젠트를 누가 정하는가. <see cref="TangentMode.Free"/>는 적힌 값을 그대로 지킨다.</summary>
     public TangentMode Tangent { get; set; } = TangentMode.Free;
 
     /// <summary>in·out 탄젠트가 따로 노는가(마야의 break tangents).</summary>
     public bool Broken { get; set; }
 
     public CurveKey ToCurveKey() => new(T, V, InTangent, OutTangent);
-
-    public static KeyAsset FromCurveKey(in CurveKey key) => new()
-    {
-        T = key.Time,
-        V = key.Value,
-        InTangent = key.InTangent,
-        OutTangent = key.OutTangent,
-        Tangent = TangentMode.Free,
-        Broken = key.InTangent != key.OutTangent,
-    };
 }
 
 /// <summary>
-/// 마야의 탄젠트 종류 중 규약 안에서 가능한 것(가중·계단은 규약이 거부한다). 산수는 <c>TangentMath</c>.
+/// 마야의 탄젠트 종류 중 이 툴의 커브로 가능한 것(가중·계단은 없다 — 계단은 그림 키가 맡는다). 산수는 <c>TangentMath</c>.
 /// 이름이 곧 저작 원본의 글자(소문자)다 — 바꾸면 옛 파일을 못 읽는다.
 /// </summary>
 public enum TangentMode

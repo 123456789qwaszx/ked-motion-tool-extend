@@ -11,7 +11,7 @@ public class MotionDocumentJsonTests
     [Fact]
     public void 저작_원본은_쓰고_읽으면_같은_문서다()
     {
-        MotionDocument document = Fixtures.NodBowDocument();
+        MotionDocument document = Fixtures.ActorDocument();
         string first = MotionDocumentJson.Write(document);
         MotionDocument read = MotionDocumentJson.Read(first);
         string second = MotionDocumentJson.Write(read);
@@ -26,7 +26,7 @@ public class MotionDocumentJsonTests
     {
         var document = new MotionDocument();
         var editor = new MotionEditor(document);
-        editor.AddMotion("a", "character", 1f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.AddMotion("a", Fixtures.Actor, 1f);
         editor.AddChannel("a", "N", MotionChannelKind.Euler);
         editor.SetKeys("a", "N", MotionChannelKind.Euler, Axis.Z, new[]
         {
@@ -36,8 +36,9 @@ public class MotionDocumentJsonTests
 
         string json = MotionDocumentJson.Write(editor.Document);
 
-        Assert.Contains("\"end\": \"commit\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"previewMode\": \"absolute\"", json, StringComparison.Ordinal);
+        // 키는 "그 프레임의 모습"뿐이다 — 종료 처리와 재생 기준은 적지 않는다.
+        Assert.DoesNotContain("\"end\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"previewMode\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\"defaultMode\"", json, StringComparison.Ordinal);
         Assert.Contains("\"schema\": \"motion-authoring/2\"", json, StringComparison.Ordinal);
         Assert.Contains("\"kind\": \"euler\"", json, StringComparison.Ordinal);
@@ -57,7 +58,7 @@ public class MotionDocumentJsonTests
     public void 새_탄젠트_모드도_소문자로_왕복한다()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("a", "character", 1f);
+        editor.AddMotion("a", Fixtures.Actor, 1f);
         editor.AddChannel("a", "N", MotionChannelKind.Position);
         editor.SetKeys("a", "N", MotionChannelKind.Position, Axis.X, new[]
         {
@@ -85,7 +86,7 @@ public class MotionDocumentJsonTests
     {
         string json = """
             { "schema": "motion-authoring/2",
-              "motions": [ { "name": "a", "rig": "character", "duration": 1, "end": "restore",
+              "motions": [ { "name": "a", "rig": "actor", "duration": 1,
                              "channels": [ { "node": "N", "kind": "position", "x": { "keys": [] } } ] } ] }
             """;
 
@@ -94,11 +95,11 @@ public class MotionDocumentJsonTests
     }
 
     [Fact]
-    public void 옛_판_motion_authoring_1은_읽히고_defaultMode는_previewMode가_되며_채널_mode는_버린다()
+    public void 옛_판_motion_authoring_1은_읽히고_defaultMode와_채널_mode는_버린다()
     {
         string json = """
             { "schema": "motion-authoring/1",
-              "motions": [ { "name": "a", "rig": "character", "duration": 1, "end": "commit", "defaultMode": "absolute",
+              "motions": [ { "name": "a", "rig": "actor", "duration": 1, "end": "commit", "defaultMode": "absolute",
                              "channels": [ { "node": "N", "kind": "position", "mode": "relative",
                                              "x": { "keys": [ { "t": 0, "v": 140 }, { "t": 1, "v": 360 } ] } } ] } ] }
             """;
@@ -107,26 +108,28 @@ public class MotionDocumentJsonTests
 
         Assert.Equal(AuthoringFormat.AuthoringSchema, read.Schema);
         MotionAsset a = read.Find("a")!;
-        Assert.Equal(MotionChannelMode.Absolute, a.PreviewMode);
-        Assert.Null(a.LegacyDefaultMode);
-        Assert.Equal(140f, a.Channels[0].X!.Keys[0].V); // 키 값은 그대로 — 뜻만 커맨드로 갔다
+        Assert.Equal(140f, a.Channels[0].X!.Keys[0].V); // 키 값은 그대로 — "그 프레임의 값"으로 읽힌다
 
         string written = MotionDocumentJson.Write(read);
         Assert.Contains("\"schema\": \"motion-authoring/2\"", written, StringComparison.Ordinal);
         Assert.DoesNotContain("\"defaultMode\"", written, StringComparison.Ordinal);
         Assert.DoesNotContain("\"mode\"", written, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"end\"", written, StringComparison.Ordinal);
     }
 
     [Fact]
     public void 옛_문서의_걷어_낸_속성은_읽을_때_무시된다()
     {
-        // 씬 · 리그 덤프 참조 · 기준 해상도 참조 · 초상 · 자리(place)와 focus · 배역 · 붙이기는 걷어 냈다 — 그 속성이 든 옛 문서도 열리고, 다시 쓰면 그 속성이 없다.
+        // 씬 · 리그 덤프 참조 · 기준 해상도 참조 · 초상 · 자리(place)와 focus · 배역 · 붙이기 · 종료 처리(end) · 재생 기준(previewMode · defaultMode)은 걷어 냈다 —
+        // 그 속성이 든 옛 문서도 열리고, 다시 쓰면 그 속성이 없다.
         string json = """
             { "schema": "motion-authoring/2",
               "rigSchemas": { "path": "../ExportedTuning/rig-schemas.json", "sha256": "abc123" },
               "baseResolution": { "path": "../ExportedTuning/base-resolution.json" },
               "preview": { "portrait": "art/old.png" },
-              "motions": [ { "name": "nod", "rig": "character", "duration": 0.6, "end": "restore", "channels": [] } ],
+              "motions": [ { "name": "nod", "rig": "character", "duration": 0.6, "end": "restore", "previewMode": "relative", "channels": [] },
+                           { "name": "bow", "rig": "character", "duration": 0.4, "end": "commit", "defaultMode": "absolute",
+                             "channels": [ { "node": "N", "kind": "euler", "z": { "keys": [ { "t": 0, "v": 0 }, { "t": 0.4, "v": 8 } ] } } ] } ],
               "activeScene": "scene",
               "scenes": [ { "name": "scene", "objects": [
                   { "id": "s1", "rig": "character", "layer": "front", "character": "bandi", "place": "left", "placeFocus": "face", "portrait": "art/harin.png" },
@@ -135,13 +138,14 @@ public class MotionDocumentJsonTests
 
         MotionDocument read = MotionDocumentJson.Read(json);
 
-        Assert.Equal("nod", Assert.Single(read.Motions).Name); // 남은 것은 그대로 읽힌다
+        Assert.Equal(new[] { "nod", "bow" }, read.Motions.Select(m => m.Name)); // 남은 것은 그대로 읽힌다
+        Assert.Equal(8f, read.Find("bow")!.Channels[0].Z!.Keys[1].V);            // 키 값도 그대로
         Assert.Empty(read.Cuts);
         Assert.Empty(read.Rigs);
 
         string written = MotionDocumentJson.Write(read);
 
-        foreach (string gone in new[] { "\"scenes\"", "\"activeScene\"", "\"rigSchemas\"", "\"baseResolution\"", "\"objects\"", "\"preview\"", "\"portrait\"", "\"character\":", "\"place\"", "\"placeFocus\"", "\"attachTo\"", "\"attachNode\"" })
+        foreach (string gone in new[] { "\"scenes\"", "\"activeScene\"", "\"rigSchemas\"", "\"baseResolution\"", "\"objects\"", "\"preview\"", "\"portrait\"", "\"character\":", "\"place\"", "\"placeFocus\"", "\"attachTo\"", "\"attachNode\"", "\"end\"", "\"previewMode\"", "\"defaultMode\"" })
         {
             Assert.DoesNotContain(gone, written, StringComparison.Ordinal);
         }

@@ -3,7 +3,7 @@ using Ked.Presentation.Core;
 namespace Mt.Authoring.Model;
 
 /// <summary>
-/// 툴에서 정의한 리그(<c>PLAN-parts.md</c> §9) — 세트의 뼈대. Spine처럼 **툴이 원본**이고 런타임은 내보낸 것으로 세운다.
+/// 툴에서 정의한 리그(<c>PLAN-parts.md</c> §9) — 세트의 뼈대. Spine처럼 **툴이 원본**이다.
 /// 컷의 오브젝트 계층도 같은 그릇이다(<see cref="CutAsset.Rig"/>).
 ///
 /// 노드는 단순하다: 부모의 가운데에 앵커·피벗을 둔 사각형(위치 · 크기) + 그림을 그리는가 + 불투명도를 받는가.
@@ -98,7 +98,7 @@ public static class RigAssetCodec
     /// <summary>
     /// 코어 스키마로 — 루트를 붙이고, 노드는 가운데 앵커·가운데 피벗으로. <paramref name="resolve"/>가 있으면 **품은 세트를 펼친다**:
     /// 인스턴스 오브젝트 밑에 그 세트의 오브젝트들이 <c>인스턴스.이름</c>으로 선다(되풀이해서 — 품은 것이 또 품었으면 <c>a.b.c</c>). 없는 세트·순환·너무 깊은 것은 건너뛴다.
-    /// 그래서 세운 리그는 늘 한 덩어리다 — 미리보기도 산출물도 펼친 것을 본다(<c>PLAN-set.md</c> §7의 A).
+    /// 그래서 세운 리그는 늘 한 덩어리다 — 미리보기도 컷 파일도 펼친 것을 본다(<c>PLAN-set.md</c> §7의 A).
     /// </summary>
     public static RigSchemaRigDto ToDto(RigAsset rig, Vec2 stageSize, Func<string, RigAsset?>? resolve = null)
     {

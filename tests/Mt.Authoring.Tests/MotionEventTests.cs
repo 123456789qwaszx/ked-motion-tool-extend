@@ -8,12 +8,12 @@ using Mt.Authoring.Validation;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>이벤트 키(<c>PLAN-parts.md</c> §2.5, <c>motions/3</c>) — "이 프레임에 소리".</summary>
+/// <summary>이벤트 키(<c>PLAN-parts.md</c> §2.5) — "이 프레임에 소리".</summary>
 public class MotionEventTests
 {
-    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
+    private static readonly RigSchemaFile RigFile = Fixtures.ActorRigFile();
 
-    private static MotionEditor NewEditor() => new(Fixtures.NodBowDocument()); // nod 0.6초 · bow 0.4초
+    private static MotionEditor NewEditor() => new(Fixtures.ActorDocument()); // nod 0.6초 · bow 0.4초
 
     [Fact]
     public void 이벤트는_시각_순으로_서고_명령_하나가_한_칸이다()
@@ -49,29 +49,18 @@ public class MotionEventTests
     }
 
     [Fact]
-    public void 이벤트가_있으면_motions_3으로_나가고_한글_값도_왕복한다()
+    public void 이벤트는_컷_파일의_events로_나가고_한글_값도_왕복한다()
     {
-        MotionEditor editor = NewEditor();
-        string plain = MotionsJson.Write(MotionExport.ToClips(editor.Document));
-        Assert.Equal(Fixtures.TextOf("motions.nod-bow.json"), plain); // 이벤트가 없으면 전과 같은 글자
+        // 컷의 타임라인에 놓은 이벤트 — 컷 파일에는 프레임으로 적힌다. 이벤트가 없으면 빈 목록이다.
+        var editor = new MotionEditor(new MotionDocument());
+        editor.AddCut("shot", 24);
+        CutFileDto Built() => CutFileJson.Read(CutFileJson.Write(CutFileJson.Build(editor.Document, editor.Document.FindCut("shot")!, new Vec2(1920f, 1080f))));
+        Assert.Empty(Built().events);
 
-        editor.AddMotionEvent("nod", 0.3f, "flash", "땀 \"큰\"");
-        editor.AddMotionEvent("nod", 0.6f, "done");
-        string json = MotionsJson.Write(MotionExport.ToClips(editor.Document));
-        Assert.Contains("\"schema\": \"motions/3\"", json, StringComparison.Ordinal);
-        Assert.Contains("{ \"t\": 0.3, \"name\": \"flash\", \"value\": \"땀 \\\"큰\\\"\" }", json, StringComparison.Ordinal);
-        Assert.Contains("{ \"t\": 0.6, \"name\": \"done\" }", json, StringComparison.Ordinal);
-
-        Assert.True(MotionsJson.TryRead(json, out List<MotionClip> clips, out List<string> problems), string.Join("\n", problems));
-        Assert.Empty(problems);
-        MotionClip nod = clips.Single(c => c.Name == "nod");
-        Assert.Equal(new[] { ("flash", "땀 \"큰\""), ("done", (string?)null) }, nod.Events.Select(e => (e.Name, (string?)e.Value)));
-        Assert.Null(clips.Single(c => c.Name == "bow").Events);
-        Assert.Equal(json, MotionsJson.Write(clips));
-
-        // 가져오면 저작본의 이벤트가 된다.
-        MotionAsset back = MotionAssetCodec.FromClip(nod);
-        Assert.Equal(new[] { (0.3f, "flash"), (0.6f, "done") }, back.Events.Select(e => (e.T, e.Name)));
+        editor.AddMotionEvent("shot", 0.25f, "flash", "땀 \"큰\"");
+        editor.AddMotionEvent("shot", 1f, "done");
+        Assert.Equal(new[] { (6f, "flash", "땀 \"큰\""), (24f, "done", (string?)null) }, Built().events.Select(e => (e.f, e.name, (string?)e.value)));
+        Assert.Contains("\"value\": \"땀 \\\"큰\\\"\"", CutFileJson.Write(CutFileJson.Build(editor.Document, editor.Document.FindCut("shot")!, new Vec2(1920f, 1080f))), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -86,8 +75,10 @@ public class MotionEventTests
         editor.Undo();
 
         editor.AddMotionEvent("nod", 0.2f, "Bad Name");
-        Assert.Contains(MotionValidator.Validate(editor.Document, RigFile.NodeIds), p => p.Blocking && p.Message.Contains("이벤트 0: 이름", StringComparison.Ordinal));
-        Assert.False(MotionExport.TryExport(editor.Document, RigFile.NodeIds, out _, out _));
+        MotionProblem named = Assert.Single(MotionValidator.Validate(editor.Document, RigFile.NodeIds));
+        Assert.True(named.Blocking);
+        Assert.Contains("이벤트 0: 이름", named.Message, StringComparison.Ordinal);
+        Assert.Empty(MotionFixes.Suggest(named)); // 애니메이션의 이름을 고치는 손은 이벤트의 이름에 서지 않는다
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Ked.Presentation.Core;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Preview;
@@ -6,11 +7,11 @@ namespace Mt.Authoring.Preview;
 /// <summary>
 /// 재생 블록을 펼쳐 굽는다(<c>PLAN-set.md</c> S10·S11) — 세트의 애니메이션이 "품은 세트의 애니메이션을 언제 튼다"를 담으면,
 /// 그 애니메이션의 채널들을 경로 이름(<c>인스턴스.오브젝트</c>)으로 이 애니메이션에 들여 **한 덩어리 모션**으로 만든다.
-/// 런타임은 지금 그대로다(모션 하나 재생) — 조립은 툴 안의 일이다.
+/// 컷 파일에는 이 구운 키가 나간다 — 조립은 툴 안의 일이다.
 ///
-/// 블록의 뜻: 블록이 시작하기 전에는 앞에서 남은 상태 그대로, 유지(commit) 모션이 끝나면 그 자세가 남고 복원(restore) 모션이 끝나면 시작 전으로 돌아간다.
-/// 되풀이는 같은 블록을 이어 놓은 것 — 유지 모션은 바퀴마다 쌓인다. 품은 애니메이션의 재생 기준(상대값/절대값)은 그 애니메이션의 것이고,
-/// 구운 값은 바깥 애니메이션의 재생 기준으로 옮겨 적는다(가만히 선 자세를 더하거나 뺀다).
+/// 블록의 뜻(키는 "그 프레임의 모습"이다): 블록이 도는 동안은 품은 애니메이션의 키가 그 속성의 값이다. **블록이 끝나면 마지막 값이 남아** 같은 인스턴스의 다음 블록까지 이어지고,
+/// **첫 블록 앞에서는 가만히 선 값**이다. 되풀이는 같은 블록을 이어 놓은 것 — 바퀴마다 처음부터 다시 튼다(쌓이지 않는다).
+/// 품은 애니메이션에 키가 없는 속성은 건드리지 않는다(가만히 선 값 그대로).
 ///
 /// 커브는 끊길 수 없어(계단 키가 없다) 블록의 처음과 끝에서 값이 튀는 자리는 <see cref="Seam"/>초짜리 짧은 선으로 잇는다.
 /// 바깥 애니메이션이 같은 경로에 제 키를 놓았으면 그 성분은 제 키가 이긴다(품은 것을 여기서만 덮어쓴다).
@@ -66,8 +67,6 @@ public static class MotionFlatten
             Name = motion.Name,
             Rig = motion.Rig,
             Duration = motion.Duration,
-            End = motion.End,
-            PreviewMode = motion.PreviewMode,
             Channels = motion.Channels.Select(CloneChannel).ToList(),
             Events = motion.Events.Select(e => new MotionEventAsset { T = e.T, Name = e.Name, Value = e.Value }).ToList(),
             Swaps = motion.Swaps.Select(s => new MotionSwapAsset { T = s.T, Node = s.Node, Image = s.Image }).ToList(),
@@ -76,6 +75,7 @@ public static class MotionFlatten
         RigAsset? rig = document.FindRig(motion.Rig);
         // 대상 커브(경로 이름의 노드 · 종류 · 성분) → 그 위에 차례로 놓이는 조각들.
         var pieces = new Dictionary<(string Node, MotionChannelKind Kind, Axis Axis), List<Piece>>();
+        var rests = new Dictionary<(string Node, MotionChannelKind Kind, Axis Axis), float>();
 
         foreach (MotionPlayAsset play in motion.Plays.OrderBy(p => p.At))
         {
@@ -106,16 +106,17 @@ public static class MotionFlatten
                         {
                             list = new List<Piece>();
                             pieces[key] = list;
+                            rests[key] = RestOf(document, inner, channel.Node, channel.Kind, axis);
                         }
 
-                        list.Add(new Piece(start, child.Duration, Spanning(curve.Keys, child.Duration), child.PreviewMode, child.End, RestOf(document, inner, channel.Node, channel.Kind, axis)));
+                        list.Add(new Piece(start, Spanning(curve.Keys, child.Duration)));
                     }
                 }
 
                 // 품은 애니메이션의 그림 키 — 경로 이름으로, 그 바퀴의 시각으로.
                 foreach (MotionSwapAsset swap in child.Swaps)
                 {
-                    if (start + swap.T <= motion.Duration + MotionRules.Tolerance)
+                    if (start + swap.T <= motion.Duration + KeyTimes.Tolerance)
                     {
                         result.Swaps.Add(new MotionSwapAsset { T = Math.Min(start + swap.T, motion.Duration), Node = path + swap.Node, Image = swap.Image });
                     }
@@ -123,7 +124,7 @@ public static class MotionFlatten
 
                 foreach (MotionEventAsset e in child.Events)
                 {
-                    if (start + e.T <= motion.Duration + MotionRules.Tolerance)
+                    if (start + e.T <= motion.Duration + KeyTimes.Tolerance)
                     {
                         result.Events.Add(new MotionEventAsset { T = Math.Min(start + e.T, motion.Duration), Name = e.Name, Value = e.Value });
                     }
@@ -146,7 +147,7 @@ public static class MotionFlatten
                 result.Channels.Add(target);
             }
 
-            Set(target, axis, new ComponentCurve { Keys = Bake(list, kind, motion.Duration, motion.PreviewMode) });
+            Set(target, axis, new ComponentCurve { Keys = Bake(list, rests[(node, kind, axis)], motion.Duration) });
         }
 
         result.Events = result.Events.OrderBy(e => e.T).ToList();
@@ -162,8 +163,8 @@ public static class MotionFlatten
     /// </summary>
     private static List<KeyAsset> Spanning(List<KeyAsset> keys, float duration)
     {
-        bool head = keys[0].T > MotionRules.Tolerance;
-        bool tail = keys[^1].T < duration - MotionRules.Tolerance;
+        bool head = keys[0].T > KeyTimes.Tolerance;
+        bool tail = keys[^1].T < duration - KeyTimes.Tolerance;
 
         if (!head && !tail)
         {
@@ -194,45 +195,39 @@ public static class MotionFlatten
         return spanned;
     }
 
-    /// <summary>조각 하나 — 품은 애니메이션의 커브 하나가 놓인 자리.</summary>
-    private sealed record Piece(float Start, float Duration, List<KeyAsset> Keys, MotionChannelMode Mode, MotionEnd End, float Rest);
-
-    private static bool Multiplies(MotionChannelKind kind) => kind is MotionChannelKind.Scale or MotionChannelKind.Alpha;
+    /// <summary>조각 하나 — 품은 애니메이션의 커브 하나가 놓인 자리(시작 시각과, 0초부터 길이까지 닿는 키들).</summary>
+    private sealed record Piece(float Start, List<KeyAsset> Keys);
 
     /// <summary>
-    /// 조각들을 한 커브로. 안에서는 "가만히 선 자세에서 얼마나 떨어져 있는가"(상대값)로 잇는다 — 위치·회전은 더하고 배율·불투명도는 곱한다.
-    /// 끝에서 바깥의 재생 기준으로 옮겨 적는다(절대값이면 가만히 선 자세를 다시 입힌다).
+    /// 한 속성에 놓인 조각들을 한 커브로 — 첫 조각 앞은 가만히 선 값(<paramref name="rest"/>), 조각 안은 품은 애니메이션의 키 그대로, 조각 뒤로는 마지막 값이 이어진다.
     /// </summary>
-    private static List<KeyAsset> Bake(List<Piece> pieces, MotionChannelKind kind, float duration, MotionChannelMode outer)
+    private static List<KeyAsset> Bake(List<Piece> pieces, float rest, float duration)
     {
-        bool multiply = Multiplies(kind);
-        float neutral = multiply ? 1f : 0f;
-        float state = neutral; // 앞에서 남은 상태(상대값)
-        float rest = pieces[0].Rest;
+        float held = rest; // 지금까지 남은 값 — 첫 조각 앞에서는 가만히 선 값, 그 뒤로는 앞 조각의 마지막 값
         var keys = new List<KeyAsset>();
 
         // like가 없으면 "그대로 머무는" 키, 있으면 품은 애니메이션의 키. first는 조각의 첫 키 — 앞과는 평평하게 이어진다.
-        void Add(float t, float v, KeyAsset? like = null, float factor = 1f, bool first = false)
+        void Add(float t, float v, KeyAsset? like = null, bool first = false)
         {
             t = Math.Clamp(t, 0f, duration);
             KeyAsset? previous = keys.Count > 0 ? keys[^1] : null;
 
             // 앞 키와 같은 자리·같은 값이면 한 키로 합친다(이어 붙은 바퀴·블록) — 들어오는 기울기는 앞의 것, 나가는 기울기는 뒤의 것.
-            if (previous is not null && Math.Abs(t - previous.T) <= MotionRules.Tolerance && Math.Abs(v - previous.V) <= 1e-5f)
+            if (previous is not null && Math.Abs(t - previous.T) <= KeyTimes.Tolerance && Math.Abs(v - previous.V) <= 1e-5f)
             {
-                previous.OutTangent = like is null ? 0f : like.OutTangent * factor;
+                previous.OutTangent = like?.OutTangent ?? 0f;
                 previous.Tangent = TangentMode.Free;
                 previous.Broken = true;
                 return;
             }
 
             // 시각이 겹치거나 거꾸로 가면 조금 뒤로 민다(커브는 시각 오름차순이어야 한다).
-            if (previous is not null && t <= previous.T + MotionRules.Tolerance)
+            if (previous is not null && t <= previous.T + KeyTimes.Tolerance)
             {
                 t = previous.T + Seam;
             }
 
-            if (t > duration + MotionRules.Tolerance)
+            if (t > duration + KeyTimes.Tolerance)
             {
                 return;
             }
@@ -249,82 +244,51 @@ public static class MotionFlatten
 
             keys.Add(like is null
                 ? new KeyAsset { T = Math.Min(t, duration), V = v, Tangent = TangentMode.Free, Broken = true }
-                : new KeyAsset { T = Math.Min(t, duration), V = v, InTangent = flatIn ? 0f : like.InTangent * factor, OutTangent = like.OutTangent * factor, Tangent = TangentMode.Free, Broken = true });
+                : new KeyAsset { T = Math.Min(t, duration), V = v, InTangent = flatIn ? 0f : like.InTangent, OutTangent = like.OutTangent, Tangent = TangentMode.Free, Broken = true });
         }
 
-        // 0초에서 시작하는 블록은 0초의 값이 그 블록의 것이다 — 남은 상태의 키를 먼저 놓으면 첫 프레임에 튄다.
-        if (pieces.Min(p => p.Start) > MotionRules.Tolerance)
+        // 0초에서 시작하는 블록은 0초의 값이 그 블록의 것이다 — 가만히 선 값의 키를 먼저 놓으면 첫 프레임에 튄다.
+        if (pieces.Min(p => p.Start) > KeyTimes.Tolerance)
         {
-            Add(0f, state);
+            Add(0f, rest);
         }
 
         foreach (Piece piece in pieces.OrderBy(p => p.Start))
         {
-            float last = state;
             bool first = true;
 
             foreach (KeyAsset key in piece.Keys)
             {
-                // 품은 애니메이션의 값을 상대값으로: 상대값이면 남은 상태에 얹고, 절대값이면 가만히 선 자세를 뺀다.
-                float value;
-                float factor;
+                // 블록이 남은 값과 다른 값에서 시작하면, 직전까지는 남은 값 그대로 두고 짧은 선으로 잇는다.
+                // 블록의 키는 제 시각에 정확히 선다 — 이음매는 늘 블록의 앞쪽에 둔다(앞 블록·앞 바퀴가 바로 붙어 있으면 그 끝 키를 이음매만큼 당긴다).
+                if (first && keys.Count > 0 && Math.Abs(key.V - held) > 1e-5f)
+                {
+                    float seam = piece.Start - Seam;
 
-                if (piece.Mode == MotionChannelMode.Relative)
-                {
-                    value = multiply ? state * key.V : state + key.V;
-                    factor = multiply ? state : 1f;
-                }
-                else
-                {
-                    float r = multiply && Math.Abs(piece.Rest) < 1e-6f ? 1f : piece.Rest;
-                    value = multiply ? key.V / r : key.V - r;
-                    factor = multiply ? 1f / r : 1f;
-                }
-
-                // 블록이 남은 상태와 다른 값에서 시작하면, 직전까지는 남은 상태 그대로 두고 짧은 선으로 잇는다.
-                if (first && keys.Count > 0 && Math.Abs(value - state) > 1e-5f && piece.Start - Seam > keys[^1].T + MotionRules.Tolerance)
-                {
-                    Add(piece.Start - Seam, state);
+                    if (seam > keys[^1].T + KeyTimes.Tolerance)
+                    {
+                        Add(seam, held);
+                    }
+                    else if (keys.Count == 1 ? seam >= 0f : seam > keys[^2].T + KeyTimes.Tolerance)
+                    {
+                        keys[^1].T = seam;
+                    }
                 }
 
-                Add(piece.Start + key.T, value, key, factor, first);
+                Add(piece.Start + key.T, key.V, key, first);
                 first = false;
-                last = value;
             }
 
-            // 유지면 그 자세가 남고, 복원이면 시작 전으로 돌아간다.
-            if (piece.End == MotionEnd.Commit)
-            {
-                state = last;
-            }
-            else if (Math.Abs(last - state) > 1e-6f)
-            {
-                Add(piece.Start + piece.Duration + Seam, state);
-            }
+            held = piece.Keys[^1].V; // 블록이 끝나면 마지막 값이 남는다
         }
 
-        if (keys[^1].T < duration - MotionRules.Tolerance)
+        if (keys[^1].T < duration - KeyTimes.Tolerance)
         {
             Add(duration, keys[^1].V);
         }
         else
         {
             keys[^1].T = duration;
-        }
-
-        // 바깥의 재생 기준으로 — 절대값이면 가만히 선 자세를 다시 입힌다.
-        if (outer == MotionChannelMode.Absolute)
-        {
-            foreach (KeyAsset key in keys)
-            {
-                key.V = multiply ? key.V * rest : key.V + rest;
-
-                if (multiply)
-                {
-                    key.InTangent *= rest;
-                    key.OutTangent *= rest;
-                }
-            }
         }
 
         return keys;
@@ -350,7 +314,7 @@ public static class MotionFlatten
 
         if (found is null)
         {
-            return Multiplies(channel) ? 1f : 0f;
+            return channel is MotionChannelKind.Scale or MotionChannelKind.Alpha ? 1f : 0f;
         }
 
         return channel switch

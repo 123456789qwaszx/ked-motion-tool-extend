@@ -28,7 +28,7 @@ public partial class MainWindow
         panel.Children.Add(Header("이벤트 키"));
         panel.Children.Add(_eventRows);
         Button add = SmallButton("이벤트 추가 (지금 시각)", (_, _) => Guard("이벤트 추가", () => AddMotionEvent()));
-        ToolTip.SetTip(add, "지금 시각에 이벤트 키를 놓는다 — 재생이 그 시각을 지나는 순간 런타임이 (이름, 값)으로 알린다. 예: 이름 sfx · 값 pop. 이름은 영문 소문자·숫자·_ , 값은 자유. 이벤트가 든 문서는 motions/3으로 나간다. 상태가 아니라서 건너뛰기·되감기에서는 다시 울리지 않는다");
+        ToolTip.SetTip(add, "지금 시각에 이벤트 키를 놓는다 — 재생이 그 시각을 지나는 순간 런타임이 (이름, 값)으로 알린다. 예: 이름 sfx · 값 pop. 이름은 영문 소문자·숫자·_ , 값은 자유. 컷 파일의 events로 나간다. 상태가 아니라서 건너뛰기·되감기에서는 다시 울리지 않는다");
         panel.Children.Add(add);
         return panel;
     }

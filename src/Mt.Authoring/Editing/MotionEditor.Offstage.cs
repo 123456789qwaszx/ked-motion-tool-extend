@@ -1,4 +1,5 @@
 using Ked.Presentation.Core;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Editing;
@@ -27,7 +28,7 @@ public sealed partial class MotionEditor
         RigAsset rig = Document.FindRig(motion.Rig) ?? throw new InvalidOperationException($"'{motion.Rig}'는 툴에서 정의한 세트가 아니다 — 가만히 선 자리를 알 수 없다.");
         RigNodeAsset target = rig.Find(node) ?? throw new KeyNotFoundException($"오브젝트 '{node}'가 세트 '{rig.Kind}'에 없다.");
 
-        if (!float.IsFinite(start) || !float.IsFinite(seconds) || seconds <= 0f || start < 0f || start >= motion.Duration - MotionRules.Tolerance)
+        if (!float.IsFinite(start) || !float.IsFinite(seconds) || seconds <= 0f || start < 0f || start >= motion.Duration - KeyTimes.Tolerance)
         {
             throw new InvalidOperationException($"시작은 이 애니메이션의 길이({motion.Duration:0.###}초) 안, 걸리는 시간은 0보다 큰 수다.");
         }
@@ -61,14 +62,14 @@ public sealed partial class MotionEditor
         };
         distance = MathF.Round(distance);
 
-        // 상대값이면 "제자리에서 얼마나", 절대값이면 가만히 선 자리에 얹는다.
-        float rest = motion.PreviewMode == MotionChannelMode.Absolute ? (horizontal ? target.X : target.Y) : 0f;
+        // 키는 그 프레임의 자리다 — 가만히 선 자리에서 그만큼 떨어진 곳.
+        float rest = horizontal ? target.X : target.Y;
         float end = Math.Min(start + seconds, motion.Duration);
         float from = leaving ? rest : rest + distance;
         float to = leaving ? rest + distance : rest;
         var keys = new List<KeyAsset>();
 
-        if (start > MotionRules.Tolerance)
+        if (start > KeyTimes.Tolerance)
         {
             keys.Add(Flat(0f, from));
         }
@@ -76,7 +77,7 @@ public sealed partial class MotionEditor
         keys.Add(Flat(start, from));
         keys.Add(Flat(end, to));
 
-        if (end < motion.Duration - MotionRules.Tolerance)
+        if (end < motion.Duration - KeyTimes.Tolerance)
         {
             keys.Add(Flat(motion.Duration, to));
         }

@@ -20,7 +20,6 @@ internal static class TestDocuments
     /// 시험용 세트 <c>actor</c> — 깊게 품은 묶음들의 사슬 끝에 화면 크기(1920×1080)의 색 사각형 하나(<c>…Sprite_Image</c>).
     /// 묶음마다 자리·회전·배율의 손잡이가 된다(Track_Move_Y는 위아래, SwayPivot은 발 기준 회전, ActingScale은 배율).
     /// 원점이 그림의 아래 끝(y = −540)에 있는 묶음이 넷(<see cref="FootPivots"/>)이고 나머지는 가운데다 — 오브젝트가 25개라 그래프 목록의 "키 없음" 줄(16개까지)이 서지 않는다.
-    /// <c>CharSlot_Track_Focus</c>는 코어 규칙의 키잉 금지 노드다.
     /// </summary>
     public static RigAsset ActorRig()
     {
@@ -57,12 +56,12 @@ internal static class TestDocuments
 
     private static readonly string[] FootPivots = { "CharSlot_DepthScale", "CharSlot_SwayPivot", "CharSlot_Scale", "CharacterPortrait_VisualOffset", "CharacterPortrait_SwayPivot" };
 
-    /// <summary>세트 actor와 그 애니메이션 nod(끄덕임): Track_Move_Y 위치 relative, y 0 → -18 → 0, restore 0.6s.</summary>
+    /// <summary>세트 actor와 그 애니메이션 nod(끄덕임): Track_Move_Y 자리, y 0 → -18 → 0 (0.6초).</summary>
     public static MotionEditor Nod()
     {
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(ActorRig());
-        editor.AddMotion("nod", Actor, 0.6f, MotionEnd.Restore, MotionChannelMode.Relative);
+        editor.AddMotion("nod", Actor, 0.6f);
         editor.AddChannel("nod", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position);
         editor.SetKeys("nod", "CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y, new[]
         {

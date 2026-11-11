@@ -1,14 +1,16 @@
 using System.Text;
-using Ked.Presentation.Core;
+using System.Text.RegularExpressions;
 
 namespace Mt.Authoring.Model;
 
-/// <summary>모션 이름 규칙(<c>MotionRules.NameRule</c>: <c>[a-z0-9_]+</c>)을 셸·편집기가 같은 말로 다루는 자리.</summary>
+/// <summary>이름 규칙(<c>[a-z0-9_]+</c>)을 셸·편집기·검증이 같은 말로 다루는 자리.</summary>
 public static class MotionNames
 {
     public const string Fallback = "motion";
 
-    public static bool IsValid(string? name) => !string.IsNullOrEmpty(name) && MotionRules.NameRule.IsMatch(name);
+    private static readonly Regex NameRule = new("^[a-z0-9_]+$", RegexOptions.Compiled);
+
+    public static bool IsValid(string? name) => !string.IsNullOrEmpty(name) && NameRule.IsMatch(name);
 
     public static string RuleMessage(string? name) => $"이름은 영문 소문자·숫자·_ 만 쓸 수 있다 ('{name}')";
 

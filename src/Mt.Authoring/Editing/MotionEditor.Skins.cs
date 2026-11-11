@@ -16,14 +16,14 @@ public sealed partial class MotionEditor
         }
 
         var skin = new SkinAsset { Name = trimmed, Rig = rig };
-        Mutate(MotionChangeKind.Scene, () => Document.Skins.Add(skin));
+        Mutate(MotionChangeKind.Stage, () => Document.Skins.Add(skin));
         return skin;
     }
 
     public void RemoveSkin(string name)
     {
         SkinAsset skin = RequireSkin(name);
-        Mutate(MotionChangeKind.Scene, () => Document.Skins.Remove(skin));
+        Mutate(MotionChangeKind.Stage, () => Document.Skins.Remove(skin));
     }
 
     /// <summary>이름 바꾸기 — 입고 있던 오브젝트가 같은 칸에서 따라온다.</summary>
@@ -37,7 +37,7 @@ public sealed partial class MotionEditor
         }
 
         string trimmed = RequireSkinName(newName);
-        Mutate(MotionChangeKind.Scene, () =>
+        Mutate(MotionChangeKind.Stage, () =>
         {
             skin.Name = trimmed;
 
@@ -60,7 +60,7 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException("조각 노드 id가 비었다.");
         }
 
-        Mutate(MotionChangeKind.Scene, () =>
+        Mutate(MotionChangeKind.Stage, () =>
         {
             if (string.IsNullOrEmpty(image))
             {
@@ -94,7 +94,7 @@ public sealed partial class MotionEditor
             return;
         }
 
-        Mutate(MotionChangeKind.Scene, () =>
+        Mutate(MotionChangeKind.Stage, () =>
         {
             if (list.Count == 0)
             {
@@ -152,7 +152,7 @@ public sealed partial class MotionEditor
             return;
         }
 
-        Mutate(MotionChangeKind.Scene, () =>
+        Mutate(MotionChangeKind.Stage, () =>
         {
             if (next.IsDefault)
             {

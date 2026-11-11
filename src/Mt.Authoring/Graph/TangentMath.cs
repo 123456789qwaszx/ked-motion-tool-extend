@@ -141,7 +141,7 @@ public static class TangentMath
         float left = Secant(prev, key);
         float right = Secant(key, next);
 
-        if (left * right <= 0f || Math.Abs(prev.V - key.V) <= MotionRules.Tolerance || Math.Abs(next.V - key.V) <= MotionRules.Tolerance)
+        if (left * right <= 0f || Math.Abs(prev.V - key.V) <= KeyTimes.Tolerance || Math.Abs(next.V - key.V) <= KeyTimes.Tolerance)
         {
             return 0f;
         }

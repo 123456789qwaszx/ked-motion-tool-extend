@@ -26,7 +26,7 @@ public static class TimeSliderOps
 
                 for (int i = 0; i < curve.Keys.Count; i++)
                 {
-                    if (Math.Abs(curve.Keys[i].T - seconds) <= MotionRules.Tolerance)
+                    if (Math.Abs(curve.Keys[i].T - seconds) <= KeyTimes.Tolerance)
                     {
                         result.Add(new KeyRef(new CurveRef(channel.Node, channel.Kind, axis), i));
                     }
@@ -41,8 +41,8 @@ public static class TimeSliderOps
     public static List<KeyRef> KeysBetween(MotionAsset motion, double a, double b)
     {
         ArgumentNullException.ThrowIfNull(motion);
-        double lo = Math.Min(a, b) - MotionRules.Tolerance;
-        double hi = Math.Max(a, b) + MotionRules.Tolerance;
+        double lo = Math.Min(a, b) - KeyTimes.Tolerance;
+        double hi = Math.Max(a, b) + KeyTimes.Tolerance;
         var result = new List<KeyRef>();
 
         foreach (ChannelAsset channel in motion.Channels)
@@ -78,7 +78,7 @@ public static class TimeSliderOps
         ArgumentNullException.ThrowIfNull(motion);
         var edits = new List<(CurveRef, IEnumerable<KeyAsset>)>();
 
-        if (Math.Abs(deltaSeconds) <= MotionRules.Tolerance)
+        if (Math.Abs(deltaSeconds) <= KeyTimes.Tolerance)
         {
             return edits;
         }
@@ -97,7 +97,7 @@ public static class TimeSliderOps
 
                 foreach (KeyAsset key in curve.Keys)
                 {
-                    if (key.T > atSeconds + MotionRules.Tolerance)
+                    if (key.T > atSeconds + KeyTimes.Tolerance)
                     {
                         KeyAsset copy = Clone(key);
                         copy.T = Math.Max(atSeconds, key.T + deltaSeconds);
@@ -117,7 +117,7 @@ public static class TimeSliderOps
                 // 움직인 키가 이긴다 — 뒤에 오는(원래 더 늦은) 키가 같은 자리의 앞 키를 덮는다.
                 foreach (KeyAsset key in moved)
                 {
-                    kept.RemoveAll(k => Math.Abs(k.T - key.T) <= MotionRules.Tolerance);
+                    kept.RemoveAll(k => Math.Abs(k.T - key.T) <= KeyTimes.Tolerance);
                     kept.Add(key);
                 }
 

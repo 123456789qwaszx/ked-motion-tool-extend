@@ -31,9 +31,6 @@ namespace Mt.App;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private static readonly string[] EndTokens = { "복원 (Restore)", "유지 (Commit)" }; // 차례 = MotionEnd
-    private static readonly string[] ModeTokens = { "상대값 (Relative)", "절대값 (Absolute)" }; // 차례 = MotionChannelMode
-
     private readonly DocumentSession _session = new();
     private readonly GraphEditorView _graph = new();
     private readonly DopeSheetView _dope = new();
@@ -130,10 +127,11 @@ public partial class MainWindow : Window
     private readonly Dictionary<TreeViewItem, TreeViewItem?> _hierarchyParents = new();
     private readonly ContextMenu _hierarchyMenu = new();
     private readonly TextBlock _motionHeader = Header("모션");
+
+    /// <summary>"모션 추가 · 모션 삭제" — 컷을 연 동안은 숨긴다(컷에는 타임라인이 하나다).</summary>
+    private readonly StackPanel _motionButtons = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private object? _menuTarget;
     private static readonly IBrush ActingNodeBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xE0, 0xFF));
-    private static readonly IBrush ForbiddenNodeBrush = new SolidColorBrush(Color.FromRgb(0x70, 0x70, 0x70));
-    private readonly ComboBox _exportScope = new() { ItemsSource = new[] { "전체", "연 세트·컷의 것만" }, SelectedIndex = 0, FontSize = 11 };
 
     // 왼쪽
     private readonly ListBox _motionList = new() { MinHeight = 120 };
@@ -150,8 +148,6 @@ public partial class MainWindow : Window
     // 오른쪽 — 모션
     private readonly TextBox _motionName = new() { FontSize = 11 };
     private readonly TextBox _motionDuration = new() { FontSize = 11 };
-    private readonly ComboBox _motionEnd = new() { ItemsSource = EndTokens, FontSize = 11 };
-    private readonly ComboBox _motionDefaultMode = new() { ItemsSource = ModeTokens, FontSize = 11 };
 
     // 오른쪽 — 키
     private readonly TextBox _keyValue = new() { FontSize = 11 };
@@ -636,14 +632,14 @@ public partial class MainWindow : Window
     internal void SelectMotion(string name) => _motionList.SelectedItem = name;
 
     /// <summary>헤드리스 테스트가 폼을 채우는 손잡이 — 화면과 같은 명령 경로를 지난다.</summary>
-    internal void AddMotionFromForm(string name, string rig, string duration, MotionEnd end)
+    internal void AddMotionFromForm(string name, string rig, string duration)
     {
         if (!TryFloat(duration, out float seconds))
         {
             throw new InvalidOperationException("길이는 초 단위 숫자다.");
         }
 
-        AddMotion(name, rig, seconds, end);
+        AddMotion(name, rig, seconds);
     }
 
     /// <summary>테스트 손잡이 — 채널을 바로 더한다(UI에는 "채널 추가"가 없다: 채널 박스·매니퓰레이터가 첫 키에서 만든다).</summary>
@@ -664,24 +660,6 @@ public partial class MainWindow : Window
 
     /// <summary>채널 박스가 보여 주는 노드.</summary>
     internal string? ChannelBoxNode => _viewport.SelectedNode;
-
-    /// <summary>채널 행의 성분 토글과 같은 길 — 없는 성분을 현재 시각의 중립값 키 하나로 만든다.</summary>
-    internal void EnsureComponent(string node, MotionChannelKind kind, Axis axis)
-    {
-        MotionAsset motion = _graph.Motion ?? throw new InvalidOperationException("먼저 모션을 고른다.");
-
-        if (motion.FindChannel(node, kind)?.Get(axis) is not null)
-        {
-            return;
-        }
-
-        _session.Editor.AddKey(motion.Name, node, kind, axis, new KeyAsset
-        {
-            T = (float)_graph.CurrentTime,
-            V = MotionMath.Neutral(kind),
-            Tangent = DefaultTangent,
-        });
-    }
 
     /// <summary>인스펙터의 값 칸에 적고 Enter 한 것과 같다.</summary>
     internal void CommitKeyValueFromInspector(string text)
@@ -932,7 +910,7 @@ public partial class MainWindow : Window
                 _graph.InvalidateVisual();
             }
         };
-        ToolTip.SetTip(_preInfinity, "Pre Infinity — 첫 키 앞을 어떻게 이어 보이나(보기만, 산출물의 끝은 restore/commit)");
+        ToolTip.SetTip(_preInfinity, "Pre Infinity — 첫 키 앞을 어떻게 이어 보이나(보기만 — 재생에서는 첫 키의 값이 이어진다)");
         ToolTip.SetTip(_postInfinity, "Post Infinity — 마지막 키 뒤를 어떻게 이어 보이나(보기만)");
         ToolTip.SetTip(_valueSnap, "끌 때 키 값을 정수로(마야 Snap Values)");
         ToolTip.SetTip(_regionButton, "리전 툴(토글) — 상자로 고르고, 안을 끌면 이동, 모서리를 끌면 그 축만 반대쪽 기준 스케일. 다시 누르면 선택 툴(Q)로");
@@ -1039,7 +1017,7 @@ public partial class MainWindow : Window
                 }
 
                 ComponentCurve? curve = hasNode && motion is not null ? motion.FindChannel(node!, kind)?.Get(axis) : null;
-                bool keyedHere = curve?.Keys.Any(k => Math.Abs(k.T - time) <= MotionRules.Tolerance) == true;
+                bool keyedHere = curve?.Keys.Any(k => Math.Abs(k.T - time) <= KeyTimes.Tolerance) == true;
                 bool pending = hasNode && _viewport.IsPending(node!, kind, axis);
                 row.Background = pending ? ChannelBoxPending : keyedHere ? ChannelBoxKeyedHere : curve is not null ? ChannelBoxKeyed : Brushes.Transparent;
             }
@@ -1247,11 +1225,6 @@ public partial class MainWindow : Window
         Toolbar.Children.Add(ToolButton("저장", OnSaveClick));
         Toolbar.Children.Add(ToolButton("다른 이름으로…", OnSaveAsClick));
         Toolbar.Children.Add(Separator());
-        Toolbar.Children.Add(ToolButton("motions.json 가져오기…", OnImportClick));
-        Toolbar.Children.Add(_exportScope);
-        ToolTip.SetTip(_exportScope, "내보낼 범위 — 전체 / 연 세트·컷의 애니메이션만");
-        Toolbar.Children.Add(ToolButton("motions.json 내보내기…", OnExportClick));
-        Toolbar.Children.Add(Separator());
         Toolbar.Children.Add(ToolButton("되돌리기", (_, _) => UndoCommand()));
         Toolbar.Children.Add(ToolButton("다시하기", (_, _) => RedoCommand()));
         Toolbar.Children.Add(Separator());
@@ -1283,13 +1256,10 @@ public partial class MainWindow : Window
         LeftPanel.Children.Add(_motionList);
 
         var addMotionButton = SmallButton("모션 추가", (_, _) => Guard("모션 추가", () => AddMotion()));
-        ToolTip.SetTip(addMotionButton, "연 세트의 애니메이션을 만든다 — 이름(motion, motion_2…)·길이 1초·끝 restore. 오른쪽 인스펙터에서 바꾼다");
-        LeftPanel.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Children = { addMotionButton, SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveMotion)) },
-        });
+        ToolTip.SetTip(addMotionButton, "연 세트의 애니메이션을 만든다 — 이름(motion, motion_2…)·길이 1초. 오른쪽 인스펙터에서 바꾼다. 컷에는 타임라인이 하나라 더하지 않는다");
+        _motionButtons.Children.Add(addMotionButton);
+        _motionButtons.Children.Add(SmallButton("모션 삭제", (_, _) => Guard("모션 삭제", RemoveMotion)));
+        LeftPanel.Children.Add(_motionButtons);
 
         BuildSetLeft();
         BuildCutLeft();
@@ -1362,10 +1332,6 @@ public partial class MainWindow : Window
         var panel = new StackPanel { Spacing = 4, Margin = new Avalonia.Thickness(0, 6, 0, 0) };
         panel.Children.Add(Labeled("이름", _motionName));
         panel.Children.Add(Labeled("길이(초)", _motionDuration));
-        panel.Children.Add(Labeled("종료 처리", _motionEnd));
-        ToolTip.SetTip(_motionEnd, "모션이 끝난 뒤 — 복원(restore) = 시작 자세로 돌아간다 · 유지(commit) = 마지막 키 값이 남는다. 산출물(motions/2)의 end");
-        panel.Children.Add(Labeled("재생 기준", _motionDefaultMode));
-        ToolTip.SetTip(_motionDefaultMode, "키 값을 어떻게 읽나 — 상대값(relative) = 시작값 + 키(배율은 ×) · 절대값(absolute) = 키 그대로. 뷰포트 미리보기와 매니퓰레이터·채널 박스가 포즈를 키 값으로 바꿀 때 쓴다. 파일에는 안 나간다: 재생은 대본의 <<motion slot 이름 relative|absolute>>가 정한다(생략 = relative)");
 
         panel.Children.Add(BuildAlphaPanel());
         panel.Children.Add(BuildEventPanel());
@@ -1381,20 +1347,6 @@ public partial class MainWindow : Window
             }
         }));
         OnCommit(_motionDuration, text => WithMotion(m => { if (TryFloat(text, out float v) && v != m.Duration) _session.Editor.SetDuration(m.Name, v); }));
-        _motionEnd.SelectionChanged += (_, _) => WithMotion(m =>
-        {
-            if (_motionEnd.SelectedIndex >= 0 && (MotionEnd)_motionEnd.SelectedIndex != m.End)
-            {
-                _session.Editor.SetEnd(m.Name, (MotionEnd)_motionEnd.SelectedIndex);
-            }
-        });
-        _motionDefaultMode.SelectionChanged += (_, _) => WithMotion(m =>
-        {
-            if (_motionDefaultMode.SelectedIndex >= 0 && (MotionChannelMode)_motionDefaultMode.SelectedIndex != m.PreviewMode)
-            {
-                _session.Editor.SetPreviewMode(m.Name, (MotionChannelMode)_motionDefaultMode.SelectedIndex);
-            }
-        });
         return panel;
     }
 
@@ -1645,7 +1597,6 @@ public partial class MainWindow : Window
                 TreeViewItem nodeParent = string.IsNullOrEmpty(node.parent) || node.parent == RigSchemaLoader.RootKey || !itemsByNode.TryGetValue(node.parent, out TreeViewItem? found)
                     ? root
                     : found;
-                bool forbidden = MotionRules.ForbiddenNodes.Contains(node.id);
                 // 따로 보기(숨김 · 솔로)의 표시.
                 bool shown = _viewport.IsSetNodeShown(node.id);
                 string mark = _viewport.SoloSetNode == node.id ? "   ◉ 이것만" : _viewport.IsSetNodeHidden(node.id) ? "   (숨김)" : "";
@@ -1660,13 +1611,7 @@ public partial class MainWindow : Window
 
                 nodeItem.Tag = new HierarchyNode(node.id);
                 nodeItem.FontWeight = FontWeight.Normal;
-                nodeItem.Foreground = forbidden ? ForbiddenNodeBrush : ActingNodeBrush;
-                nodeItem.FontStyle = forbidden ? FontStyle.Italic : FontStyle.Normal;
-
-                if (forbidden)
-                {
-                    ToolTip.SetTip(nodeItem, "키잉 금지 노드(코어 규칙) — 채널을 둘 수 없다");
-                }
+                nodeItem.Foreground = ActingNodeBrush;
 
                 Attach(nodeItem, nodeParent);
                 itemsByNode[node.id] = nodeItem;
@@ -1835,9 +1780,12 @@ public partial class MainWindow : Window
             // 세트나 컷을 열었으면 그것의 애니메이션만 — 다른 것의 모션은 이것이 연기할 수 없다.
             // 아무것도 안 열었으면 전부(주인별로 묶어 이름순) — 주인이 사라진 모션도 여기서 고르고 지운다.
             string? openSet = SelectedSet;
-            _motionHeader.Text = openSet is null ? "모션" : _session.Editor.Document.FindCut(openSet) is null ? $"애니메이션 — 세트 {openSet}" : $"타임라인 — 컷 {openSet}";
+            bool cutOpen = openSet is not null && _session.Editor.Document.FindCut(openSet) is not null;
+            _motionHeader.Text = openSet is null ? "모션" : cutOpen ? $"타임라인 — 컷 {openSet}" : $"애니메이션 — 세트 {openSet}";
+            _motionButtons.IsVisible = !cutOpen;
+            // 컷은 제 타임라인 하나만(컷과 같은 이름) — 옛 문서에 그 컷의 애니메이션이 더 있어도 여기서는 안 보인다(아무것도 안 연 목록에서 지운다).
             List<string> names = _session.Editor.Document.Motions
-                .Where(m => openSet is null || m.Rig == openSet)
+                .Where(m => openSet is null || (cutOpen ? m.Name == openSet : m.Rig == openSet))
                 .OrderBy(m => m.Rig, StringComparer.Ordinal).ThenBy(m => m.Name, StringComparer.Ordinal)
                 .Select(m => m.Name).ToList();
             _motionList.ItemsSource = names;
@@ -1996,7 +1944,7 @@ public partial class MainWindow : Window
 
         foreach (string node in nodes)
         {
-            if (MotionRules.ForbiddenNodes.Contains(node) || node == RigAssetCodec.RootId)
+            if (node == RigAssetCodec.RootId)
             {
                 continue;
             }
@@ -2204,17 +2152,13 @@ public partial class MainWindow : Window
         {
             MotionAsset? motion = _graph.Motion;
             bool has = motion is not null;
-            // 컷의 타임라인은 이름·길이를 컷의 칸에서 고치고, 종료 처리·재생 기준은 고를 것이 없다(키는 그 프레임의 모습이다).
+            // 컷의 타임라인은 이름·길이를 컷의 칸에서 고친다.
             bool free = has && _session.Editor.Document.FindCut(motion!.Rig) is null;
             _motionName.IsEnabled = free;
             _motionDuration.IsEnabled = free;
-            _motionEnd.IsEnabled = free;
-            _motionDefaultMode.IsEnabled = free;
 
             _motionName.Text = motion?.Name ?? "";
             _motionDuration.Text = motion is null ? "" : motion.Duration.ToString("0.###", CultureInfo.InvariantCulture);
-            _motionEnd.SelectedIndex = motion is null ? -1 : (int)motion.End;
-            _motionDefaultMode.SelectedIndex = motion is null ? -1 : (int)motion.PreviewMode;
         }
         finally
         {
@@ -2290,10 +2234,10 @@ public partial class MainWindow : Window
     // ── 명령 ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// 모션 추가 — 이름은 motion, motion_2…, 주인은 연 세트(컷), 길이 1초, 끝 restore.
-    /// 전부 오른쪽 인스펙터에서 바꾼다. 테스트 손잡이는 값을 준다.
+    /// 모션 추가 — 이름은 motion, motion_2…, 주인은 연 세트, 길이 1초.
+    /// 전부 오른쪽 인스펙터에서 바꾼다. 테스트 손잡이는 값을 준다. 컷에는 더하지 않는다 — 컷의 타임라인은 하나다(컷을 만들 때 선다).
     /// </summary>
-    private void AddMotion(string? name = null, string? rig = null, float duration = 1f, MotionEnd end = MotionEnd.Restore)
+    private void AddMotion(string? name = null, string? rig = null, float duration = 1f)
     {
         name = (name ?? "").Trim();
 
@@ -2303,8 +2247,14 @@ public partial class MainWindow : Window
             name = MotionNames.Unique(_session.Editor.Document, MotionNames.Fallback);
         }
 
-        rig ??= SelectedSet ?? throw new InvalidOperationException("세트나 컷을 먼저 연다 — 애니메이션은 그 안의 오브젝트를 움직인다.");
-        _session.Editor.AddMotion(name, rig, duration, end);
+        rig ??= SelectedSet ?? throw new InvalidOperationException("세트를 먼저 연다 — 애니메이션은 그 안의 오브젝트를 움직인다.");
+
+        if (_session.Editor.Document.FindCut(rig) is not null)
+        {
+            throw new InvalidOperationException($"컷 '{rig}'에는 타임라인이 하나다 — 애니메이션을 더하지 않는다(키는 그 타임라인에 놓는다).");
+        }
+
+        _session.Editor.AddMotion(name, rig, duration);
         _motionList.SelectedItem = name;
     }
 
@@ -2312,6 +2262,11 @@ public partial class MainWindow : Window
     {
         if (SelectedMotion is { } name)
         {
+            if (_session.Editor.Document.FindCut(name) is not null)
+            {
+                throw new InvalidOperationException($"'{name}'은 컷의 타임라인이다 — 지우려면 컷을 지운다.");
+            }
+
             _session.Editor.RemoveMotion(name);
         }
     }
@@ -2444,51 +2399,6 @@ public partial class MainWindow : Window
             _settings.Touch(path);
             RefreshRecentMenu();
             SaveSettings();
-        }
-    }
-
-    private async void OnImportClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            string? path = await PickOpenAsync("motions.json 가져오기", new FilePickerFileType("motions.json") { Patterns = new[] { "motions.json", "*.json" } });
-
-            if (path is not null)
-            {
-                _session.ImportMotions(path);
-            }
-        }
-        catch (Exception exception)
-        {
-            _session.SetStatus($"가져오기 실패: {exception.Message}");
-        }
-    }
-
-    /// <summary>툴바 범위 콤보 → 모션 거르기. 아무것도 안 열었으면 전체.</summary>
-    internal (Func<MotionAsset, bool>? Filter, string? Label) ExportFilter()
-        => _exportScope.SelectedIndex == 1 && SelectedSet is { } open ? (m => m.Rig == open, KindLabel(open)) : (null, null);
-
-    internal int ExportScopeIndex
-    {
-        get => _exportScope.SelectedIndex;
-        set => _exportScope.SelectedIndex = value;
-    }
-
-    private async void OnExportClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            string? path = await PickSaveAsync("motions.json 내보내기", "motions.json", new FilePickerFileType("motions.json") { Patterns = new[] { "*.json" } });
-
-            if (path is not null)
-            {
-                (Func<MotionAsset, bool>? filter, string? label) = ExportFilter();
-                _session.Export(path, filter, label);
-            }
-        }
-        catch (Exception exception)
-        {
-            _session.SetStatus($"내보내기 실패: {exception.Message}");
         }
     }
 

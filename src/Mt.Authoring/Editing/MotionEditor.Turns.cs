@@ -1,4 +1,5 @@
 using Ked.Presentation.Core;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Editing;
@@ -19,7 +20,7 @@ public sealed partial class MotionEditor
     {
         MotionAsset motion = Require(motionName);
 
-        if (FirstChange(motion, node) is not { } start || start <= MotionRules.Tolerance)
+        if (FirstChange(motion, node) is not { } start || start <= KeyTimes.Tolerance)
         {
             return false;
         }
@@ -27,7 +28,7 @@ public sealed partial class MotionEditor
         float shown = Math.Min(start + TurnFade, motion.Duration);
         var keys = new List<KeyAsset> { Flat(0f, 0f), Flat(start, 0f), Flat(shown, 1f) };
 
-        if (shown < motion.Duration - MotionRules.Tolerance)
+        if (shown < motion.Duration - KeyTimes.Tolerance)
         {
             keys.Add(Flat(motion.Duration, 1f));
         }
@@ -44,7 +45,7 @@ public sealed partial class MotionEditor
     {
         MotionAsset motion = Require(motionName);
 
-        if (LastChange(motion, node) is not { } end || end >= motion.Duration - MotionRules.Tolerance)
+        if (LastChange(motion, node) is not { } end || end >= motion.Duration - KeyTimes.Tolerance)
         {
             return false;
         }
@@ -52,7 +53,7 @@ public sealed partial class MotionEditor
         float from = Math.Max(0f, end - TurnFade);
         var keys = new List<KeyAsset>();
 
-        if (from > MotionRules.Tolerance)
+        if (from > KeyTimes.Tolerance)
         {
             keys.Add(Flat(0f, 1f));
         }
@@ -73,7 +74,7 @@ public sealed partial class MotionEditor
         {
             foreach (string node in motion.Channels.Where(c => c.Kind != MotionChannelKind.Alpha).Select(c => c.Node).Concat(motion.Plays.Select(p => p.Node)).Distinct().ToList())
             {
-                // 불투명도를 받을 수 있는 오브젝트만(툴이 정의한 세트면 그 표시를 본다 — 덤프의 리그는 검증이 가린다).
+                // 불투명도를 받을 수 있는 오브젝트만(오브젝트의 "불투명도 받기" 표시를 본다).
                 if (Document.FindRig(motion.Rig)?.Find(node) is { Alpha: false })
                 {
                     continue;

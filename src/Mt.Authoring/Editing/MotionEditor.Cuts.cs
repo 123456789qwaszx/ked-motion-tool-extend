@@ -1,4 +1,5 @@
 using Ked.Presentation.Core;
+using Mt.Authoring.Graph;
 using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Editing;
@@ -27,7 +28,7 @@ public sealed partial class MotionEditor
         Batch(MotionChangeKind.Document, () =>
         {
             Mutate(MotionChangeKind.Document, () => Document.Cuts.Add(cut));
-            AddMotion(trimmed, trimmed, cut.Seconds, MotionEnd.Commit, MotionChannelMode.Absolute);
+            AddMotion(trimmed, trimmed, cut.Seconds);
         });
 
         return cut;
@@ -125,7 +126,7 @@ public sealed partial class MotionEditor
             return;
         }
 
-        Mutate(MotionChangeKind.Scene, () => cut.Camera = new CameraSettings { Zoom = camera.Zoom, PanX = camera.PanX, PanY = camera.PanY });
+        Mutate(MotionChangeKind.Stage, () => cut.Camera = new CameraSettings { Zoom = camera.Zoom, PanX = camera.PanX, PanY = camera.PanY });
     }
 
     /// <summary>
@@ -138,7 +139,7 @@ public sealed partial class MotionEditor
         CutAsset cut = RequireCut(name);
         MotionAsset timeline = Document.Find(name) ?? throw new InvalidOperationException($"컷 '{name}'의 타임라인이 없다.");
 
-        if (!float.IsFinite(time) || time < 0f || time > cut.Seconds + MotionRules.Tolerance)
+        if (!float.IsFinite(time) || time < 0f || time > cut.Seconds + KeyTimes.Tolerance)
         {
             throw new InvalidOperationException($"키의 시각은 컷의 길이(0~{cut.Seconds:0.###}초) 안이다 ('{time}')");
         }
@@ -212,7 +213,7 @@ public sealed partial class MotionEditor
             throw new InvalidOperationException($"깊이는 {MinDepth:0}~{MaxDepth:0}의 수다 ('{depth}')");
         }
 
-        if (!float.IsFinite(time) || time < 0f || time > cut.Seconds + MotionRules.Tolerance)
+        if (!float.IsFinite(time) || time < 0f || time > cut.Seconds + KeyTimes.Tolerance)
         {
             throw new InvalidOperationException($"키의 시각은 컷의 길이(0~{cut.Seconds:0.###}초) 안이다 ('{time}')");
         }

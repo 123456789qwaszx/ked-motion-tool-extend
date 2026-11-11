@@ -47,20 +47,20 @@ public class MainWindowTests
         });
     }
 
-    /// <summary>M2의 완료 기준: 빈 세트에서 폼·그래프 명령만으로 nod를 처음부터 만들고, 내보낸 바이트가 견본 산출물(주인만 이 세트로 바꾼 것)과 같다.</summary>
+    /// <summary>끝에서 끝까지: 빈 세트에서 폼·채널 박스·그래프 명령만으로 nod를 처음부터 만들고, 컷에 품어 틀어, 내보낸 컷 파일을 게임이 읽는 길로 읽으면 그 키가 있다.</summary>
     [Fact]
-    public void 세트에서_nod를_처음부터_만들어_내보내면_견본_산출물과_같다()
+    public void 세트에서_nod를_처음부터_만들어_컷에_품어_내보내면_컷_파일에_그_키가_있다()
     {
         HeadlessUi.Run(() =>
         {
             MainWindow window = NewWindow();
             window.Show();
-            string export = Path.Combine(Path.GetTempPath(), $"ked-motion-tool-{Guid.NewGuid():N}.json");
+            string export = Path.Combine(Path.GetTempPath(), $"ked-motion-tool-{Guid.NewGuid():N}.cut.json");
 
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6");
                 Assert.Equal("nod", window.SelectedMotion);
                 Assert.Equal("nod", window.Graph.MotionName);
 
@@ -69,7 +69,7 @@ public class MainWindowTests
 
                 var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
                 window.Graph.CurrentTime = 0;
-                window.EnsureComponent(y.Node, y.Kind, y.Axis);
+                FirstKey(window, y);
                 Assert.Single(window.Graph.Curves);
 
                 window.Graph.CurrentTime = 0.3;
@@ -82,15 +82,30 @@ public class MainWindowTests
 
                 window.Graph.SelectAll();
                 window.Graph.SetTangentMode(TangentMode.Flat);
-
                 Assert.Empty(window.ProblemsShown);
-                Assert.True(window.Session.Export(export), window.Session.Status);
 
-                // 견본의 nod만 정규 직렬화한 것과 바이트까지 같다.
-                string sample = File.ReadAllText(TestDocuments.FixturePath("motions.nod-bow.json")).Replace("\"rig\": \"character\"", $"\"rig\": \"{TestDocuments.Actor}\"", StringComparison.Ordinal);
-                Assert.True(MotionsJson.TryRead(sample, out List<MotionClip> clips, out _));
-                byte[] expected = MotionsJson.WriteBytes(clips.Where(c => c.Name == "nod").ToList());
-                Assert.Equal(expected, File.ReadAllBytes(export));
+                // 컷을 만들어 그 세트를 품고, nod를 처음부터 튼다 — 컷 파일로 낸다.
+                Mt.Authoring.Editing.MotionEditor editor = window.Session.Editor;
+                Assert.Equal("cut", window.NewCutFromForm());
+                editor.AddRigInstance("cut", "hero", TestDocuments.Actor);
+                editor.AddMotionPlay("cut", "hero", "nod", 0f);
+                Assert.Empty(window.ProblemsShown);
+                Assert.True(window.ExportCutToFile(export), window.Session.Status);
+
+                // 게임이 읽는 모양 그대로 읽는다 — 품은 세트는 오브젝트로 펼쳐지고, nod의 키는 그 오브젝트의 y 트랙으로 구워져 있다(프레임, 평평한 기울기). 끝까지 마지막 값이 남는다.
+                byte[] bytes = File.ReadAllBytes(export);
+                Assert.NotEqual(0xEF, bytes[0]); // BOM이 없다
+                CutFileDto file = CutFileJson.Read(System.Text.Encoding.UTF8.GetString(bytes));
+                Assert.Equal(("cut/1", "cut", 240), (file.format, file.name, file.frames));
+                Assert.Equal(26, file.objects.Count); // hero + actor의 오브젝트 25
+                Assert.Contains(file.objects, o => o.id == "hero.CharacterPortrait_Track_Move_Y" && o.parent == "hero.CharacterPortrait_Track_Move_X");
+                CutTrackDto track = Assert.Single(file.tracks);
+                Assert.Equal(("hero.CharacterPortrait_Track_Move_Y", "y"), (track.target, track.what));
+                Assert.Equal(new[] { (0f, 0f), (7.2f, -18f), (14.4f, 0f), (240f, 0f) }, track.keys.Select(k => (MathF.Round(k.f, 3), k.v)));
+                Assert.All(track.keys, k => Assert.Equal((0f, 0f), (k.i, k.o)));
+
+                // 코어의 재생도 그 모습이다.
+                Assert.Equal(-18f, CutPlayer.Evaluate(file, 7.2f, null!).Tree.GetState("hero.CharacterPortrait_Track_Move_Y").AnchoredPosition.Y, 3);
             }
             finally
             {
@@ -98,6 +113,13 @@ public class MainWindowTests
                 File.Delete(export);
             }
         });
+    }
+
+    /// <summary>채널 박스의 ● — 고른 오브젝트의 그 성분을 지금 시각에 키한다(성분이 생기는 화면의 길).</summary>
+    private static void FirstKey(MainWindow window, CurveRef curve)
+    {
+        window.Viewport.SelectedNode = curve.Node;
+        window.KeyChannelBoxComponent(curve.Kind, curve.Axis);
     }
 
     [Fact]
@@ -111,7 +133,7 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6");
 
                 Assert.Equal("nod", window.Viewport.MotionName);
                 Assert.True(window.Viewport.HasRig);
@@ -146,10 +168,10 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6");
                 var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
                 window.AddChannelFromForm(y.Node, y.Kind);
-                window.EnsureComponent(y.Node, y.Kind, y.Axis);
+                FirstKey(window, y);
 
                 Assert.Same(window.Graph.Selection, window.Dope.Selection);
                 Assert.Same(window.SharedSelection, window.Graph.Selection);
@@ -193,9 +215,9 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("wave", TestDocuments.Actor, "0.5", MotionEnd.Restore);
+                window.AddMotionFromForm("wave", TestDocuments.Actor, "0.5");
                 Assert.Contains("CharacterPortrait_Track_Move_X", window.Viewport.NodeChoices);
-                Assert.DoesNotContain("CharSlot_Track_Focus", window.Viewport.NodeChoices);
+                Assert.DoesNotContain("__root", window.Viewport.NodeChoices);
 
                 window.Viewport.SelectedNode = "CharacterPortrait_Track_Move_X";
                 window.Viewport.Manipulator = ManipulatorMode.Move;
@@ -267,47 +289,6 @@ public class MainWindowTests
     }
 
     [Fact]
-    public void 내보내기_범위는_연_세트의_것으로_거른다()
-    {
-        string directory = Path.Combine(Path.GetTempPath(), "ked-motion-tool-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
-
-        HeadlessUi.Run(() =>
-        {
-            MainWindow window = NewWindow();
-            window.Show();
-
-            try
-            {
-                TestDocuments.OpenActor(window);
-                Assert.NotNull(window.Session.Depth); // 내장 깊이 커브
-                window.AddMotionFromForm("bow", TestDocuments.Actor, "0.4", MotionEnd.Commit);
-                window.Session.Editor.AddMotion("robot_wave", "robot", 1f);
-                window.Session.Editor.AddChannel("robot_wave", "Robot_Arm", MotionChannelKind.Position);
-
-                string export = Path.Combine(directory, "motions.json");
-                window.ExportScopeIndex = 0;
-                Assert.False(window.Session.Export(export, window.ExportFilter().Filter)); // robot_wave(주인이 없다)가 막는다
-                window.ExportScopeIndex = 1; // 연 세트 actor의 것만
-                Assert.True(window.Session.Export(export, window.ExportFilter().Filter), window.Session.Status);
-                string json = File.ReadAllText(export);
-                Assert.Contains("\"bow\"", json, StringComparison.Ordinal);
-                Assert.DoesNotContain("robot_wave", json, StringComparison.Ordinal);
-
-                // 아무것도 안 열었으면 범위를 골라도 전체다.
-                window.SelectSet(null);
-                Assert.Null(window.ExportFilter().Filter);
-            }
-            finally
-            {
-                window.Close();
-            }
-        });
-
-        Directory.Delete(directory, recursive: true);
-    }
-
-    [Fact]
     public void 채널_박스는_고른_노드의_성분이고_값을_넣으면_그_노드에_키가_된다()
     {
         HeadlessUi.Run(() =>
@@ -319,7 +300,7 @@ public class MainWindowTests
             {
                 const string node = "CharacterPortrait_SwayPivot";
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("step", TestDocuments.Actor, "0.6", MotionEnd.Commit);
+                window.AddMotionFromForm("step", TestDocuments.Actor, "0.6");
                 window.SelectSetNode(node);
                 Assert.Equal(node, window.ChannelBoxNode);
 
@@ -327,7 +308,7 @@ public class MainWindowTests
                 Assert.Equal("0", window.ChannelBoxValue(MotionChannelKind.Euler, Axis.Z));
                 Assert.Equal("1", window.ChannelBoxValue(MotionChannelKind.Scale, Axis.X));
 
-                // Auto Key면 값을 넣는 순간 그 노드에 키 — 재생 기준이 상대값이고 가만히 선 값이 0이라 키 값 = 넣은 값.
+                // Auto Key면 값을 넣는 순간 그 노드에 키 — 키 값은 넣은 값 그대로다.
                 window.AutoKeyChecked = true;
                 window.Viewport.ScrubTo(0.25);
                 window.SetChannelBoxValue(MotionChannelKind.Euler, Axis.Z, "15");
@@ -370,13 +351,13 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("", TestDocuments.Actor, "0.6", MotionEnd.Restore);
-                window.AddMotionFromForm("  ", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("", TestDocuments.Actor, "0.6");
+                window.AddMotionFromForm("  ", TestDocuments.Actor, "0.6");
 
                 Assert.Equal(new[] { "motion", "motion_2" }, window.Session.Editor.Document.Motions.Select(m => m.Name));
                 Assert.DoesNotContain(window.ProblemsShown, p => p.Message.Contains("이름은", StringComparison.Ordinal));
 
-                Assert.Throws<InvalidOperationException>(() => window.AddMotionFromForm("Nod", TestDocuments.Actor, "0.6", MotionEnd.Restore));
+                Assert.Throws<InvalidOperationException>(() => window.AddMotionFromForm("Nod", TestDocuments.Actor, "0.6"));
                 Assert.Equal(2, window.Session.Editor.Document.Motions.Count);
             }
             finally
@@ -397,7 +378,7 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6");
                 var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
                 var x = y with { Axis = Axis.X };
                 window.AddChannelFromForm(y.Node, y.Kind);
@@ -469,7 +450,7 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6");
                 var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
                 window.AddChannelFromForm(y.Node, y.Kind);
                 window.Session.Editor.SetKeys("nod", y.Node, y.Kind, y.Axis, new[] { TestDocuments.Key(0f, 0f), TestDocuments.Key(0.3f, -18f), TestDocuments.Key(0.6f, 0f) });
@@ -555,7 +536,7 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("a", TestDocuments.Actor, "1", MotionEnd.Restore);
+                window.AddMotionFromForm("a", TestDocuments.Actor, "1");
                 Assert.NotNull(window.Session.Editor.Document.Find("a"));
 
                 // 채널이 없는 모션은 유효하다(채널은 첫 키에서 생긴다) — 문제 칸에 아무것도 없다. 길이를 0으로 하면 보인다.
@@ -653,7 +634,7 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6");
                 var editor = window.Session.Editor;
 
                 foreach (Control focus in new Control[] { window.Graph, window.Dope, window.Viewport, window.Hierarchy })
@@ -704,7 +685,7 @@ public class MainWindowTests
             try
             {
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6");
                 var editor = window.Session.Editor;
                 var y = new CurveRef("CharacterPortrait_Track_Move_Y", MotionChannelKind.Position, Axis.Y);
                 editor.AddChannel("nod", y.Node, y.Kind);
@@ -770,7 +751,7 @@ public class MainWindowTests
             {
                 const string node = "CharacterPortrait_Track_Move";
                 TestDocuments.OpenActor(window);
-                window.AddMotionFromForm("step", TestDocuments.Actor, "0.6", MotionEnd.Commit);
+                window.AddMotionFromForm("step", TestDocuments.Actor, "0.6");
                 var editor = window.Session.Editor;
                 MotionAsset Step() => editor.Document.Find("step")!;
                 window.AutoKeyChecked = false;
@@ -818,7 +799,7 @@ public class MainWindowTests
                 TestDocuments.OpenActor(window);
 
                 // 키·메타 편집과 그 되돌리기는 자산을 다시 읽지 않는다.
-                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6", MotionEnd.Restore);
+                window.AddMotionFromForm("nod", TestDocuments.Actor, "0.6");
                 int refreshes = window.AssetRefreshCount;
                 int syncs = window.Session.AssetSyncCount;
                 editor.SetDuration("nod", 1f);

@@ -9,12 +9,12 @@ namespace Mt.Authoring.Tests;
 
 public class PoseEditTests
 {
-    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
+    private static readonly RigSchemaFile RigFile = Fixtures.ActorRigFile();
 
     [Fact]
     public void 이동은_부모_공간_변위다_부모가_배율되면_화면_변위와_다르다()
     {
-        RectNodeTree tree = RigFile.BuildTree("character");
+        RectNodeTree tree = RigFile.BuildTree(Fixtures.Actor);
         const string node = "CharacterPortrait_Track_Move_Y";
 
         Vec2 plain = PoseEdit.RootDeltaToLocal(tree, node, new Vec2(0f, 0f), new Vec2(10f, -18f));
@@ -46,25 +46,24 @@ public class PoseEditTests
     }
 
     [Fact]
-    public void 키_값은_mode를_따른다()
+    public void 키_값은_포즈의_값_그대로다_채널_종류의_자리에서_읽고_쓴다()
     {
-        Assert.Equal(-18f, PoseEdit.KeyValueFor(MotionChannelKind.Position, MotionChannelMode.Relative, 0f, -18f));
-        Assert.Equal(-18f, PoseEdit.KeyValueFor(MotionChannelKind.Position, MotionChannelMode.Absolute, 5f, -18f));
-        Assert.Equal(1.5f, PoseEdit.KeyValueFor(MotionChannelKind.Scale, MotionChannelMode.Relative, 2f, 3f));
-        Assert.Equal(3f, PoseEdit.KeyValueFor(MotionChannelKind.Scale, MotionChannelMode.Relative, 0f, 3f));
-        Assert.Equal(8f, PoseEdit.KeyValueFor(MotionChannelKind.Euler, MotionChannelMode.Relative, 2f, 10f));
-
         var state = new RectNodeState(new Vec2(1f, 2f), Vec2.Zero, Vec2.One, Vec2.Half, Vec2.Zero, new Vec3(3f, 4f, 5f), new Vec3(6f, 7f, 8f));
         Assert.Equal(2f, PoseEdit.Component(MotionChannelKind.Position, state, Axis.Y));
         Assert.Equal(4f, PoseEdit.Component(MotionChannelKind.Scale, state, Axis.Y));
         Assert.Equal(8f, PoseEdit.Component(MotionChannelKind.Euler, state, Axis.Z));
+
+        // 값 칸에 넣은 수가 그 자리로 들어가고, 다시 읽으면 그 수다(키로 놓이는 값).
+        Assert.Equal(-18f, PoseEdit.Component(MotionChannelKind.Position, PoseEdit.WithComponent(MotionChannelKind.Position, state, Axis.Y, -18f), Axis.Y));
+        Assert.Equal(1.5f, PoseEdit.Component(MotionChannelKind.Scale, PoseEdit.WithComponent(MotionChannelKind.Scale, state, Axis.X, 1.5f), Axis.X));
+        Assert.Equal(10f, PoseEdit.Component(MotionChannelKind.Euler, PoseEdit.WithComponent(MotionChannelKind.Euler, state, Axis.Z, 10f), Axis.Z));
     }
 
     [Fact]
     public void 포즈_키는_채널과_성분을_만들고_같은_시각을_바꾸며_한_번의_조작이다()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("a", "character", 1f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.AddMotion("a", Fixtures.Actor, 1f);
         long before = editor.Revision;
 
         List<KeyRef> keys = editor.KeyComponents("a", "N", MotionChannelKind.Position, 0.5f, new[] { (Axis.X, 10f), (Axis.Y, 20f) }, TangentMode.Auto);

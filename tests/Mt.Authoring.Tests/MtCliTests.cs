@@ -7,7 +7,7 @@ using Mt.Cli;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary><c>mt</c> 명령줄 — 창 없이 검증·내보내기·포즈·굽기. 결과는 stdout의 JSON, 종료 코드 0·1·2.</summary>
+/// <summary><c>mt</c> 명령줄 — 창 없이 검증 · 컷 내보내기 · 포즈. 결과는 stdout의 JSON, 종료 코드 0·1·2.</summary>
 public class MtCliTests
 {
     private static (int Code, JsonNode? Json, string Out, string Err) Run(params string[] args)
@@ -30,14 +30,10 @@ public class MtCliTests
         return (code, json, text, stderr.ToString());
     }
 
-    /// <summary>견본 덤프(character 리그)를 <c>--rig</c>로 얹어 돌린다 — nod·bow가 그 리그의 모션이다.</summary>
-    private static (int Code, JsonNode? Json, string Out, string Err) RunWithDump(params string[] args)
-        => Run(args.Concat(new[] { "--rig", Fixtures.PathOf("rig-schemas.json") }).ToArray());
-
-    /// <summary>nod·bow + nod에 이벤트 하나 + 세트 하나(prop). 임시 폴더에 저장한다.</summary>
+    /// <summary>세트 actor와 그 애니메이션 nod·bow + nod에 이벤트 하나 + 세트 하나 더(prop). 임시 폴더에 저장한다.</summary>
     private static string WriteDocument(Action<MotionEditor>? more = null)
     {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        var editor = new MotionEditor(Fixtures.ActorDocument());
         editor.AddMotionEvent("nod", 0.3f, "flash", "땀");
         editor.AddRig(new RigAsset { Kind = "prop", Nodes = { new RigNodeAsset { Id = "Body" } } });
         more?.Invoke(editor);
@@ -68,6 +64,8 @@ public class MtCliTests
         Assert.Equal(1, code);
         Assert.False(json!["ok"]!.GetValue<bool>());
         Assert.Equal(1, Run("pose", WriteDocument(), "--motion", "nope", "--time", "0").Code);
+        Assert.Equal(2, Run("cut", WriteDocument(e => e.AddCut("opening")), "opening").Code);          // -o가 없다
+        Assert.Equal(1, Run("cut", WriteDocument(), "nope", "-o", Path.Combine(Path.GetTempPath(), "nope.cut.json")).Code);
     }
 
     [Fact]
@@ -78,26 +76,32 @@ public class MtCliTests
         Assert.Equal(new[] { "nod", "bow", "opening" }, json!["motions"]!.AsArray().Select(m => m!["name"]!.GetValue<string>()));
         Assert.Equal(1, json["motions"]![0]!["events"]!.GetValue<int>());
         Assert.Equal(new[] { "opening" }, json["cuts"]!.AsArray().Select(c => c!["name"]!.GetValue<string>()));
-        Assert.Equal(new[] { "prop" }, json["sets"]!.AsArray().Select(r => r!["name"]!.GetValue<string>()));
+        Assert.Null(json["motions"]![0]!["end"]); // 종료 처리는 없다
+        Assert.Equal(new[] { "actor", "prop" }, json["sets"]!.AsArray().Select(r => r!["name"]!.GetValue<string>()));
         Assert.Null(json["scenes"]);
     }
 
     [Fact]
     public void validate는_막는_문제가_있으면_1이다()
     {
-        (int code, JsonNode? json, _, _) = RunWithDump("validate", WriteDocument());
+        (int code, JsonNode? json, _, _) = Run("validate", WriteDocument());
         Assert.Equal(0, code);
         Assert.True(json!["ok"]!.GetValue<bool>());
         Assert.Empty(json["problems"]!.AsArray());
 
-        // 모션의 길이를 줄이면 키가 길이 밖 — 막는 문제다.
-        (code, json, _, _) = RunWithDump("validate", WriteDocument(e => e.SetDuration("nod", 0.3f)));
+        // 세트에 없는 오브젝트에 놓인 채널 — 막는 문제다.
+        (code, json, _, _) = Run("validate", WriteDocument(e => e.AddChannel("nod", "Ghost", MotionChannelKind.Position)));
         Assert.Equal(1, code);
         Assert.False(json!["ok"]!.GetValue<bool>());
         Assert.Contains(json["problems"]!.AsArray(), p => p!["kind"]!.GetValue<string>() == "motion" && p["name"]!.GetValue<string>() == "nod" && p["blocking"]!.GetValue<bool>());
 
-        // 알림뿐이면 0이다(재생되지 않는 재생 블록).
-        (code, json, _, _) = RunWithDump("validate", WriteDocument(e => e.Document.Find("bow")!.Plays.Add(new MotionPlayAsset { Node = "ghost", Motion = "nod" })));
+        // 알림뿐이면 0이다 — 길이를 줄여 길이 밖에 남은 키.
+        (code, json, _, _) = Run("validate", WriteDocument(e => e.SetDuration("nod", 0.3f)));
+        Assert.Equal(0, code);
+        Assert.False(Assert.Single(json!["problems"]!.AsArray())!["blocking"]!.GetValue<bool>());
+
+        // 재생되지 않는 재생 블록도 알림이다.
+        (code, json, _, _) = Run("validate", WriteDocument(e => e.Document.Find("bow")!.Plays.Add(new MotionPlayAsset { Node = "ghost", Motion = "nod" })));
         Assert.Equal(0, code);
         Assert.NotEmpty(json!["problems"]!.AsArray());
         Assert.All(json["problems"]!.AsArray(), p => Assert.False(p!["blocking"]!.GetValue<bool>()));
@@ -105,29 +109,58 @@ public class MtCliTests
     }
 
     [Fact]
-    public void export는_앱과_같은_바이트를_쓰고_검증을_못_지나면_안_쓴다()
+    public void cut은_컷_파일을_쓰고_막는_문제가_있으면_안_쓴다()
     {
-        string document = WriteDocument();
-        string target = Path.Combine(Path.GetDirectoryName(document)!, "motions.json");
-        (int code, JsonNode? json, _, _) = RunWithDump("export", document, target);
-        Assert.Equal(0, code);
-        Assert.Equal("motions/3", json!["schema"]!.GetValue<string>()); // 이벤트 키가 있다
-        string written = File.ReadAllText(target);
-        Assert.Contains("\"name\": \"flash\", \"value\": \"땀\"", written, StringComparison.Ordinal);
-        Assert.True(MotionsJson.TryRead(written, out List<MotionClip> clips, out _));
-        Assert.Equal(2, clips.Count);
+        // 컷 opening(24프레임): 색 사각형 card가 0→12프레임에 x 0→100, 품은 세트 actor의 nod를 6프레임부터 튼다. 이벤트 하나.
+        static void Opening(MotionEditor e)
+        {
+            e.AddCut("opening", 24);
+            e.AddRigNode("opening", "card");
+            e.UpdateRigNode("opening", "card", new RigNodeAsset { Width = 100f, Height = 100f, Color = "#3D5A80", Alpha = true });
+            e.AddRigInstance("opening", "hero", Fixtures.Actor);
+            e.AddChannel("opening", "card", MotionChannelKind.Position);
+            e.SetKeys("opening", "card", MotionChannelKind.Position, Axis.X, new[] { new KeyAsset { T = 0f, V = 0f, Tangent = TangentMode.Linear }, new KeyAsset { T = 0.5f, V = 100f, Tangent = TangentMode.Linear } });
+            e.AddMotionPlay("opening", "hero", "nod", 0.25f);
+            e.AddMotionEvent("opening", 0.5f, "sfx", "pop");
+        }
 
-        // 이벤트가 없으면 견본과 바이트까지 같다.
-        string plain = Path.Combine(Path.GetDirectoryName(document)!, "plain.motion-authoring.json");
-        File.WriteAllText(plain, MotionDocumentJson.Write(Fixtures.NodBowDocument()));
-        string plainOut = Path.Combine(Path.GetDirectoryName(document)!, "plain.json");
-        Assert.Equal(0, RunWithDump("export", plain, plainOut).Code);
-        Assert.Equal(Fixtures.BytesOf("motions.nod-bow.json"), File.ReadAllBytes(plainOut));
+        string document = WriteDocument(Opening);
+        string target = Path.Combine(Path.GetDirectoryName(document)!, "out", "opening.cut.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        (int code, JsonNode? json, _, _) = Run("cut", document, "opening", "-o", target);
+        Assert.Equal(0, code);
+        Assert.Equal(("cut/1", "opening", 24), (json!["format"]!.GetValue<string>(), json["cut"]!.GetValue<string>(), json["frames"]!.GetValue<int>()));
+        Assert.Equal(Path.GetFullPath(target), json["path"]!.GetValue<string>());
+
+        // 쓴 파일 — 게임이 읽는 모양 그대로 읽힌다. 품은 세트는 오브젝트로 펼쳐지고 재생 블록은 키로 구워진다.
+        byte[] bytes = File.ReadAllBytes(target);
+        Assert.NotEqual(0xEF, bytes[0]); // BOM이 없다
+        CutFileDto file = CutFileJson.Read(System.Text.Encoding.UTF8.GetString(bytes));
+        Assert.Equal(json["objects"]!.GetValue<int>(), file.objects.Count);
+        Assert.Contains(file.objects, o => o.id == "hero.CharacterPortrait_Track_Move_Y");
+        CutTrackDto card = file.tracks.Single(t => t.target == "card" && t.what == "x");
+        Assert.Equal(new[] { (0f, 0f), (12f, 100f) }, card.keys.Select(k => (k.f, k.v)));
+        Assert.Equal(100f / 12f, card.keys[0].o, 3); // 기울기는 프레임당
+        CutTrackDto nod = file.tracks.Single(t => t.target == "hero.CharacterPortrait_Track_Move_Y" && t.what == "y");
+        Assert.Equal(-18f, CutPlayer.Evaluate(file, 6f + 7.2f, null!).Tree.GetState("hero.CharacterPortrait_Track_Move_Y").AnchoredPosition.Y, 2);
+        Assert.Equal(0f, nod.keys[0].v);
+        Assert.Equal(("sfx", "pop", 12f), (file.events[0].name, file.events[0].value, file.events[0].f));
+
+        // 앱의 "컷 내보내기"와 같은 글자다(같은 함수).
+        MotionDocument read = MotionDocumentJson.Read(File.ReadAllText(document));
+        Assert.Equal(CutFileJson.Write(CutFileJson.Build(read, read.FindCut("opening")!, new Vec2(1920f, 1080f))), File.ReadAllText(target));
 
         // 막는 문제가 있으면 파일을 안 쓴다.
-        string broken = WriteDocument(e => e.SetDuration("nod", 0.3f));
-        string brokenOut = Path.Combine(Path.GetDirectoryName(broken)!, "motions.json");
-        Assert.Equal(1, RunWithDump("export", broken, brokenOut).Code);
+        string broken = WriteDocument(e =>
+        {
+            Opening(e);
+            e.AddChannel("opening", "Ghost", MotionChannelKind.Position);
+        });
+        string brokenOut = Path.Combine(Path.GetDirectoryName(broken)!, "opening.cut.json");
+        (code, json, _, _) = Run("cut", broken, "opening", "-o", brokenOut);
+        Assert.Equal(1, code);
+        Assert.False(json!["ok"]!.GetValue<bool>());
+        Assert.NotEmpty(json["problems"]!.AsArray());
         Assert.False(File.Exists(brokenOut));
     }
 
@@ -137,16 +170,19 @@ public class MtCliTests
         string document = WriteDocument();
 
         // 모션: nod의 0.3초 — 가장 깊은 자리(-18), 이벤트가 방금 울렸다.
-        (int code, JsonNode? json, _, _) = RunWithDump("pose", document, "--motion", "nod", "--time", "0.3");
+        (int code, JsonNode? json, _, _) = Run("pose", document, "--motion", "nod", "--time", "0.3");
         Assert.Equal(0, code);
-        Assert.Equal("character", json!["rig"]!.GetValue<string>());
+        Assert.Equal("actor", json!["rig"]!.GetValue<string>());
+        Assert.Null(json["mode"]); // 재생 기준은 없다 — 키는 그 프레임의 값이다
         Assert.Equal(-18.0, json["nodes"]!["CharacterPortrait_Track_Move_Y"]!["position"]![1]!.GetValue<double>(), 3);
         Assert.Equal("땀", json["events"]![0]!["value"]!.GetValue<string>());
 
-        // 재생 기준을 바꿔 읽는다: bow는 절대값 모션 — 끝에서 z = 8.
-        (_, json, _, _) = RunWithDump("pose", document, "--motion", "bow", "--time", "9", "--mode", "relative");
+        // 길이를 지나도 마지막 키의 모습이다: bow는 끝에서 z = 8.
+        (_, json, _, _) = Run("pose", document, "--motion", "bow", "--time", "9");
         Assert.Equal(8.0, json!["nodes"]!["CharacterPortrait_SwayPivot"]!["euler"]![2]!.GetValue<double>(), 3);
-        Assert.Equal(1, Run("pose", document, "--motion", "bow", "--time", "0").Code); // 덤프를 안 주면 그 모션이 얹힐 리그가 없다
+
+        // 얹힐 세트가 문서에 없는 애니메이션은 1이다.
+        Assert.Equal(1, Run("pose", WriteDocument(e => e.AddMotion("lost", "robot", 1f)), "--motion", "lost", "--time", "0").Code);
     }
 
     [Fact]
@@ -157,20 +193,22 @@ public class MtCliTests
         Directory.CreateDirectory(directory);
         string path = Path.Combine(directory, "hand.motion-authoring.json");
         File.WriteAllText(path, """
-            { "schema": "motion-authoring/2", "motions": [ { "name": "slide", "rig": "character", "duration": 1, "end": "commit",
-              "channels": [ { "node": "CharSlot_Track_X", "kind": "position",
+            { "schema": "motion-authoring/2",
+              "cuts": [ { "name": "slide", "frames": 24, "objects": [ { "id": "card", "width": 100, "height": 100, "color": "#FFFFFF" } ] } ],
+              "motions": [ { "name": "slide", "rig": "slide", "duration": 1,
+              "channels": [ { "node": "card", "kind": "position",
                 "x": { "keys": [ { "t": 0, "v": 0, "tangent": "linear" }, { "t": 1, "v": 100, "tangent": "linear" } ] } } ] } ] }
             """);
 
-        Assert.Equal(0, RunWithDump("validate", path).Code);
-        (int code, JsonNode? json, _, _) = RunWithDump("pose", path, "--motion", "slide", "--time", "0.25");
+        Assert.Equal(0, Run("validate", path).Code);
+        (int code, JsonNode? json, _, _) = Run("pose", path, "--motion", "slide", "--time", "0.25");
         Assert.Equal(0, code);
-        Assert.Equal(25.0, json!["nodes"]!["CharSlot_Track_X"]!["position"]![0]!.GetValue<double>(), 2); // linear — 탄젠트 0이었다면 15.6쯤이 나온다
+        Assert.Equal(25.0, json!["nodes"]!["card"]!["position"]![0]!.GetValue<double>(), 2); // linear — 탄젠트 0이었다면 15.6쯤이 나온다
 
-        // 내보낸 파일에도 그 탄젠트 값이 실린다.
-        string target = Path.Combine(directory, "motions.json");
-        Assert.Equal(0, RunWithDump("export", path, target).Code);
-        Assert.True(MotionsJson.TryRead(File.ReadAllText(target), out List<MotionClip> clips, out _));
-        Assert.Equal(100f, clips[0].Channels[0].X[0].OutTangent, 3);
+        // 내보낸 컷 파일에도 그 탄젠트 값이 실린다(프레임당: 100 ÷ 24).
+        string target = Path.Combine(directory, "slide.cut.json");
+        Assert.Equal(0, Run("cut", path, "slide", "-o", target).Code);
+        CutFileDto file = CutFileJson.Read(File.ReadAllText(target));
+        Assert.Equal(100f / 24f, file.tracks.Single().keys[0].o, 3);
     }
 }

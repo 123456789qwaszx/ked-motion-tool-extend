@@ -23,9 +23,9 @@ public class CutTests
         Assert.Equal(("arrival", 240, 10f), (cut.Name, cut.Frames, cut.Seconds));
         Assert.Empty(cut.Nodes);
 
-        // 타임라인 — 같은 이름의 애니메이션 하나. 키는 그 프레임의 모습이다(절대값, 끝의 모습이 남는다).
+        // 타임라인 — 같은 이름의 애니메이션 하나. 키는 그 프레임의 모습이다.
         MotionAsset timeline = editor.Document.Find("arrival")!;
-        Assert.Equal(("arrival", 10f, MotionEnd.Commit, MotionChannelMode.Absolute), (timeline.Rig, timeline.Duration, timeline.End, timeline.PreviewMode));
+        Assert.Equal(("arrival", 10f), (timeline.Rig, timeline.Duration));
 
         // 오브젝트 계층은 컷의 이름으로 찾는다 — 세트의 목록에는 없다.
         Assert.Same(cut.Rig, editor.Document.FindRig("arrival"));
@@ -161,8 +161,6 @@ public class CutTests
 
     // ── 무대에 세운다 — 깊이와 카메라 ─────────────────────────────────
 
-    private static readonly RigSchemaFile Dump = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
-
     /// <summary>sky(깊이 0 · far) · hero(깊이 없음 = mid) · near(깊이 20 · close), 전부 무대 가운데의 100×100. hero 밑에 arm(+50).</summary>
     private static (MotionEditor Editor, CutAsset Cut) StageCut()
     {
@@ -185,7 +183,7 @@ public class CutTests
     private static RectNodeTree Staged(MotionEditor editor, CutAsset cut, CameraSettings camera, DepthTuningFile? depth)
     {
         editor.SetCutCamera(cut.Name, camera);
-        RectNodeTree tree = CutStage.Build(RigAssets.Compose(Dump, editor.Document), editor.Document.FindCut(cut.Name)!, "cut/")!;
+        RectNodeTree tree = CutStage.Build(Fixtures.RigOf(editor.Document), editor.Document.FindCut(cut.Name)!, "cut/")!;
         CutStage.Apply(tree, editor.Document.FindCut(cut.Name)!, "cut/", depth);
         return tree;
     }
@@ -242,7 +240,7 @@ public class CutTests
         Assert.Equal(300f, tree.TransformPoint("cut/sky", Vec3.Zero).X, 3);
 
         // 그리는 순서 — 먼 것부터. 밑의 것은 제 맨 위 오브젝트를 따라간다. 깊이를 바꾸면 차례가 바뀐다.
-        RigAssets.Compose(Dump, editor.Document).TryGetRig("arrival", out RigSchemaRigDto dto);
+        Fixtures.RigOf(editor.Document).TryGetRig("arrival", out RigSchemaRigDto dto);
         string[] Order() => CutStage.DrawOrder(cut, dto.nodes).Select(n => n.id).Where(id => id != RigSchemaLoader.RootKey && !CutStage.IsPointNode(id)).ToArray();
         Assert.Equal(new[] { "sky", "hero", "arm", "near" }, Order());
         editor.SetCutNodeDepth("arrival", "hero", 30f);
@@ -264,13 +262,13 @@ public class CutTests
         editor.SetCutCameraKey("arrival", 6f, new CameraSettings { PanX = 200f });
         Assert.Equal(revision + 2, editor.Revision);
         Assert.True(editor.CutCameraIsKeyed("arrival"));
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 그 시각의 포즈 — 타임라인을 얹은 뒤 카메라와 깊이를 넣는다. 키 앞뒤로는 그 키의 값이 이어진다.
         float HeroX(double t)
         {
-            RectNodeTree posed = MotionPreview.Pose(CutStage.Build(rig, editor.Document.FindCut("arrival")!, "cut/")!, editor.Document.Find("arrival")!, t, MotionChannelMode.Absolute, null, "cut/");
+            RectNodeTree posed = MotionPreview.Pose(CutStage.Build(rig, editor.Document.FindCut("arrival")!, "cut/")!, editor.Document.Find("arrival")!, t, null, "cut/");
             CutStage.Apply(posed, editor.Document.FindCut("arrival")!, "cut/", null);
             return posed.TransformPoint("cut/hero", Vec3.Zero).X;
         }
@@ -292,10 +290,10 @@ public class CutTests
         editor.AddKey("arrival", "hero", MotionChannelKind.Position, Axis.Y, new KeyAsset { T = 3f, V = 50f });
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
         editor.AddRig(new RigAsset { Kind = "prop", Nodes = { new RigNodeAsset { Id = "Body", Alpha = true } } });
-        editor.AddMotion("prop_in", "prop", 1f, MotionEnd.Commit);
+        editor.AddMotion("prop_in", "prop", 1f);
         editor.AddChannel("prop_in", "Body", MotionChannelKind.Position);
         editor.AddKey("prop_in", "Body", MotionChannelKind.Position, Axis.Y, new KeyAsset { T = 0.5f, V = 50f });
-        Assert.Empty(MotionValidator.Validate(editor.Document, RigAssets.Compose(Dump, editor.Document).NodeIds));
+        Assert.Empty(MotionValidator.Validate(editor.Document, Fixtures.RigOf(editor.Document).NodeIds));
     }
 
     [Fact]
@@ -311,9 +309,9 @@ public class CutTests
 
         Vec2 At(string node, double t)
         {
-            RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+            RigSchemaFile rig = Fixtures.RigOf(editor.Document);
             CutAsset cut = editor.Document.FindCut("arrival")!;
-            RectNodeTree posed = MotionPreview.Pose(CutStage.Build(rig, cut, "cut/")!, editor.Document.Find("arrival")!, t, MotionChannelMode.Absolute, null, "cut/");
+            RectNodeTree posed = MotionPreview.Pose(CutStage.Build(rig, cut, "cut/")!, editor.Document.Find("arrival")!, t, null, "cut/");
             CutStage.Apply(posed, cut, "cut/", null);
             return posed.TransformPoint("cut/" + node, new Vec3(10f, 0f, 0f)).XY;
         }
@@ -323,7 +321,7 @@ public class CutTests
 
         // 빼기 — 키들이 그대로 세트의 애니메이션이 되고, 컷은 그것을 재생 블록으로 튼다. 막는 문제가 없다.
         editor.ExtractRigNodes("arrival", new[] { "hero" }, "cast");
-        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile composed = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, composed.NodeIds, composed.AlphaNodeIds));
         Assert.Equal(new[] { 2f, 6f }, editor.Document.Find("cast_arrival")!.FindChannel("hero", MotionChannelKind.Position)!.X!.Keys.Select(k => k.T));
 
@@ -368,7 +366,7 @@ public class CutTests
         string json = MotionDocumentJson.Write(editor.Document);
         Assert.Contains("\"swaps\"", json, StringComparison.Ordinal);
         Assert.Equal(json, MotionDocumentJson.Write(MotionDocumentJson.Read(json)));
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 막는 것: 그림 없는 키 · 길이 밖 · 그림을 그리지 않는 오브젝트.
@@ -425,11 +423,11 @@ public class CutTests
         editor.AddImageKey("arrival", "hero", 4f, "art/hero_smile.png");
         editor.AddMotionEvent("arrival", 2.5f, "sfx", "pop");
 
-        // 묶음 — 세트 prop(Body 밑에 Tip)과 그 움직임(상대값, 유지)을 컷에 품고 1초부터 두 번 튼다.
+        // 묶음 — 세트 prop(Body 밑에 Tip)과 그 움직임(Body 회전 0 → 45)을 컷에 품고 1초부터 두 번 튼다.
         editor.AddRig(new RigAsset { Kind = "prop", Nodes = { new RigNodeAsset { Id = "Body", Width = 60f, Height = 60f, Image = true, Alpha = true } } });
         editor.AddRigNode("prop", "Tip", "Body", image: true);
         editor.UpdateRigNode("prop", "Tip", new RigNodeAsset { X = 40f, Width = 10f, Height = 10f, Image = true, Alpha = true });
-        editor.AddMotion("prop_turn", "prop", 1f, MotionEnd.Commit);
+        editor.AddMotion("prop_turn", "prop", 1f);
         editor.AddChannel("prop_turn", "Body", MotionChannelKind.Euler);
         editor.SetKeys("prop_turn", "Body", MotionChannelKind.Euler, Axis.Z, new[] { K(0f, 0f), K(1f, 45f) });
         editor.AddImageKey("prop_turn", "Tip", 0.5f, "art/tip_lit.png");
@@ -463,7 +461,9 @@ public class CutTests
         Assert.Equal(new[] { 72f }, file.tracks.Single(t => t.target == "hero" && t.what == "y").keys.Select(k => k.f));
         Assert.Equal(new[] { 24f, 120f }, file.tracks.Single(t => t.target == CutPlayer.CameraTarget && t.what == "panX").keys.Select(k => k.f));
         Assert.Equal(new[] { 48f, 168f }, file.tracks.Single(t => t.target == "hero" && t.what == "depth").keys.Select(k => k.f));
-        Assert.Contains(file.tracks, t => t.target == "prop.Body" && t.what == "rotation");
+        // 재생 블록의 뜻: 첫 블록 앞은 가만히 선 값(0), 바퀴마다 처음부터 다시(0 → 45, 쌓이지 않는다 — 이음 0.1프레임), 끝난 뒤로는 마지막 값(45)이 남는다.
+        CutTrackDto turn = file.tracks.Single(t => t.target == "prop.Body" && t.what == "rotation");
+        Assert.Equal(new[] { (0f, 0f), (24f, 0f), (47.9f, 45f), (48f, 0f), (72f, 45f), (240f, 45f) }, turn.keys.Select(k => (MathF.Round(k.f, 2), k.v))); // 둘째 바퀴는 48프레임에 정확히 — 이음은 그 앞에
         Assert.DoesNotContain(file.tracks, t => t.target.Contains("Camera_", StringComparison.Ordinal) || t.target.EndsWith("__depth", StringComparison.Ordinal));
 
         // 그림 트랙(계단 키) · 이벤트 — 품은 애니메이션의 그림 키도 바퀴마다 구워져 있다(1초 + 0.5초, 2초 + 0.5초).
@@ -484,7 +484,7 @@ public class CutTests
         MotionEditor editor = RichCut();
         CutAsset cut = editor.Document.FindCut("arrival")!;
         var depth = DepthTuningFile.Load(Fixtures.PathOf("presets/depth.json"));
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Vec2 stage = rig.Dto.capturedUnderParentSize.ToVec2();
         MotionAsset timeline = editor.Document.Find("arrival")!;
         rig.TryGetRig("arrival", out RigSchemaRigDto dto);
@@ -500,7 +500,7 @@ public class CutTests
 
             // 툴: 타임라인을 얹고 카메라와 깊이를 넣는다(뷰포트가 하는 그대로).
             var alphas = new Dictionary<string, float>(StringComparer.Ordinal);
-            RectNodeTree tool = MotionPreview.Pose(CutStage.Build(rig, cut, "cut/")!, timeline, seconds, MotionChannelMode.Absolute, null, "cut/", alphas);
+            RectNodeTree tool = MotionPreview.Pose(CutStage.Build(rig, cut, "cut/")!, timeline, seconds, null, "cut/", alphas);
             CutStage.Apply(tool, cut, "cut/", depth);
 
             // 코어: 컷 파일의 그 프레임.

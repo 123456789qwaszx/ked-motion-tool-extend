@@ -395,7 +395,7 @@ public sealed class DopeSheetView : Control
             }
         }
 
-        return max - min > MotionRules.Tolerance ? (min, max) : null;
+        return max - min > KeyTimes.Tolerance ? (min, max) : null;
     }
 
     private void SelectByTime(IEnumerable<(CurveRef Curve, float T)> targets)
@@ -412,7 +412,7 @@ public sealed class DopeSheetView : Control
                     continue;
                 }
 
-                int index = curve.Keys.FindIndex(k => Math.Abs(k.T - t) <= MotionRules.Tolerance);
+                int index = curve.Keys.FindIndex(k => Math.Abs(k.T - t) <= KeyTimes.Tolerance);
 
                 if (index >= 0)
                 {

@@ -1,6 +1,5 @@
-using System.Text;
-using System.Text.Json;
 using Ked.Presentation.Core;
+using Mt.Authoring.Model;
 using Mt.Authoring.Rig;
 
 namespace Mt.Authoring.Tests;
@@ -8,49 +7,42 @@ namespace Mt.Authoring.Tests;
 public class RigSchemaFileTests
 {
     [Fact]
-    public void 덤프에서_리그와_노드_목록이_나온다_하드코딩된_이름은_없다()
+    public void 세운_한_벌에서_리그와_노드_목록이_나온다_하드코딩된_이름은_없다()
     {
-        RigSchemaFile rig = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
+        var document = new MotionDocument { Rigs = { Fixtures.ActorRig(), PartsRigFixture.Rig() } };
+        RigSchemaFile rig = Fixtures.RigOf(document);
 
-        Assert.Contains("character", rig.RigKinds);
-        Assert.Contains("screenEffect", rig.RigKinds);
-        Assert.DoesNotContain("background", rig.RigKinds); // 배경은 캐스팅하지 않은 캐릭터 슬롯이 됐다(무대 dc690c1)
-        Assert.Contains("CharacterPortrait_Track_Move_Y", rig.NodeIds["character"]);
-        Assert.Contains("CharacterPortrait_SwayPivot", rig.NodeIds["character"]);
-        Assert.DoesNotContain("CharacterPortrait_SwayPivot", rig.NodeIds["screenEffect"]);
-        Assert.True(rig.TryGetRig("character", out RigSchemaRigDto character));
-        Assert.Equal(26, character.nodes.Count);
+        Assert.Contains(Fixtures.Actor, rig.RigKinds);
+        Assert.Contains(PartsRigFixture.RigKind, rig.RigKinds);
+        Assert.DoesNotContain("background", rig.RigKinds);
+        Assert.Contains("CharacterPortrait_Track_Move_Y", rig.NodeIds[Fixtures.Actor]);
+        Assert.Contains("CharacterPortrait_SwayPivot", rig.NodeIds[Fixtures.Actor]);
+        Assert.DoesNotContain("CharacterPortrait_SwayPivot", rig.NodeIds[PartsRigFixture.RigKind]);
+        Assert.True(rig.TryGetRig(Fixtures.Actor, out RigSchemaRigDto actor));
+        Assert.Equal(26, actor.nodes.Count); // 오브젝트 25 + 루트
+        Assert.False(rig.TryGetRig("nope", out _));
     }
 
     [Fact]
-    public void 해시는_파일_바이트의_SHA256_소문자다()
+    public void 코어_트리로_세워지고_시작값은_오브젝트의_것이다()
     {
-        byte[] bytes = Fixtures.BytesOf("rig-schemas.json");
-        RigSchemaFile rig = RigSchemaFile.Parse(bytes);
+        RigSchemaFile rig = Fixtures.ActorRigFile();
 
-        Assert.Equal(64, rig.Sha256.Length);
-        Assert.Equal(rig.Sha256, rig.Sha256.ToLowerInvariant());
-        Assert.Equal(RigSchemaFile.ComputeSha256(bytes), rig.Sha256);
-        Assert.NotEqual(rig.Sha256, RigSchemaFile.ComputeSha256(Encoding.UTF8.GetBytes("{}")));
-    }
-
-    [Fact]
-    public void 코어_트리로_세워지고_시작값은_덤프의_것이다()
-    {
-        RigSchemaFile rig = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json"));
-
-        RectNodeTree tree = rig.BuildTree("character", "c1/");
+        RectNodeTree tree = rig.BuildTree(Fixtures.Actor, "c1/");
         RectNodeState sway = tree.GetState("c1/CharacterPortrait_SwayPivot");
 
         Assert.Equal(1f, sway.LocalScale.X);
+        Assert.Equal(-540f, sway.AnchoredPosition.Y); // 원점이 그림의 아래 끝에 있는 묶음(부모 Track_Move_Y는 가운데)
         Assert.Throws<KeyNotFoundException>(() => tree.GetState("CharacterPortrait_SwayPivot"));
     }
 
     [Fact]
-    public void 손상된_덤프는_예외다_0으로_떨어뜨리지_않는다()
+    public void 빈_한_벌은_리그가_없고_무대_크기만_안다()
     {
-        Assert.Throws<JsonException>(() => RigSchemaFile.Parse(Encoding.UTF8.GetBytes("""{ "rigs": [] }""")));
-        Assert.ThrowsAny<Exception>(() => RigSchemaFile.Parse(Encoding.UTF8.GetBytes(
-            """{ "capturedUnderParentSize": { "x": 1920, "y": 1080 }, "rigs": [ { "rigKind": "character", "nodes": [ { "id": "__root", "parent": "" } ] } ] }""")));
+        RigSchemaFile empty = RigSchemaFile.Empty(new Vec2(1920f, 1080f));
+
+        Assert.Empty(empty.RigKinds);
+        Assert.Equal(1920f, empty.Dto.capturedUnderParentSize.x);
+        Assert.Equal(1080f, empty.Dto.capturedUnderParentSize.y);
     }
 }

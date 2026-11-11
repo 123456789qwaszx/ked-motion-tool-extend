@@ -3,10 +3,10 @@ using Mt.Authoring.Model;
 
 namespace Mt.Authoring.Graph;
 
-/// <summary>마야 Pre/Post Infinity — 첫/마지막 키 밖을 어떻게 이어 보이나. 보기 전용(산출물의 끝은 restore/commit).</summary>
+/// <summary>마야 Pre/Post Infinity — 첫/마지막 키 밖을 어떻게 이어 보이나. 보기 전용(재생에서는 첫 키 앞과 마지막 키 뒤로 그 키의 값이 이어진다).</summary>
 public enum InfinityMode
 {
-    /// <summary>끝값 그대로(런타임과 같다).</summary>
+    /// <summary>끝값 그대로(재생과 같다).</summary>
     Constant,
 
     /// <summary>키 구간을 되풀이.</summary>
@@ -24,7 +24,7 @@ public enum InfinityMode
 
 /// <summary>
 /// 그릴 폴리라인. 코어 <see cref="CurveFunctions.Evaluate"/> 그대로라 에디터가 보여 주는 모양 = 미리보기가 재생하는 모양 =
-/// 런타임이 재생하는 모양이다. 키 범위 밖은 끝값으로 평평하다(클램프 — 런타임과 같다).
+/// 게임이 재생하는 모양이다. 키 범위 밖은 끝값으로 평평하다(클램프 — 재생과 같다).
 /// </summary>
 public static class CurveSampler
 {
@@ -66,7 +66,7 @@ public static class CurveSampler
 
     /// <summary>
     /// 길이로 감아 반복한 곡선(사이클 미리보기 — 마야 pre/post infinity cycle). 값은 <c>t mod duration</c>의 값이다.
-    /// 산출물에는 없는 보기다 — 실제 끝은 restore/commit 규칙이 정한다.
+    /// 컷 파일에는 없는 보기다 — 재생에서는 마지막 키의 값이 이어진다.
     /// </summary>
     public static List<GraphPoint> SampleCycled(IReadOnlyList<KeyAsset> keys, double duration, double t0, double t1, int count)
     {

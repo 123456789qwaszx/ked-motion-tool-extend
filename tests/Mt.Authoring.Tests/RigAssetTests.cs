@@ -10,11 +10,9 @@ using Mt.Cli;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>툴에서 정의한 리그(<c>PLAN-parts.md</c> §9) — 덤프를 기다리지 않고 리그를 만든다. Spine처럼 툴이 원본.</summary>
+/// <summary>툴에서 정의한 리그(<c>PLAN-parts.md</c> §9) — 세트와 컷의 오브젝트 계층. Spine처럼 툴이 원본.</summary>
 public class RigAssetTests
 {
-    private static readonly RigSchemaFile Dump = RigSchemaFile.Load(Fixtures.PathOf("rig-schemas.json")); // character · screenEffect뿐
-
     private static MotionEditor NewEditor()
     {
         var editor = new MotionEditor(new MotionDocument());
@@ -23,15 +21,12 @@ public class RigAssetTests
     }
 
     [Fact]
-    public void 문서의_리그는_덤프와_한_벌로_서고_조각과_불투명도_노드가_표시대로_나온다()
+    public void 문서의_리그는_한_벌로_서고_조각과_불투명도_노드가_표시대로_나온다()
     {
         MotionEditor editor = NewEditor();
-        Assert.DoesNotContain(PartsRigFixture.RigKind, Dump.RigKinds);
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
-        Assert.Contains(PartsRigFixture.RigKind, rig.RigKinds);
-        Assert.Contains("character", rig.RigKinds);
-        Assert.Equal(Dump.Sha256, rig.Sha256); // 문서가 기억하는 것은 덤프의 해시다
-        Assert.Same(Dump, RigAssets.Compose(Dump, new MotionDocument())); // 더할 것이 없으면 그대로
+        Assert.Empty(Fixtures.RigOf(new MotionDocument()).RigKinds); // 빈 문서 — 아는 리그가 없다
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
+        Assert.Equal(new[] { PartsRigFixture.RigKind }, rig.RigKinds);
 
         Assert.Equal(new[] { "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, RigParts.Of(rig, PartsRigFixture.RigKind));
         Assert.Equal(new[] { "Badge_Body", "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, rig.AlphaNodeIds[PartsRigFixture.RigKind].OrderBy(n => n, StringComparer.Ordinal));
@@ -44,7 +39,7 @@ public class RigAssetTests
 
         // 조각은 이름이 아니라 표시(Image)로 가린다 — 이름 규칙에 안 맞아도 된다.
         editor.AddRig(new RigAsset { Kind = "prop", Nodes = { new RigNodeAsset { Id = "Hand" }, new RigNodeAsset { Id = "Leaf", Parent = "Hand", Width = 80, Height = 40, Image = true } } });
-        RigSchemaFile both = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile both = Fixtures.RigOf(editor.Document);
         Assert.Equal(new[] { "Leaf" }, RigParts.Of(both, "prop"));
         Assert.Empty(both.AlphaNodeIds["prop"]);
 
@@ -53,19 +48,7 @@ public class RigAssetTests
         editor.AddChannel("pop", "Badge_Body", MotionChannelKind.Alpha);
         editor.SetKeys("pop", "Badge_Body", MotionChannelKind.Alpha, Axis.X, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.2f, 1f) });
         Assert.Empty(MotionValidator.Validate(editor.Document, both.NodeIds, both.AlphaNodeIds));
-        Assert.NotEmpty(MotionValidator.Validate(editor.Document, Dump.NodeIds)); // 덤프만으로는 모르는 리그다
-    }
-
-    [Fact]
-    public void 같은_이름이면_문서의_리그가_덤프의_것을_이긴다()
-    {
-        // 런타임이 나중에 같은 이름의 리그를 덤프에 넣어도, 문서가 정의한 것이 쓰인다(툴이 원본).
-        RigSchemaFile dumpWithBadge = RigSchemaFile.Load(PartsRigFixture.WriteDump(Fixtures.PathOf("rig-schemas.json")));
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddRig(PartsRigFixture.Rig(parts: 2, partSize: 64f));
-        RigSchemaFile rig = RigAssets.Compose(dumpWithBadge, editor.Document);
-        Assert.Equal(new[] { "Badge_Part1", "Badge_Part2" }, RigParts.Of(rig, PartsRigFixture.RigKind));
-        Assert.Single(rig.Dto.rigs, r => r.rigKind == PartsRigFixture.RigKind);
+        Assert.NotEmpty(MotionValidator.Validate(editor.Document, Fixtures.ActorRigFile().NodeIds)); // 그 세트가 없는 한 벌로는 모르는 리그다
     }
 
     [Fact]
@@ -94,9 +77,9 @@ public class RigAssetTests
 
         // 지우면 한 벌에서 빠진다.
         editor.RemoveRig(PartsRigFixture.RigKind);
-        Assert.DoesNotContain(PartsRigFixture.RigKind, RigAssets.Compose(Dump, editor.Document).RigKinds);
+        Assert.DoesNotContain(PartsRigFixture.RigKind, Fixtures.RigOf(editor.Document).RigKinds);
 
-        // 덤프 없이도 선다 — 문서가 정의한 것만의 한 벌(앱이 쓰는 길).
+        // 문서가 정의한 것만의 한 벌(앱이 쓰는 길) — 무대 크기를 받는다.
         RigSchemaFile alone = RigAssets.Compose(editor.Document, new Vec2(1920f, 1080f));
         Assert.Equal(new[] { "prop" }, alone.RigKinds);
         Assert.Equal(1920f, alone.BuildTree("prop").GetRectSize(RigSchemaLoader.RootKey).X, 3);
@@ -104,30 +87,10 @@ public class RigAssetTests
     }
 
     [Fact]
-    public void 내보낸_리그는_덤프와_같은_모양이라_같은_로더로_읽힌다()
+    public void 명령줄도_문서의_리그로_검증하고_포즈를_읽는다()
     {
         MotionEditor editor = NewEditor();
-        string json = RigAssets.WriteSchemas(editor.Document, new Vec2(1920f, 1080f));
-        Assert.Equal(json, RigAssets.WriteSchemas(editor.Document, new Vec2(1920f, 1080f))); // 결정적
-
-        RigSchemaFile read = RigSchemaFile.Parse(System.Text.Encoding.UTF8.GetBytes(json)); // 캐릭터 덤프를 읽는 그 길
-        Assert.Equal(new[] { PartsRigFixture.RigKind }, read.RigKinds);
-        Assert.Equal(4, RigParts.Of(read, PartsRigFixture.RigKind).Count);
-        Assert.Equal(5, read.AlphaNodeIds[PartsRigFixture.RigKind].Count);
-        Assert.Equal(PartsRigFixture.PartSize, read.BuildTree(PartsRigFixture.RigKind).GetRectSize("Badge_Part1").X, 3);
-
-        JsonNode root = JsonNode.Parse(json)!;
-        JsonNode part = root["rigs"]![0]!["nodes"]!.AsArray().First(n => n!["id"]!.GetValue<string>() == "Badge_Part1")!;
-        Assert.True(part["hasImage"]!.GetValue<bool>());
-        Assert.True(part["hasCanvasGroup"]!.GetValue<bool>());
-        Assert.Equal("__root", root["rigs"]![0]!["nodes"]![0]!["id"]!.GetValue<string>());
-    }
-
-    [Fact]
-    public void 명령줄도_문서의_리그로_검증하고_내보낸다()
-    {
-        MotionEditor editor = NewEditor();
-        editor.AddMotion("pop", PartsRigFixture.RigKind, 0.2f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.AddMotion("pop", PartsRigFixture.RigKind, 0.2f);
         editor.AddChannel("pop", "Badge_Body", MotionChannelKind.Position);
         editor.SetKeys("pop", "Badge_Body", MotionChannelKind.Position, Axis.Y, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.2f, 40f) });
 
@@ -144,15 +107,11 @@ public class RigAssetTests
             return code;
         }
 
-        Assert.Equal(0, Run(out JsonNode? validated, "validate", document)); // 내장 덤프에는 이 리그가 없다 — 문서의 리그로 통과한다
+        Assert.Equal(0, Run(out JsonNode? validated, "validate", document)); // 문서의 리그로 통과한다
         Assert.Empty(validated!["problems"]!.AsArray());
         Assert.Equal(0, Run(out JsonNode? pose, "pose", document, "--motion", "pop", "--time", "0.2"));
         Assert.Equal(40.0, pose!["nodes"]!["Badge_Body"]!["position"]![1]!.GetValue<double>(), 3);
-
-        string target = Path.Combine(directory, "rigs.json");
-        Assert.Equal(0, Run(out JsonNode? exported, "rigs", document, target));
-        Assert.Equal(4, exported!["rigs"]![0]!["parts"]!.GetValue<int>());
-        Assert.Contains(PartsRigFixture.RigKind, RigSchemaFile.Load(target).RigKinds);
+        Assert.Equal(PartsRigFixture.RigKind, pose["rig"]!.GetValue<string>());
     }
 
     // ── 리그 편집기(PLAN-parts.md §12) ─────────────────────────────────
@@ -180,7 +139,7 @@ public class RigAssetTests
         Assert.Throws<InvalidOperationException>(() => editor.AddRigNode(PartsRigFixture.RigKind, "1bad"));
         Assert.Throws<InvalidOperationException>(() => editor.AddRigNode(PartsRigFixture.RigKind, "a/b"));
         Assert.Throws<KeyNotFoundException>(() => editor.AddRigNode(PartsRigFixture.RigKind, "X", "Nope"));
-        Assert.Throws<KeyNotFoundException>(() => editor.AddRigNode("character", "X"));                                 // 덤프의 리그는 못 고친다
+        Assert.Throws<KeyNotFoundException>(() => editor.AddRigNode("character", "X"));                                 // 문서에 없는 세트는 못 고친다
         Assert.Throws<InvalidOperationException>(() => editor.SetRigNodeParent(PartsRigFixture.RigKind, "Badge_Glow", "Badge_Spark")); // 제 밑으로
         Assert.Throws<InvalidOperationException>(() => editor.UpdateRigNode(PartsRigFixture.RigKind, "Extra", new RigNodeAsset { Width = -1f }));
         Assert.Equal(revision, editor.Revision);
@@ -211,7 +170,7 @@ public class RigAssetTests
         editor.UpdateRigNode(PartsRigFixture.RigKind, "Badge_Glow", moved);
         editor.UpdateRigNode(PartsRigFixture.RigKind, "Badge_Glow", moved);
         Assert.Equal(revision + 1, editor.Revision);
-        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile composed = Fixtures.RigOf(editor.Document);
         Assert.True(composed.TryGetRig(PartsRigFixture.RigKind, out RigSchemaRigDto dto));
         RigSchemaNodeDto node = dto.nodes.Single(n => n.id == "Badge_Glow");
         Assert.Equal((30f, -12f, 80f, 40f, true, false), (node.anchoredPosition.x, node.anchoredPosition.y, node.sizeDelta.x, node.sizeDelta.y, node.hasImage, node.hasCanvasGroup));
@@ -219,7 +178,7 @@ public class RigAssetTests
 
         // 가만히 선 자세의 회전·배율(배치 모드) — 세운 나무에 그대로 선다. 배율 0은 막는다.
         editor.UpdateRigNode(PartsRigFixture.RigKind, "Badge_Glow", new RigNodeAsset { X = 30f, Y = -12f, Width = 80f, Height = 40f, Image = true, Rotation = 30f, ScaleX = 2f, ScaleY = -1f });
-        Assert.True(RigAssets.Compose(Dump, editor.Document).TryGetRig(PartsRigFixture.RigKind, out RigSchemaRigDto posed));
+        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig(PartsRigFixture.RigKind, out RigSchemaRigDto posed));
         RigSchemaNodeDto turned = posed.nodes.Single(n => n.id == "Badge_Glow");
         Assert.Equal((30f, 2f, -1f), (turned.localEulerAngles.z, turned.localScale.x, turned.localScale.y));
         Assert.Throws<InvalidOperationException>(() => editor.UpdateRigNode(PartsRigFixture.RigKind, "Badge_Glow", new RigNodeAsset { ScaleX = 0f }));
@@ -230,7 +189,7 @@ public class RigAssetTests
         Assert.Equal(new[] { "Extra", "Badge_Anchor" }, Ids(editor));
         editor.Undo();
         Assert.Equal(7, Ids(editor).Length);
-        RigAssets.Compose(Dump, editor.Document); // 여전히 세울 수 있다
+        Fixtures.RigOf(editor.Document); // 여전히 세울 수 있다
     }
 
     [Fact]
@@ -266,7 +225,7 @@ public class RigAssetTests
     }
 
     [Fact]
-    public void 색_오브젝트는_덤프와_같은_모양에_fillColor로_나가고_색_글은_고른_꼴로_선다()
+    public void 색_오브젝트는_세운_리그에_fillColor로_서고_색_글은_고른_꼴로_선다()
     {
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(new RigAsset { Kind = "wipe", Nodes = { new RigNodeAsset { Id = "Body", Alpha = true } } });
@@ -283,13 +242,14 @@ public class RigAssetTests
         Assert.Null(MotionEditor.NormalizeColor("  "));
 
         // 세운 리그: 색 표에 그 노드가 서고, 그림 노드는 아니다(조각이 아니다).
-        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile composed = Fixtures.RigOf(editor.Document);
         Assert.Equal("#3D5A80", RigParts.ColorsOf(composed, "wipe")["Panel"]);
         Assert.Empty(RigParts.Of(composed, "wipe"));
-        Assert.Empty(RigParts.ColorsOf(composed, "character"));
+        Assert.Empty(RigParts.ColorsOf(composed, "nope"));
+        Assert.True(composed.TryGetRig("wipe", out RigSchemaRigDto wipe));
+        Assert.Equal(new[] { ("Body", ""), ("Panel", "#3D5A80") }, wipe.nodes.Where(n => n.id != RigSchemaLoader.RootKey).Select(n => (n.id, n.fillColor ?? "")));
 
-        // 산출물과 저작본 — 색이 없는 노드에는 안 적힌다(저작본).
-        Assert.Contains("\"fillColor\": \"#3D5A80\"", RigAssets.WriteSchemas(editor.Document, new Vec2(1920f, 1080f)), StringComparison.Ordinal);
+        // 저작본 — 색이 없는 노드에는 안 적힌다.
         string json = MotionDocumentJson.Write(editor.Document);
         Assert.Equal(1, json.Split("\"color\"").Length - 1);
         Assert.Equal("#3D5A80", MotionDocumentJson.Read(json).FindRig("wipe")!.Find("Panel")!.Color);
@@ -297,7 +257,7 @@ public class RigAssetTests
         // 비우면 색 오브젝트가 아니다.
         editor.UpdateRigNode("wipe", "Panel", new RigNodeAsset { Width = 1920f, Height = 400f, Alpha = true });
         Assert.Null(editor.Document.FindRig("wipe")!.Find("Panel")!.Color);
-        Assert.Empty(RigParts.ColorsOf(RigAssets.Compose(Dump, editor.Document), "wipe"));
+        Assert.Empty(RigParts.ColorsOf(Fixtures.RigOf(editor.Document), "wipe"));
     }
 
     // ── 시차 — 오브젝트의 움직임을 통째로 민다 ─────────────────────────
@@ -307,7 +267,7 @@ public class RigAssetTests
     {
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(PartsRigFixture.Rig(parts: 3));
-        editor.AddMotion("in", PartsRigFixture.RigKind, 1f, MotionEnd.Commit);
+        editor.AddMotion("in", PartsRigFixture.RigKind, 1f);
         KeyAsset Lin(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
 
         foreach (string part in new[] { "Badge_Part1", "Badge_Part2", "Badge_Part3" })
@@ -332,8 +292,8 @@ public class RigAssetTests
         editor.ShiftNodeKeys("in", "Badge_Part3", -0.4f);
         Assert.Equal(new[] { (0f, -50f), (0.2f, 0f), (1f, 0f) }, Keys("Badge_Part3"));
 
-        // 어느 쪽이든 규칙(처음과 끝에 키)이 그대로 선다.
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        // 어느 쪽이든 문제가 없다.
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 채널이 없는 오브젝트·0초는 아무 일도 없다(기록 없음).
@@ -361,7 +321,7 @@ public class RigAssetTests
     {
         var editor = new MotionEditor(new MotionDocument());
         editor.AddRig(PartsRigFixture.Rig(parts: 3));
-        editor.AddMotion("in", PartsRigFixture.RigKind, 1f, MotionEnd.Commit);
+        editor.AddMotion("in", PartsRigFixture.RigKind, 1f);
         KeyAsset Lin(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
         editor.AddChannel("in", "Badge_Part1", MotionChannelKind.Position); // 0.4초에 움직이기 시작해 0.8초에 선다
         editor.SetKeys("in", "Badge_Part1", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, -100f), Lin(0.4f, -100f), Lin(0.8f, 0f), Lin(1f, 0f) });
@@ -393,7 +353,7 @@ public class RigAssetTests
         Assert.Equal(1, editor.HideAllUntilTurn("in"));
         Assert.Equal(revision + 1, editor.Revision);
         Assert.Null(editor.Document.Find("in")!.FindChannel("Badge_Part2", MotionChannelKind.Alpha));
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
     }
 
@@ -435,7 +395,7 @@ public class RigAssetTests
         editor.AddRigInstance("city", "sun", "sun");
 
         // 세운 리그: 품은 세트가 인스턴스 밑에 "인스턴스.이름"으로 펼쳐진다. 부모·색·그림 표시가 따라온다.
-        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile composed = Fixtures.RigOf(editor.Document);
         Assert.True(composed.TryGetRig("city", out RigSchemaRigDto dto));
         Assert.Equal(new[] { "__root", "Ground", "car", "car.Body", "car.Shell", "car.Wheel", "sun", "sun.Disc" }, dto.nodes.Select(n => n.id));
         Assert.Equal(("car", "car.Body", "car.Body"), (dto.nodes.Single(n => n.id == "car.Body").parent, dto.nodes.Single(n => n.id == "car.Shell").parent, dto.nodes.Single(n => n.id == "car.Wheel").parent));
@@ -460,22 +420,25 @@ public class RigAssetTests
 
         // 참조다 — 원본 세트를 고치면 품은 곳이 따라온다.
         editor.AddRigNode("car", "Light", "Body");
-        Assert.True(RigAssets.Compose(Dump, editor.Document).TryGetRig("city", out RigSchemaRigDto after));
+        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig("city", out RigSchemaRigDto after));
         Assert.Contains(after.nodes, n => n.id == "car.Light");
 
         // 품은 것의 애니메이션: 인스턴스를 통째로 움직이는 키도, 안쪽의 것을 경로 이름으로 짚는 키도 놓인다 — 검증을 지난다.
-        editor.AddMotion("city_in", "city", 1f, MotionEnd.Commit);
+        editor.AddMotion("city_in", "city", 1f);
         editor.AddChannel("city_in", "car", MotionChannelKind.Position);
         editor.SetKeys("city_in", "car", MotionChannelKind.Position, Axis.X, new[] { new KeyAsset { T = 0f, V = -500f, Tangent = TangentMode.Linear }, new KeyAsset { T = 1f, V = 0f, Tangent = TangentMode.Linear } });
         editor.AddChannel("city_in", "car.Wheel", MotionChannelKind.Euler);
         editor.SetKeys("city_in", "car.Wheel", MotionChannelKind.Euler, Axis.Z, new[] { new KeyAsset { T = 0f, V = 0f, Tangent = TangentMode.Linear }, new KeyAsset { T = 1f, V = -360f, Tangent = TangentMode.Linear } });
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
-        // 산출물: 펼친 한 덩어리로 나간다(런타임은 품는다는 것을 모른다). 저작본은 참조만 적는다.
-        string schemas = RigAssets.WriteSchemas(editor.Document, new Vec2(1920f, 1080f));
-        Assert.Contains("\"id\": \"car.Wheel\"", schemas, StringComparison.Ordinal);
+        // 저작본은 참조만 적는다. 컷 파일에는 펼친 한 덩어리로 나간다(게임은 품는다는 것을 모른다) — 이 세트를 품은 컷으로 본다.
         string json = MotionDocumentJson.Write(editor.Document);
+        var holder = new MotionEditor(MotionDocumentJson.Read(json));
+        holder.AddCut("shot");
+        holder.AddRigInstance("shot", "town", "city");
+        CutFileDto file = CutFileJson.Build(holder.Document, holder.Document.FindCut("shot")!, new Vec2(1920f, 1080f));
+        Assert.Contains(file.objects, o => o.id == "town.car.Wheel" && o.parent == "town.car.Body" && o.color == "#222222");
         Assert.Contains("\"set\": \"car\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("car.Wheel\",\n          \"parent", json, StringComparison.Ordinal);
         Assert.Equal(json, MotionDocumentJson.Write(MotionDocumentJson.Read(json)));
@@ -498,7 +461,7 @@ public class RigAssetTests
 
         // 품은 것이 또 품은 것 — 경로가 이어진다.
         editor.AddRigInstance("city", "sun", "sun");
-        Assert.True(RigAssets.Compose(Dump, editor.Document).TryGetRig("city", out RigSchemaRigDto dto));
+        Assert.True(Fixtures.RigOf(editor.Document).TryGetRig("city", out RigSchemaRigDto dto));
         Assert.Contains(dto.nodes, n => n.id == "sun.inner.Wheel");
 
         // 인스턴스를 빼면 지울 수 있다.
@@ -511,7 +474,7 @@ public class RigAssetTests
         var broken = new MotionDocument();
         broken.Rigs.Add(new RigAsset { Kind = "a", Nodes = { new RigNodeAsset { Id = "x", Set = "b" }, new RigNodeAsset { Id = "y", Set = "ghost" } } });
         broken.Rigs.Add(new RigAsset { Kind = "b", Nodes = { new RigNodeAsset { Id = "z", Set = "a" } } });
-        Assert.True(RigAssets.Compose(Dump, broken).TryGetRig("a", out RigSchemaRigDto looped));
+        Assert.True(Fixtures.RigOf(broken).TryGetRig("a", out RigSchemaRigDto looped));
         Assert.Equal(new[] { "__root", "x", "x.z", "y" }, looped.nodes.Select(n => n.id));
     }
 
@@ -521,8 +484,8 @@ public class RigAssetTests
 
     /// <summary>
     /// <see cref="NestedEditor"/>에 더해: city가 car를 (300, 50)에 품고,
-    /// car의 애니메이션 roll(0.4초 유지 · 상대값: Body x 0 → 100) · hop(0.2초 복원 · 상대값: Body y 0 → 30 → 0, 0.1초에 이벤트 thud) · spin(0.5초 유지 · 절대값: Wheel 회전 0 → 90),
-    /// city의 애니메이션 city_in(2초 유지 · 상대값: Ground y −200 → 0).
+    /// car의 애니메이션 roll(0.4초: Body x 20 → 100) · hop(0.2초: Body y 0 → 30 → 0, 0.1초에 이벤트 thud) · spin(0.5초: Wheel 회전 0 → 90),
+    /// city의 애니메이션 city_in(2초: Ground y −200 → 0). car의 Body는 가만히 선 자리가 (0, 0)이다.
     /// </summary>
     private static MotionEditor PlayEditor()
     {
@@ -530,40 +493,41 @@ public class RigAssetTests
         editor.AddRigInstance("city", "car", "car");
         editor.UpdateRigNode("city", "car", new RigNodeAsset { X = 300f, Y = 50f, Alpha = true });
 
-        editor.AddMotion("roll", "car", 0.4f, MotionEnd.Commit);
+        editor.AddMotion("roll", "car", 0.4f);
         editor.AddChannel("roll", "Body", MotionChannelKind.Position);
-        editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 0f), Lin(0.4f, 100f) });
+        editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 20f), Lin(0.4f, 100f) });
 
         editor.AddMotion("hop", "car", 0.2f);
         editor.AddChannel("hop", "Body", MotionChannelKind.Position);
         editor.SetKeys("hop", "Body", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, 0f), Lin(0.1f, 30f), Lin(0.2f, 0f) });
         editor.AddMotionEvent("hop", 0.1f, "thud");
 
-        editor.AddMotion("spin", "car", 0.5f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.AddMotion("spin", "car", 0.5f);
         editor.AddChannel("spin", "Wheel", MotionChannelKind.Euler);
         editor.SetKeys("spin", "Wheel", MotionChannelKind.Euler, Axis.Z, new[] { Lin(0f, 0f), Lin(0.5f, 90f) });
 
-        editor.AddMotion("city_in", "city", 2f, MotionEnd.Commit);
+        editor.AddMotion("city_in", "city", 2f);
         editor.AddChannel("city_in", "Ground", MotionChannelKind.Position);
         editor.SetKeys("city_in", "Ground", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, -200f), Lin(2f, 0f) });
         return editor;
     }
 
+    /// <summary>그 시각에 그 오브젝트가 가만히 선 자리에서 떨어진 만큼(Body는 가만히 선 자리가 (0, 0)이라 곧 그 자리다).</summary>
     private static Vec2 PosedAt(MotionEditor editor, string node, double t)
     {
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         RectNodeTree template = rig.BuildTree("city", "c/");
-        RectNodeTree posed = MotionPreview.Pose(template, editor.Document.Find("city_in")!, t, MotionChannelMode.Relative, null, "c/");
+        RectNodeTree posed = MotionPreview.Pose(template, editor.Document.Find("city_in")!, t, null, "c/");
         return posed.GetState("c/" + node).AnchoredPosition - template.GetState("c/" + node).AnchoredPosition;
     }
 
     [Fact]
-    public void 재생_블록은_품은_세트의_애니메이션을_그_시각에_틀고_유지는_남고_복원은_돌아간다()
+    public void 재생_블록은_품은_세트의_애니메이션을_그_시각에_틀고_끝나면_마지막_값이_남으며_되풀이는_처음부터_다시_튼다()
     {
         MotionEditor editor = PlayEditor();
         long revision = editor.Revision;
 
-        // 0.5초에 roll(유지)을 두 번, 1.5초에 hop(복원). 각각 한 칸, 시작 시각 순으로 선다.
+        // 0.5초에 roll을 두 번, 1.5초에 hop. 각각 한 칸, 시작 시각 순으로 선다.
         Assert.Equal(0, editor.AddMotionPlay("city_in", "car", "hop", 1.5f));
         Assert.Equal(0, editor.AddMotionPlay("city_in", "car", "roll", 0.5f, repeat: 2));
         Assert.Equal(revision + 2, editor.Revision);
@@ -578,14 +542,36 @@ public class RigAssetTests
         Assert.DoesNotContain("car.Body", json, StringComparison.Ordinal);
         Assert.NotNull(MotionDocumentJson.Read(json).Find("city_in")!.Flattened); // 읽으면 다시 굽는다
 
-        // 미리보기: 블록 전에는 제자리 → roll 첫 바퀴(0.5~0.9) → 둘째 바퀴가 쌓인다(0.9~1.3: 100 → 200) → 그 자세가 남는다.
+        // 첫 블록 앞: 가만히 선 값(0) — 블록의 첫 키 값(20)이 아니다. 블록이 시작하는 순간 그 값으로 간다(짧은 선으로 잇는다).
+        Assert.Equal(0f, PosedAt(editor, "car.Body", 0.0).X, 1);
         Assert.Equal(0f, PosedAt(editor, "car.Body", 0.3).X, 1);
-        Assert.Equal(50f, PosedAt(editor, "car.Body", 0.7).X, 1);
-        Assert.Equal(150f, PosedAt(editor, "car.Body", 1.1).X, 1);
-        Assert.Equal(200f, PosedAt(editor, "car.Body", 1.4).X, 1);
-        Assert.Equal(200f, PosedAt(editor, "car.Body", 2.0).X, 1);
+        Assert.Equal(0f, PosedAt(editor, "car.Body", 0.49).X, 1);
+        Assert.Equal(20f, PosedAt(editor, "car.Body", 0.5).X, 1);
 
-        // hop(복원): 1.5~1.7초에 뛰고 돌아온다. 제 채널(Ground)은 그대로 돈다.
+        // 블록 안: 품은 애니메이션의 키 그대로(첫 바퀴 0.5~0.9: 20 → 100).
+        // 바로 뒤에 둘째 바퀴가 붙어 있어 첫 바퀴의 끝 키가 이음(1/240초)만큼 당겨진다 — 그래서 가운데가 아주 조금 다르다(60.4).
+        Assert.Equal(60f, PosedAt(editor, "car.Body", 0.7).X, 0);
+        Assert.InRange(PosedAt(editor, "car.Body", 0.9 - 2 * MotionFlatten.Seam).X, 98f, 100f);
+
+        // 되풀이: 둘째 바퀴(0.9~1.3)는 처음부터 다시 튼다 — 쌓이지 않는다(180이 아니라 다시 20 → 100).
+        // 블록(바퀴)의 키는 제 시각에 정확히 선다 — 이음은 늘 그 앞쪽에 있다.
+        Assert.Equal(20f, PosedAt(editor, "car.Body", 0.9).X, 1);
+        Assert.Equal(60f, PosedAt(editor, "car.Body", 1.1).X, 1);
+        Assert.Equal(100f, PosedAt(editor, "car.Body", 1.3).X, 1);
+
+        // 블록이 끝난 뒤: 마지막 값(100)이 남는다 — 가만히 선 값으로 돌아가지 않는다. hop은 x에 키가 없으니 그 블록을 지나도 그대로다.
+        Assert.Equal(100f, PosedAt(editor, "car.Body", 1.4).X, 1);
+        Assert.Equal(100f, PosedAt(editor, "car.Body", 1.6).X, 1);
+        Assert.Equal(100f, PosedAt(editor, "car.Body", 2.0).X, 1);
+
+        // 구운 커브의 키 그대로: 가만히 선 값 … (이음) 첫 바퀴 … (이음) 둘째 바퀴 … 끝까지 머문다.
+        float seam = MotionFlatten.Seam;
+        Assert.Equal(
+            new[] { (0f, 0f), (0.5f - seam, 0f), (0.5f, 20f), (0.9f - seam, 100f), (0.9f, 20f), (1.3f, 100f), (2f, 100f) }.Select(k => (MathF.Round(k.Item1, 4), k.Item2)),
+            motion.Flattened.FindChannel("car.Body", MotionChannelKind.Position)!.X!.Keys.Select(k => (MathF.Round(k.T, 4), k.V)));
+
+        // hop: y는 hop만 키를 놓는다 — 그 블록 앞(roll이 도는 동안에도)은 가만히 선 값, 1.5~1.7초에 뛰고, 마지막 값(0)이 남는다. 제 채널(Ground)은 그대로 돈다.
+        Assert.Equal(0f, PosedAt(editor, "car.Body", 0.7).Y, 1);
         Assert.Equal(30f, PosedAt(editor, "car.Body", 1.6).Y, 1);
         Assert.Equal(0f, PosedAt(editor, "car.Body", 1.9).Y, 1);
         Assert.Equal(-100f, PosedAt(editor, "Ground", 1.0).Y, 1);
@@ -594,20 +580,17 @@ public class RigAssetTests
         MotionEventAsset thud = Assert.Single(MotionEvents.Between(motion, 0, 2));
         Assert.Equal(("thud", 1.6f), (thud.Name, MathF.Round(thud.T, 3)));
 
-        // 산출물: 한 덩어리 모션으로 나간다 — 규칙을 지나고, 런타임은 재생 블록을 모른다.
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        // 구운 것도 문제가 없다.
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
-        string exported = MotionsJson.Write(MotionExport.ToClips(editor.Document));
-        Assert.Contains("car.Body", exported, StringComparison.Ordinal);
-        Assert.DoesNotContain("plays", exported, StringComparison.Ordinal);
 
         // 참조다 — 품은 애니메이션을 고치면 구운 것이 따라온다.
         editor.SetKeys("roll", "Body", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 0f), Lin(0.4f, 10f) });
-        Assert.Equal(20f, PosedAt(editor, "car.Body", 1.4).X, 1);
+        Assert.Equal(10f, PosedAt(editor, "car.Body", 1.4).X, 1);
 
-        // 되돌리면 구운 것도 돌아간다. 블록을 다 지우면 구운 것이 없다.
+        // 되돌리면 구운 것도 돌아간다. 블록을 다 지우면 구운 것이 없고 가만히 선 자리다.
         editor.Undo();
-        Assert.Equal(200f, PosedAt(editor, "car.Body", 1.4).X, 1);
+        Assert.Equal(100f, PosedAt(editor, "car.Body", 1.4).X, 1);
         editor.RemoveMotionPlay("city_in", 1);
         editor.RemoveMotionPlay("city_in", 0);
         Assert.Null(editor.Document.Find("city_in")!.Flattened);
@@ -615,22 +598,45 @@ public class RigAssetTests
     }
 
     [Fact]
-    public void 재생_블록은_절대값_애니메이션도_바깥의_기준으로_옮겨_굽고_바깥의_제_키가_이긴다()
+    public void 재생_블록_앞은_가만히_선_값이고_다음_블록까지_마지막_값이_남으며_바깥의_제_키가_이기고_그림_키도_따라온다()
     {
         MotionEditor editor = PlayEditor();
-        // 바퀴의 가만히 선 회전을 20도로 — spin(절대값 0 → 90)은 "20도에서 −20 … +70 떨어진 것"으로 구워진다(바깥은 상대값).
+        // 바퀴의 가만히 선 회전을 20도로 — spin(0 → 90)을 1초와 1.5초에 한 번씩 튼다(사이에 틈이 없다).
         editor.UpdateRigNode("car", "Wheel", new RigNodeAsset { X = 30f, Y = -40f, Width = 20f, Height = 20f, Rotation = 20f, Color = "#222222", Alpha = true });
-        editor.AddMotionPlay("city_in", "car", "spin", 1f);
-        ChannelAsset baked = editor.Document.Find("city_in")!.Flattened!.FindChannel("car.Wheel", MotionChannelKind.Euler)!;
+        editor.SetDuration("spin", 0.4f);
+        editor.SetKeys("spin", "Wheel", MotionChannelKind.Euler, Axis.Z, new[] { Lin(0f, 0f), Lin(0.4f, 90f) });
+        editor.AddImageKey("spin", "Shell", 0.1f, "art/car_spin.png");
+        editor.AddMotionPlay("city_in", "car", "spin", 0.5f);
+        editor.AddMotionPlay("city_in", "car", "spin", 1.5f);
+        MotionAsset motion = editor.Document.Find("city_in")!;
+        ChannelAsset baked = motion.Flattened!.FindChannel("car.Wheel", MotionChannelKind.Euler)!;
         float At(float t) => (float)Mt.Authoring.Graph.CurveSampler.Sample(baked.Z!.Keys, t, t + 0.0001, 1)[0].V;
-        Assert.Equal(0f, At(0.5f), 1);    // 블록 전: 제자리(20도 그대로 = 떨어진 것 0)
-        Assert.Equal(25f, At(1.25f), 1);  // 절대값 45도 = 20 + 25
-        Assert.Equal(70f, At(1.8f), 1);   // 유지 — 90도에 남는다
+
+        Assert.Equal(20f, At(0f), 1);     // 첫 블록 앞: 가만히 선 값(20도) — 키 값(0)이 아니다
+        Assert.Equal(20f, At(0.49f), 1);
+        Assert.Equal(0f, At(0.5f), 1);    // 블록이 시작하면 그 키의 값
+        Assert.Equal(45f, At(0.7f), 1);   // 키 값 그대로(가만히 선 값에 더하지 않는다)
+        Assert.Equal(90f, At(0.9f), 1);
+        Assert.Equal(90f, At(1.2f), 1);   // 블록이 끝난 뒤 — 다음 블록까지 마지막 값이 남는다(20도로 돌아가지 않는다)
+        Assert.Equal(90f, At(1.49f), 1);
+        Assert.Equal(0f, At(1.5f), 1);    // 다음 블록 — 다시 처음부터
+        Assert.Equal(90f, At(2f), 1);
+
+        // 미리보기의 포즈도 같은 값이다.
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
+        float Posed(double t) => MotionPreview.Pose(rig.BuildTree("city", "c/"), motion, t, null, "c/").GetState("c/car.Wheel").LocalEulerAngles.Z;
+        Assert.Equal((20f, 45f, 90f), (MathF.Round(Posed(0.2), 1), MathF.Round(Posed(0.7), 1), MathF.Round(Posed(1.2), 1)));
+
+        // 품은 애니메이션의 그림 키도 경로 이름으로, 블록마다 그 시각에.
+        Assert.Equal(new[] { ("car.Shell", 0.6f, "art/car_spin.png"), ("car.Shell", 1.6f, "art/car_spin.png") }, motion.Flattened.Swaps.Select(w => (w.Node, MathF.Round(w.T, 3), w.Image)));
+        Assert.Null(MotionSwaps.ImageAt(motion, "car.Shell", 0.5));
+        Assert.Equal("art/car_spin.png", MotionSwaps.ImageAt(motion, "car.Shell", 0.7));
 
         // 바깥이 같은 경로에 제 키를 놓으면 그 성분은 제 키가 이긴다(여기서만 덮어쓴다).
         editor.AddChannel("city_in", "car.Wheel", MotionChannelKind.Euler);
         editor.SetKeys("city_in", "car.Wheel", MotionChannelKind.Euler, Axis.Z, new[] { Lin(0f, 0f), Lin(2f, 5f) });
-        Assert.Equal(2, editor.Document.Find("city_in")!.Flattened!.FindChannel("car.Wheel", MotionChannelKind.Euler)!.Z!.Keys.Count);
+        Assert.Equal(new[] { (0f, 0f), (2f, 5f) }, editor.Document.Find("city_in")!.Flattened!.FindChannel("car.Wheel", MotionChannelKind.Euler)!.Z!.Keys.Select(k => (k.T, k.V)));
+        Assert.Equal(2.5f, MathF.Round(MotionPreview.Pose(rig.BuildTree("city", "c/"), editor.Document.Find("city_in")!, 1.0, null, "c/").GetState("c/car.Wheel").LocalEulerAngles.Z, 1));
     }
 
     [Fact]
@@ -662,7 +668,7 @@ public class RigAssetTests
     {
         MotionEditor editor = PlayEditor();
         editor.AddMotionPlay("city_in", "car", "roll", 1.5f); // 1.5 + 0.4 ≤ 2
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 품은 애니메이션을 길게(1초) — 바깥에서 막을 길이 없으니 검증이 알린다(막지는 않는다).
@@ -673,11 +679,10 @@ public class RigAssetTests
         Assert.Equal("city_in", problem.MotionName);
         Assert.Contains("길이", problem.Message, StringComparison.Ordinal);
 
-        // 구운 것은 길이 안에서 끝난다 — 산출물이 그대로 나간다.
+        // 구운 것은 길이 안에서 끝난다 — 시각은 오름차순 그대로다.
         ChannelAsset baked = editor.Document.Find("city_in")!.Flattened!.FindChannel("car.Body", MotionChannelKind.Position)!;
         Assert.Equal(2f, baked.X!.Keys[^1].T);
         Assert.All(baked.X.Keys.Zip(baked.X.Keys.Skip(1)), pair => Assert.True(pair.Second.T > pair.First.T));
-        Assert.Contains("car.Body", MotionsJson.Write(MotionExport.ToClips(editor.Document)), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -707,7 +712,7 @@ public class RigAssetTests
             Assert.Equal(before[i].Y, after.Y, 1);
         }
 
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
 
         // 원본을 고쳐도 더는 안 따라온다.
@@ -740,24 +745,24 @@ public class RigAssetTests
         editor.SetSkinPart("town", "Glow", "art/glow.png");
         editor.SetSkinPart("town", "Tree", "art/tree.png");
 
-        // 상대값 애니메이션(해가 떠오르고 빛살이 돈다, 나무가 민다) + 절대값 애니메이션(해가 자리 300 → 400).
-        editor.AddMotion("town_in", "town", 1f, MotionEnd.Commit);
+        // 애니메이션 둘 — town_in(해가 y 100 → 200으로 떠오르고 빛살이 돈다, 나무가 민다) · slide(해가 자리 300 → 400). 키는 세트 안의 자리다.
+        editor.AddMotion("town_in", "town", 1f);
         editor.AddChannel("town_in", "Sun", MotionChannelKind.Position);
-        editor.SetKeys("town_in", "Sun", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, -100f), Lin(1f, 0f) });
+        editor.SetKeys("town_in", "Sun", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, 100f), Lin(1f, 200f) });
         editor.AddChannel("town_in", "Ray", MotionChannelKind.Euler);
         editor.SetKeys("town_in", "Ray", MotionChannelKind.Euler, Axis.Z, new[] { Lin(0f, 0f), Lin(1f, 90f) });
         editor.AddChannel("town_in", "Tree", MotionChannelKind.Position);
         editor.SetKeys("town_in", "Tree", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 50f), Lin(1f, 0f) });
-        editor.AddMotion("slide", "town", 1f, MotionEnd.Commit, MotionChannelMode.Absolute);
+        editor.AddMotion("slide", "town", 1f);
         editor.AddChannel("slide", "Sun", MotionChannelKind.Position);
         editor.SetKeys("slide", "Sun", MotionChannelKind.Position, Axis.X, new[] { Lin(0f, 300f), Lin(1f, 400f) });
         editor.SetKeys("slide", "Sun", MotionChannelKind.Position, Axis.Y, new[] { Lin(0f, 200f), Lin(1f, 200f) });
 
         Vec2 World(string motion, string node, double t)
         {
-            RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+            RigSchemaFile rig = Fixtures.RigOf(editor.Document);
             MotionAsset asset = editor.Document.Find(motion)!;
-            return MotionPreview.Pose(rig.BuildTree("town", "c/"), asset, t, asset.PreviewMode, null, "c/").TransformPoint("c/" + node, Vec3.Zero).XY;
+            return MotionPreview.Pose(rig.BuildTree("town", "c/"), asset, t, null, "c/").TransformPoint("c/" + node, Vec3.Zero).XY;
         }
 
         double[] times = { 0, 0.3, 0.7, 1 };
@@ -781,9 +786,15 @@ public class RigAssetTests
         Assert.Equal(new[] { ("star", "star_in", 0f) }, editor.Document.Find("town_in")!.Plays.Select(p => (p.Node, p.Motion, p.At)));
         Assert.Equal("star", editor.Document.Find("star_in")!.Rig);
         Assert.Equal(new[] { "Sun", "Ray" }, editor.Document.Find("star_in")!.Channels.Select(c => c.Node));
-        Assert.Equal(MotionChannelMode.Absolute, editor.Document.Find("star_slide")!.PreviewMode);
 
-        // 보이는 것은 그대로다 — 상대값도 절대값도.
+        // 맨 위 오브젝트의 자리 키는 새 세트 안의 자리로 옮겨 적힌다(가운데 (310, 190)만큼) — 밑의 것(Ray)의 키는 그대로다.
+        Assert.Equal(new[] { -90f, 10f }, editor.Document.Find("star_in")!.FindChannel("Sun", MotionChannelKind.Position)!.Y!.Keys.Select(k => k.V));
+        Assert.Equal(new[] { 0f, 90f }, editor.Document.Find("star_in")!.FindChannel("Ray", MotionChannelKind.Euler)!.Z!.Keys.Select(k => k.V));
+        ChannelAsset slid = editor.Document.Find("star_slide")!.FindChannel("Sun", MotionChannelKind.Position)!;
+        Assert.Equal(new[] { -10f, 90f }, slid.X!.Keys.Select(k => k.V));
+        Assert.Equal(new[] { 10f, 10f }, slid.Y!.Keys.Select(k => k.V));
+
+        // 보이는 것은 그대로다 — 빼기 전후의 재생이 같다.
         var after = times.Select(t => (World("town_in", "star.Sun", t), World("town_in", "star.Ray", t), World("town_in", "star.Glow", t), World("slide", "star.Sun", t))).ToList();
 
         for (int i = 0; i < times.Length; i++)
@@ -797,7 +808,7 @@ public class RigAssetTests
             Assert.Equal(before[i].Item4.Y, after[i].Item4.Y, 1);
         }
 
-        RigSchemaFile composed = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile composed = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, composed.NodeIds, composed.AlphaNodeIds));
 
         // 막는 것: 있는 이름 · 부모가 다른 것들. 문서는 그대로다.
@@ -837,32 +848,34 @@ public class RigAssetTests
         editor.UpdateRigNode("town", "Sun", new RigNodeAsset { X = 300f, Y = 200f, Width = 100f, Height = 100f, Image = true, Alpha = true });
         editor.AddRigNode("town", "Leaf", "Group", image: true);
         editor.UpdateRigNode("town", "Leaf", new RigNodeAsset { X = 10f, Y = 20f, Width = 60f, Height = 80f, Rotation = 30f, Image = true, Alpha = true });
-        editor.AddMotion("town_in", "town", 1f, MotionEnd.Commit);
+        editor.AddMotion("town_in", "town", 1f);
 
         // 왼쪽에서: 무대의 반(960) + 자리(300) + 너비의 반(50) = 1310만큼 왼쪽에서 출발한다. 0.2초부터 0.5초 동안 — 앞뒤로는 가만히. 한 칸.
+        // 키는 그 프레임의 자리다: 가만히 선 자리(300)에서 그만큼 떨어진 곳(−1010)에서 제자리(300)로.
         long revision = editor.Revision;
         Assert.Equal(-1310f, editor.SlideFromOutside("town_in", "Sun", StageSide.Left, 0.2f, 0.5f, stage));
         Assert.Equal(revision + 1, editor.Revision);
-        Assert.Equal(new[] { (0f, -1310f), (0.2f, -1310f), (0.7f, 0f), (1f, 0f) }, editor.Document.Find("town_in")!.FindChannel("Sun", MotionChannelKind.Position)!.X!.Keys.Select(k => (k.T, k.V)));
+        Assert.Equal(new[] { (0f, -1010f), (0.2f, -1010f), (0.7f, 300f), (1f, 300f) }, editor.Document.Find("town_in")!.FindChannel("Sun", MotionChannelKind.Position)!.X!.Keys.Select(k => (k.T, k.V)));
 
-        // 위에서: 540 − 200 + 50 = 390. 나가는 것은 거꾸로(제자리 → 밖), 끝까지면 끝 키 하나로.
+        // 위에서: 540 − 200 + 50 = 390. 나가는 것은 거꾸로(제자리 200 → 밖 590), 끝까지면 끝 키 하나로.
         Assert.Equal(390f, editor.SlideFromOutside("town_in", "Sun", StageSide.Top, 0.6f, 0.5f, stage, leaving: true));
-        Assert.Equal(new[] { (0f, 0f), (0.6f, 0f), (1f, 390f) }, editor.Document.Find("town_in")!.FindChannel("Sun", MotionChannelKind.Position)!.Y!.Keys.Select(k => (k.T, k.V)));
+        Assert.Equal(new[] { (0f, 200f), (0.6f, 200f), (1f, 590f) }, editor.Document.Find("town_in")!.FindChannel("Sun", MotionChannelKind.Position)!.Y!.Keys.Select(k => (k.T, k.V)));
 
         // 부모의 자리를 더하고, 돈 오브젝트는 감싸는 원으로 넉넉히: 960 − (100 + 10) + √(30² + 40²) = 900.
         Assert.Equal(900f, editor.SlideFromOutside("town_in", "Leaf", StageSide.Right, 0f, 0.5f, stage));
+        Assert.Equal(new[] { 910f, 10f, 10f }, editor.Document.Find("town_in")!.FindChannel("Leaf", MotionChannelKind.Position)!.X!.Keys.Select(k => k.V)); // 부모 안의 자리(10)에서
 
-        // 절대값 애니메이션이면 가만히 선 자리에 얹는다(300 − 1310 → 300).
-        editor.AddMotion("abs_in", "town", 1f, MotionEnd.Commit, MotionChannelMode.Absolute);
-        editor.SlideFromOutside("abs_in", "Sun", StageSide.Left, 0f, 1f, stage);
-        Assert.Equal(new[] { -1010f, 300f }, editor.Document.Find("abs_in")!.FindChannel("Sun", MotionChannelKind.Position)!.X!.Keys.Select(k => k.V));
+        // 처음부터 끝까지면 키 둘이다.
+        editor.AddMotion("whole_in", "town", 1f);
+        editor.SlideFromOutside("whole_in", "Sun", StageSide.Left, 0f, 1f, stage);
+        Assert.Equal(new[] { -1010f, 300f }, editor.Document.Find("whole_in")!.FindChannel("Sun", MotionChannelKind.Position)!.X!.Keys.Select(k => k.V));
 
         // 길이 밖의 시작 · 없는 오브젝트는 막힌다.
         revision = editor.Revision;
         Assert.Throws<InvalidOperationException>(() => editor.SlideFromOutside("town_in", "Sun", StageSide.Left, 1f, 0.5f, stage));
         Assert.Throws<KeyNotFoundException>(() => editor.SlideFromOutside("town_in", "Nope", StageSide.Left, 0f, 0.5f, stage));
         Assert.Equal(revision, editor.Revision);
-        RigSchemaFile rig = RigAssets.Compose(Dump, editor.Document);
+        RigSchemaFile rig = Fixtures.RigOf(editor.Document);
         Assert.Empty(MotionValidator.Validate(editor.Document, rig.NodeIds, rig.AlphaNodeIds));
     }
 

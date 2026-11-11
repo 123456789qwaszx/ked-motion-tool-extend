@@ -10,20 +10,22 @@ namespace Mt.Authoring.Tests;
 /// <summary>스킨과 조각(<c>PLAN-parts.md</c> P1) — 리그의 조각마다 붙일 그림의 묶음.</summary>
 public class SkinTests
 {
-    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(PartsRigFixture.WriteDump(Fixtures.PathOf("rig-schemas.json")));
+    private static readonly RigSchemaFile RigFile = Fixtures.RigOf(new MotionDocument { Rigs = { PartsRigFixture.Rig(), Fixtures.ActorRig() } });
 
     private static MotionEditor NewEditor() => new(new MotionDocument());
 
     [Fact]
-    public void 조각은_이름_규칙으로_가리고_캐릭터에는_없다()
+    public void 조각은_오브젝트의_그림_표시로_가리고_그림이_없는_세트에는_없다()
     {
         Assert.Equal(new[] { "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, RigParts.Of(RigFile, PartsRigFixture.RigKind));
-        Assert.Empty(RigParts.Of(RigFile, "character"));
+        Assert.Empty(RigParts.Of(RigFile, Fixtures.Actor)); // 색 사각형뿐 — 그림을 그리는 오브젝트가 없다
         Assert.Empty(RigParts.Of(RigFile, "nope"));
         Assert.Empty(RigParts.Of(null, PartsRigFixture.RigKind));
-        Assert.True(RigParts.IsPartNode("Badge_Part12"));
-        Assert.False(RigParts.IsPartNode("Badge_Body"));
-        Assert.False(RigParts.IsPartNode("Part1_Root"));
+
+        // 이름이 아니라 표시를 본다 — 이름이 조각 같아도 "그림"이 꺼져 있으면 조각이 아니다.
+        RigAsset unmarked = PartsRigFixture.Rig("plain", parts: 2);
+        unmarked.Nodes.ForEach(n => n.Image = false);
+        Assert.Empty(RigParts.Of(Fixtures.RigOf(new MotionDocument { Rigs = { unmarked } }), "plain"));
 
         // 조각 노드는 리그의 보통 노드다 — 트리에 서고, 모션의 채널이 된다.
         RectNodeTree tree = RigFile.BuildTree(PartsRigFixture.RigKind, "e1/");

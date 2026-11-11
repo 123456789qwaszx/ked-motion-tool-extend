@@ -326,7 +326,7 @@ public sealed class TimeSliderView : Control
         }
 
         List<KeyRef> keys = KeysInScope();
-        var offGrid = keys.Where(k => k.Resolve(motion) is { } a && Math.Abs(a.T - ToFrameTime(a.T)) > MotionRules.Tolerance).ToList();
+        var offGrid = keys.Where(k => k.Resolve(motion) is { } a && Math.Abs(a.T - ToFrameTime(a.T)) > KeyTimes.Tolerance).ToList();
 
         if (offGrid.Count == 0)
         {
@@ -462,8 +462,8 @@ public sealed class TimeSliderView : Control
 
             foreach (float t in times)
             {
-                bool isSelected = selected.Any(st => Math.Abs(st - t) <= MotionRules.Tolerance);
-                bool inRange = SelectedRange is { } r && t >= r.Start - MotionRules.Tolerance && t <= r.End + MotionRules.Tolerance;
+                bool isSelected = selected.Any(st => Math.Abs(st - t) <= KeyTimes.Tolerance);
+                bool inRange = SelectedRange is { } r && t >= r.Start - KeyTimes.Tolerance && t <= r.End + KeyTimes.Tolerance;
                 double tx = XAtTime(t);
 
                 if (previewing && inRange)

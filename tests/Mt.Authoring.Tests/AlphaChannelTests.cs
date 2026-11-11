@@ -8,26 +8,28 @@ using Mt.Authoring.Validation;
 
 namespace Mt.Authoring.Tests;
 
-/// <summary>불투명도 채널(<c>PLAN-parts.md</c> P4, <c>motions/3</c>) — 알파를 키와 커브로.</summary>
+/// <summary>불투명도 채널(<c>PLAN-parts.md</c> P4) — 알파를 키와 커브로.</summary>
 public class AlphaChannelTests
 {
     private const string Part = "Badge_Part1";
     private const string Body = "Badge_Body";
     private const string SpriteRoot = "CharacterPortraitSprite_Root";
 
-    private static readonly RigSchemaFile RigFile = RigSchemaFile.Load(PartsRigFixture.WriteDump(Fixtures.PathOf("rig-schemas.json")));
+    /// <summary>조각 세트(badge)와 세트 actor를 세운 한 벌.</summary>
+    private static readonly RigSchemaFile RigFile = Fixtures.RigOf(new MotionDocument { Rigs = { PartsRigFixture.Rig(), Fixtures.ActorRig() } });
 
     private static KeyAsset Linear(float t, float v) => new() { T = t, V = v, Tangent = TangentMode.Linear };
 
-    /// <summary>조각 리그의 모션 둘. fade(1초 commit): Part1 알파 1 → 0. dim(1초 commit): Body 알파 1 → 0.5.</summary>
+    /// <summary>조각 세트와 그 애니메이션 둘. fade(1초): Part1 알파 1 → 0. dim(1초): Body 알파 1 → 0.5.</summary>
     private static MotionEditor NewEditor()
     {
         var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("fade", PartsRigFixture.RigKind, 1f, MotionEnd.Commit);
+        editor.AddRig(PartsRigFixture.Rig());
+        editor.AddMotion("fade", PartsRigFixture.RigKind, 1f);
         editor.AddChannel("fade", Part, MotionChannelKind.Alpha);
         editor.SetKeys("fade", Part, MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0f) });
 
-        editor.AddMotion("dim", PartsRigFixture.RigKind, 1f, MotionEnd.Commit);
+        editor.AddMotion("dim", PartsRigFixture.RigKind, 1f);
         editor.AddChannel("dim", Body, MotionChannelKind.Alpha);
         editor.SetKeys("dim", Body, MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0.5f) });
         return editor;
@@ -46,54 +48,48 @@ public class AlphaChannelTests
         MotionAsset fade = editor.Document.Find("fade")!;
         var alphas = new Dictionary<string, float>();
 
-        RectNodeTree pose = MotionPreview.Pose(template, fade, 0.25, MotionChannelMode.Relative, null, "e1/", alphas);
+        RectNodeTree pose = MotionPreview.Pose(template, fade, 0.25, null, "e1/", alphas);
         Near(0.75f, alphas["e1/" + Part]);
         Assert.Equal(template.GetState("e1/" + Part).AnchoredPosition, pose.GetState("e1/" + Part).AnchoredPosition); // 트리는 그대로
 
-        // relative는 곱이다 — 이미 0.5인 불투명도에서 흐려지면 0.5 × 0.75.
+        // 키 값이 곧 불투명도다 — 표에 이미 있던 값에 곱하지 않고 그 값으로 적는다.
         alphas = new Dictionary<string, float> { ["e1/" + Part] = 0.5f };
-        MotionPreview.Pose(template, fade, 0.25, MotionChannelMode.Relative, null, "e1/", alphas);
-        Near(0.375f, alphas["e1/" + Part]);
-
-        // absolute는 키 그대로.
-        alphas = new Dictionary<string, float> { ["e1/" + Part] = 0.5f };
-        MotionPreview.Pose(template, fade, 0.25, MotionChannelMode.Absolute, null, "e1/", alphas);
+        MotionPreview.Pose(template, fade, 0.25, null, "e1/", alphas);
         Near(0.75f, alphas["e1/" + Part]);
 
-        // 끝: commit은 남고(0), restore는 시작값 그대로다(표를 안 건드린다).
+        // 끝: 길이를 지나도 마지막 키의 값(0)이 남는다.
         alphas = new Dictionary<string, float>();
-        MotionPreview.Pose(template, fade, 9.0, MotionChannelMode.Relative, null, "e1/", alphas);
+        MotionPreview.Pose(template, fade, 9.0, null, "e1/", alphas);
         Near(0f, alphas["e1/" + Part]);
-        editor.SetEnd("fade", MotionEnd.Restore);
-        alphas = new Dictionary<string, float>();
-        MotionPreview.Pose(template, editor.Document.Find("fade")!, 9.0, MotionChannelMode.Relative, null, "e1/", alphas);
-        Assert.Empty(alphas);
+
+        // 알파 채널이 없는 오브젝트는 표에 없다(1로 친다).
+        Assert.False(alphas.ContainsKey("e1/" + Body));
 
         // 표를 안 주면 알파 채널은 건너뛴다(던지지 않는다).
-        MotionPreview.Pose(template, fade, 0.5, MotionChannelMode.Relative, null, "e1/");
+        MotionPreview.Pose(template, fade, 0.5, null, "e1/");
     }
 
     [Fact]
-    public void 알파가_있으면_motions_3으로_없으면_전과_같은_글자로_나간다()
+    public void 알파_채널은_저작본을_왕복하고_컷_파일의_alpha_트랙으로_나간다()
     {
         MotionEditor editor = NewEditor();
-        string json = MotionsJson.Write(MotionExport.ToClips(editor.Document));
-        Assert.Contains("\"schema\": \"motions/3\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"kind\": \"alpha\"", json, StringComparison.Ordinal);
-
-        Assert.True(MotionsJson.TryRead(json, out List<MotionClip> clips, out List<string> problems), string.Join("\n", problems));
-        Assert.Empty(problems);
-        Assert.Equal(MotionChannelKind.Alpha, clips[0].Channels[0].Kind);
-        Assert.Equal(json, MotionsJson.Write(clips)); // 왕복
-
-        // 알파가 없는 문서는 motions/2 그대로 — 기존 골든이 안 바뀐다.
-        Assert.Equal(Fixtures.TextOf("motions.nod-bow.json"), MotionsJson.Write(MotionExport.ToClips(Fixtures.NodBowDocument())));
-        Assert.Contains("\"schema\": \"motions/2\"", MotionsJson.Write(MotionExport.ToClips(Fixtures.NodBowDocument())), StringComparison.Ordinal);
 
         // 저작본 왕복.
         string authoring = MotionDocumentJson.Write(editor.Document);
         Assert.Contains("\"kind\": \"alpha\"", authoring, StringComparison.Ordinal);
         Assert.Equal(authoring, MotionDocumentJson.Write(MotionDocumentJson.Read(authoring)));
+
+        // 컷 파일 — 컷의 오브젝트에 놓은 알파 키가 alpha 트랙으로(시각은 프레임).
+        editor.AddCut("shot", 24);
+        editor.AddRigNode("shot", "card");
+        editor.UpdateRigNode("shot", "card", new RigNodeAsset { Width = 100f, Height = 100f, Color = "#FFFFFF", Alpha = true });
+        editor.AddChannel("shot", "card", MotionChannelKind.Alpha);
+        editor.SetKeys("shot", "card", MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(0.5f, 0.25f) });
+        CutFileDto file = CutFileJson.Read(CutFileJson.Write(CutFileJson.Build(editor.Document, editor.Document.FindCut("shot")!, new Vec2(1920f, 1080f))));
+        CutTrackDto track = Assert.Single(file.tracks);
+        Assert.Equal(("card", "alpha"), (track.target, track.what));
+        Assert.Equal(new[] { (0f, 1f), (12f, 0.25f) }, track.keys.Select(k => (k.f, k.v)));
+        Near(0.625f, CutPlayer.Evaluate(file, 6f, null!).Alpha["card"]);
     }
 
     [Fact]
@@ -101,9 +97,8 @@ public class AlphaChannelTests
     {
         MotionEditor editor = NewEditor();
         Assert.Empty(MotionValidator.Validate(editor.Document, RigFile.NodeIds, RigFile.AlphaNodeIds));
-        Assert.True(MotionExport.TryExport(editor.Document, RigFile.NodeIds, out _, out _, null, RigFile.AlphaNodeIds));
 
-        // 코어 규칙: Y 성분은 없다 · 키 값은 0~1.
+        // Y 성분은 없다 · 키 값은 0~1.
         editor.SetKeys("fade", Part, MotionChannelKind.Alpha, Axis.Y, new[] { Linear(0f, 1f), Linear(1f, 1f) });
         Assert.Contains(MotionValidator.Validate(editor.Document, RigFile.NodeIds), p => p.Blocking && p.Message.Contains("X 성분만", StringComparison.Ordinal));
         editor.Undo();
@@ -111,51 +106,14 @@ public class AlphaChannelTests
         Assert.Contains(MotionValidator.Validate(editor.Document, RigFile.NodeIds), p => p.Blocking && p.Message.Contains("0~1", StringComparison.Ordinal));
         editor.Undo();
 
-        // 툴 규칙: CanvasGroup이 없는 노드에는 못 놓는다 — 내보내기도 막는다.
+        // "불투명도 받기"가 꺼진 오브젝트에는 못 놓는다 — 내보내기를 막는 문제다.
         editor.AddChannel("fade", "Badge_Anchor", MotionChannelKind.Alpha);
         editor.SetKeys("fade", "Badge_Anchor", MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(1f, 0f) });
         MotionProblem problem = Assert.Single(MotionValidator.Validate(editor.Document, RigFile.NodeIds, RigFile.AlphaNodeIds));
         Assert.True(problem.Blocking);
         Assert.Contains("불투명도를 받을 수 없는 노드", problem.Message, StringComparison.Ordinal);
-        Assert.False(MotionExport.TryExport(editor.Document, RigFile.NodeIds, out _, out _, null, RigFile.AlphaNodeIds));
 
         Assert.Equal(new[] { "Badge_Body", "Badge_Part1", "Badge_Part2", "Badge_Part3", "Badge_Part4" }, RigFile.AlphaNodeIds[PartsRigFixture.RigKind].OrderBy(n => n, StringComparer.Ordinal));
-        Assert.Contains(SpriteRoot, RigFile.AlphaNodeIds["character"]);
-    }
-
-    [Fact]
-    public void 리듀서는_commit_알파를_fade와_같은_축으로_접는다()
-    {
-        // 캐릭터의 그림 뿌리 노드(CanvasGroup이 있다)에 알파 모션 — 절반으로 흐려진 채 남는다.
-        var editor = new MotionEditor(new MotionDocument());
-        editor.AddMotion("half", "character", 0.5f, MotionEnd.Commit);
-        editor.AddChannel("half", SpriteRoot, MotionChannelKind.Alpha);
-        editor.SetKeys("half", SpriteRoot, MotionChannelKind.Alpha, Axis.X, new[] { Linear(0f, 1f), Linear(0.5f, 0.5f) });
-
-        var tuning = new StageReducerTuning
-        {
-            RigSchemas = RigFile.Dto,
-            ReferenceStageWidth = 1920f,
-            BaseResolution = new Vec2(1920f, 1080f),
-            RoleAnchors = new RoleAnchorTuningBodyDto(),
-            Motions = MotionExport.ToClips(editor.Document).ToDictionary(c => c.Name, c => c),
-        };
-
-        StageState state = StageReducer.ApplyAll(StageReducer.CreateInitialState(tuning), new[]
-        {
-            new StageCommand("slot", new[] { "s1" }),
-            new StageCommand("fade_in", new[] { "s1" }),            // 알파 1
-            new StageCommand("motion", new[] { "s1", "half" }),      // relative: 1 × 0.5
-            new StageCommand("motion", new[] { "s1", "half" }),      // 한 번 더: 0.5 × 0.5
-        }, tuning);
-        Assert.Empty(state.Unhandled);
-        Near(0.25f, state.GetAlpha("s1/" + SpriteRoot));
-
-        // 툴의 미리보기도 같은 값(같은 함수) — 두 번 얹은 표.
-        RectNodeTree template = RigFile.BuildTree("character", "s1/");
-        var alphas = new Dictionary<string, float>();
-        MotionPreview.Pose(template, editor.Document.Find("half")!, 9.0, MotionChannelMode.Relative, null, "s1/", alphas);
-        MotionPreview.Pose(template, editor.Document.Find("half")!, 9.0, MotionChannelMode.Relative, null, "s1/", alphas);
-        Near(0.25f, alphas["s1/" + SpriteRoot]);
+        Assert.Contains(SpriteRoot, RigFile.AlphaNodeIds[Fixtures.Actor]);
     }
 }

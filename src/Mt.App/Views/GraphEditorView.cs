@@ -917,7 +917,7 @@ public sealed class GraphEditorView : Control
                     continue;
                 }
 
-                int index = curve.Keys.FindIndex(k => Math.Abs(k.T - t) <= MotionRules.Tolerance);
+                int index = curve.Keys.FindIndex(k => Math.Abs(k.T - t) <= KeyTimes.Tolerance);
 
                 if (index >= 0)
                 {

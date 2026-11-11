@@ -221,7 +221,7 @@ public sealed class ViewportView : Control
                 return Array.Empty<string>();
             }
 
-            return dto.nodes.Select(n => n.id).Where(k => k != RigSchemaLoader.RootKey && !MotionRules.ForbiddenNodes.Contains(k)).OrderBy(k => k, StringComparer.Ordinal).ToList();
+            return dto.nodes.Select(n => n.id).Where(k => k != RigSchemaLoader.RootKey).OrderBy(k => k, StringComparer.Ordinal).ToList();
         }
     }
 
@@ -653,7 +653,6 @@ public sealed class ViewportView : Control
                 continue;
             }
 
-            RectNodeState start = _template!.GetState(key);
             RectNodeState posed = pose.GetState(key);
             var values = new List<(Axis, float)>();
 
@@ -661,7 +660,7 @@ public sealed class ViewportView : Control
             {
                 if (channel.Get(axis) is not null)
                 {
-                    values.Add((axis, PoseEdit.KeyValueFor(channel.Kind, motion.PreviewMode, PoseEdit.Component(channel.Kind, start, axis), PoseEdit.Component(channel.Kind, posed, axis))));
+                    values.Add((axis, PoseEdit.Component(channel.Kind, posed, axis)));
                 }
             }
 
@@ -708,7 +707,7 @@ public sealed class ViewportView : Control
 
     public void EndHoldScrub() => _holdScrub = false;
 
-    /// <summary>지금 포즈의 값으로 키를 놓는다 — 시작값은 가만히 선 자세(템플릿), 키 값은 모션의 재생 기준(relative/absolute)를 따른다.</summary>
+    /// <summary>지금 포즈의 값으로 키를 놓는다 — 키 값은 포즈의 값 그대로다(키는 "그 프레임의 모습").</summary>
     private void KeyNow(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
     {
         MotionAsset? motion = Motion;
@@ -721,14 +720,12 @@ public sealed class ViewportView : Control
             return;
         }
 
-        MotionChannelMode mode = motion.PreviewMode;
-        RectNodeState start = _template!.GetState(key);
         RectNodeState posed = pose.GetState(key);
         var values = new List<(Axis, float)>();
 
         foreach (Axis axis in axes)
         {
-            values.Add((axis, PoseEdit.KeyValueFor(kind, mode, PoseEdit.Component(kind, start, axis), PoseEdit.Component(kind, posed, axis))));
+            values.Add((axis, PoseEdit.Component(kind, posed, axis)));
         }
 
         _overrides.Remove(key);
@@ -1266,7 +1263,7 @@ public sealed class ViewportView : Control
 
         // 연 컷/세트의 것이 아닌 모션은 얹지 않는다(가만히 선 자세로 선다).
         return motion is not null && motion.Rig == _setView
-            ? MotionPreview.Pose(_template, motion, seconds, motion.PreviewMode, _flags.IsMuted, Prefix, alphas)
+            ? MotionPreview.Pose(_template, motion, seconds, _flags.IsMuted, Prefix, alphas)
             : _template.Clone();
     }
 
@@ -1361,8 +1358,7 @@ public sealed class ViewportView : Control
             return;
         }
 
-        float key = PoseEdit.KeyValueFor(MotionChannelKind.Alpha, motion.PreviewMode, 1f, Math.Clamp(value, 0f, 1f));
-        _editor.KeyComponents(motion.Name, node, MotionChannelKind.Alpha, (float)Math.Max(0, SnapTime(_clock.Time)), new[] { (Axis.X, Math.Clamp(key, 0f, 1f)) }, DefaultTangent);
+        _editor.KeyComponents(motion.Name, node, MotionChannelKind.Alpha, (float)Math.Max(0, SnapTime(_clock.Time)), new[] { (Axis.X, Math.Clamp(value, 0f, 1f)) }, DefaultTangent);
     }
 
     // ── 좌표 ──────────────────────────────────────────────────────────
@@ -1449,12 +1445,12 @@ public sealed class ViewportView : Control
         DrawGizmo(context, pose);
 
         string openLabel = $"{(ShownCut is null ? "세트" : "컷")} {_setView}";
-        // 컷은 타임라인이 하나라 이름도 종료 처리도 말할 것이 없다 — 끌기의 뜻만 적는다. 세트의 애니메이션은 이름과 종료 처리.
+        // 컷은 타임라인이 하나라 이름을 말할 것이 없다 — 끌기의 뜻만 적는다. 세트는 연 애니메이션의 이름.
         string motionLabel = ShownCut is not null && motion?.Name == _setView
             ? "끌기: 키 없는 값은 가만히 선 값, 키 있는 값은 지금 프레임의 키 (Shift 배율 · Ctrl 회전)"
             : motion is null
                 ? "모션 없음"
-                : $"{motion.Name} · {(motion.End == MotionEnd.Restore ? "restore — 끝에서 시작 상태로" : "commit — 마지막 키가 남는다")}";
+                : motion.Name;
         DrawLabel(context, $"{openLabel} · {motionLabel}", new Point(stage.X + 8, stage.Y + 6));
     }
 
@@ -1927,7 +1923,7 @@ public sealed class ViewportView : Control
     {
         ChannelAsset? channel = motion.FindChannel(node, kind);
         float time = (float)SnapTime(_clock.Time);
-        bool keyExists = channel is not null && axes.Any(a => channel.Get(a)?.Keys.Any(k => Math.Abs(k.T - time) <= MotionRules.Tolerance) == true);
+        bool keyExists = channel is not null && axes.Any(a => channel.Get(a)?.Keys.Any(k => Math.Abs(k.T - time) <= KeyTimes.Tolerance) == true);
 
         if (AutoKey || keyExists)
         {
@@ -1981,7 +1977,7 @@ public sealed class ViewportView : Control
         RectNodeTree? pose = CurrentPose();
         string key = Prefix + node;
 
-        if (motion is null || pose is null || !pose.Contains(key) || MotionRules.ForbiddenNodes.Contains(node))
+        if (motion is null || pose is null || !pose.Contains(key))
         {
             return;
         }
@@ -2018,7 +2014,7 @@ public sealed class ViewportView : Control
 
     public void KeyComponents(string node, MotionChannelKind kind, IReadOnlyList<Axis> axes)
     {
-        if (MotionRules.ForbiddenNodes.Contains(node) || axes.Count == 0)
+        if (axes.Count == 0)
         {
             return;
         }

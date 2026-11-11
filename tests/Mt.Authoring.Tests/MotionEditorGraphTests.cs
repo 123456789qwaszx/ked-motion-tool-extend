@@ -12,7 +12,7 @@ public class MotionEditorGraphTests
     [Fact]
     public void 여러_성분을_한_번에_바꾸면_되돌리기도_한_번이다()
     {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        var editor = new MotionEditor(Fixtures.ActorDocument());
         var z = new CurveRef("CharacterPortrait_SwayPivot", MotionChannelKind.Euler, Axis.Z);
         long before = editor.Revision;
 
@@ -36,7 +36,7 @@ public class MotionEditorGraphTests
     [Fact]
     public void 키를_옮기면_auto_탄젠트가_따라온다()
     {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        var editor = new MotionEditor(Fixtures.ActorDocument());
         editor.SetTangentMode("nod", new[] { new KeyRef(Y, 0), new KeyRef(Y, 1), new KeyRef(Y, 2) }, TangentMode.Auto);
 
         // 가운데가 극값이라 0.
@@ -53,7 +53,7 @@ public class MotionEditorGraphTests
     [Fact]
     public void 핸들을_끌면_free가_되고_끊기면_양쪽이_따로다()
     {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        var editor = new MotionEditor(Fixtures.ActorDocument());
         var key = new KeyRef(Y, 1);
 
         editor.SetTangents("nod", key, 30f, 30f);
@@ -76,7 +76,7 @@ public class MotionEditorGraphTests
     [Fact]
     public void 여러_키_삭제는_한_번이고_빈_성분은_없음이_된다()
     {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        var editor = new MotionEditor(Fixtures.ActorDocument());
         long before = editor.Revision;
 
         editor.RemoveKeys("nod", new[] { new KeyRef(Y, 0), new KeyRef(Y, 2), new KeyRef(Y, 9) });
@@ -102,7 +102,7 @@ public class TimeSliderOpsTests
     [Fact]
     public void 현재_시각의_키를_모든_커브에서_모은다()
     {
-        MotionAsset bow = Fixtures.NodBowDocument().Find("bow")!;
+        MotionAsset bow = Fixtures.ActorDocument().Find("bow")!;
 
         List<KeyRef> at = TimeSliderOps.KeysAt(bow, 0.4);
 
@@ -114,7 +114,7 @@ public class TimeSliderOpsTests
     [Fact]
     public void 인비트윈_넣기는_뒤의_키만_한_프레임_밀고_되돌리기_한_번이다()
     {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        var editor = new MotionEditor(Fixtures.ActorDocument());
         long before = editor.Revision;
 
         Assert.True(editor.ShiftKeysAfter("nod", 0.3f, Frame));
@@ -131,7 +131,7 @@ public class TimeSliderOpsTests
     [Fact]
     public void 인비트윈_빼기는_닿는_키가_이기고_현재_시각_아래로_안_내려간다()
     {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        var editor = new MotionEditor(Fixtures.ActorDocument());
         editor.SetKeys("nod", Y.Node, Y.Kind, Y.Axis, new[] { Fixtures.Key(0f, 0f), Fixtures.Key(0.3f, -18f), Fixtures.Key(0.3f + Frame, 7f), Fixtures.Key(0.6f, 0f) });
 
         Assert.True(editor.ShiftKeysAfter("nod", 0.3f, -Frame));
@@ -148,7 +148,7 @@ public class TimeSliderOpsTests
     [Fact]
     public void 현재_시각의_키_지우기는_모든_커브에서_한_번에_지운다()
     {
-        var editor = new MotionEditor(Fixtures.NodBowDocument());
+        var editor = new MotionEditor(Fixtures.ActorDocument());
         long before = editor.Revision;
 
         Assert.True(editor.RemoveKeysAt("bow", 0.4));
